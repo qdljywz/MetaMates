@@ -4,10 +4,71 @@
 
 ---
 
+## 主程序启动指南
+
+### 工作目录
+```
+E:\Trae\Metamates\metamates-app
+```
+
+### 启动步骤
+
+#### 步骤 1：检查 TypeScript 编译
+```bash
+npx tsc --noEmit
+```
+- 如果有错误，需要先修复
+- 如果通过，继续下一步
+
+#### 步骤 2：检查是否有未提交的修改
+```bash
+git status
+```
+- 如果有未提交的修改可能导致错误，可以恢复：
+```bash
+git restore .
+```
+
+#### 步骤 3：检查端口占用
+```bash
+# PowerShell - 停止占用 5173 端口的进程
+Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess | ForEach-Object { Stop-Process -Id $_ -Force }
+```
+
+#### 步骤 4：启动开发模式
+```bash
+npm run electron:dev
+```
+
+### 启动成功的标志
+日志中会显示：
+```
+VITE v6.4.1  ready in 1176 ms
+➜  Local:   http://localhost:5173/
+
+[DETECT] Found: Gemini CLI
+[DETECT] Found: CodeBuddy
+[DETECT] Found: Claude Code
+[DETECT] Found 3 installed CLIs
+[ACP] IPC handlers registered
+```
+
+### 常见问题解决
+
+| 问题 | 解决方案 |
+|------|----------|
+| TypeScript 错误 | `git restore .` 恢复文件 |
+| 端口 5173 被占用 | 停止占用进程 |
+| electron 进程残留 | `Stop-Process -Name electron -Force` |
+
+---
+
 ## 版本标签
 
 | 标签 | 提交哈希 | 日期 | 说明 |
 |------|----------|------|------|
+| v0.5-beta | 882c8f9 | 2026-04-08 | Beta 0.5 - 打包前稳定版，性能优化、主题系统完善 |
+| v0.4-beta | a10e20f | 2026-04-07 | Beta 0.4 - ACP 多 Agent 支持，13 个 slash 命令按钮 |
 | v0.3-beta | 0e92b1c | 2026-03-26 | Beta 0.3 - AI命令集成Gemini CLI，移除AI对话 |
 | v0.2-beta | 0ac48a7 | 2026-03-24 | Beta 0.2 - 国际化支持和主题系统完善 |
 | v0.1-beta | ba17bef | 2026-03-20 | Beta 0.1 - 关系图谱修复和文件树改进 |
@@ -16,6 +77,108 @@
 ---
 
 ## 版本详情
+
+### v0.5-beta (2026-04-08)
+
+**日期**：2026-04-08
+
+**类型**：打包前稳定版
+
+**主要功能**：
+
+1. **性能优化**
+   - 懒加载重型组件（CommandPalette、GlobalSearch、GraphView、TemplateSelector）
+   - 主题 CSS 按需加载，不再一次性加载所有主题
+   - 关系图谱添加 5 分钟缓存，避免重复计算
+   - 添加加载骨架屏，提升用户体验
+
+2. **主题系统完善**
+   - 修复 CSS 变量语法错误（颜色值不应有引号）
+   - 完善 forest 主题样式
+   - 更新默认主题配色为 Metamates logo 橙色和青绿色
+   - 添加 3D 按钮系统
+
+3. **CLI 改进**
+   - 添加 CLI 初始化时间记录（显示每个 CLI 的启动耗时）
+   - 修复 PATH 环境变量问题（Windows 下 Electron 进程无法找到 npm 全局命令）
+   - 切换 Agent 时自动加载历史消息
+
+4. **同步功能**
+   - 支持中英文模板目录（inits/zh/ 和 inits/en/）
+   - 同步时只添加不存在的文件，避免覆盖用户内容
+   - 同步所有文件夹（包括 01-05 内容文件夹）
+
+5. **关系图谱优化**
+   - 过滤隐藏文件夹（.claude、.codebuddy、.gemini）
+   - 只显示实际存在的文件链接
+   - 改进链接解析（支持锚点、嵌入语法、路径提取）
+
+6. **编辑器修复**
+   - 修复文本选择高亮不可见问题
+   - 添加 drawSelection 扩展
+   - 调整选中背景色为更明显的蓝色
+
+7. **UI 简化**
+   - 移除 Connected 状态显示
+   - 移除 Session ID 显示
+   - 简化 CLI 面板顶部布局
+
+**修复的问题**：
+- CSS 变量值添加引号导致白屏
+- CLI 检测失败（PATH 环境变量问题）
+- 切换 Agent 后历史消息不加载
+- 编辑器文本选择不可见
+- 关系图谱显示不存在的文件节点
+
+**技术改进**：
+- React.lazy 懒加载实现
+- 主题 CSS 动态导入
+- 图谱缓存机制
+- Windows PATH 环境变量修复
+
+---
+
+### v0.4-beta (2026-04-07)
+
+**日期**：2026-04-07
+
+**类型**：ACP 多 Agent 集成版本
+
+**主要功能**：
+
+1. **ACP 多 Agent 支持**
+   - 集成 Claude Code、CodeBuddy、Gemini CLI
+   - 自动检测本地安装的 CLI
+   - 每个 Agent 独立连接和会话
+   - 点击 Logo 无缝切换 Agent
+   - 连接状态指示（绿灯/黄灯/红灯）
+
+2. **13 个 slash 命令按钮**
+   - 按分类排列：日常、思考、灵感、规划
+   - 支持直接执行和需要输入的命令
+   - 输入框显示浅色提示字
+   - 命令按钮禁用状态（未连接时）
+
+3. **修复的问题**
+   - CodeMirror drawSelection 导入错误导致的白屏
+   - CLI 历史消息不加载（依赖数组问题）
+   - 工具调用内容显示原始 JSON
+   - 浅色模式下用户消息文字不清晰
+   - 编辑器文本选择不可见
+
+4. **UI 改进**
+   - 新增状态栏显示连接状态和 Session ID
+   - 所有元素添加 data-testid 支持自动化测试
+   - 命令按钮按分类分组显示
+   - 命令选择时的视觉反馈
+
+**技术改进**：
+- 实现 ACP 连接池管理
+- 递归提取工具调用文本内容
+- 完善主题变量支持
+- 添加自动化测试支持
+
+---
 
 ### v0.3-beta (2026-03-26)
 
