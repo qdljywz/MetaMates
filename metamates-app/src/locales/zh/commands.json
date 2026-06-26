@@ -1,0 +1,152 @@
+{
+  "title": "命令",
+  "placeholder": "输入命令或搜索...",
+  "searchPlaceholder": "搜索文件或命令... (输入 > 搜索命令, @ 搜索AI, # 搜索标签)",
+  "noMatch": "未找到匹配项",
+  "navigation": {
+    "upDown": "↑↓ 导航",
+    "enter": "↵ 选择",
+    "esc": "Esc 关闭",
+    "commandMode": "> 命令模式",
+    "aiCommand": "@ AI命令"
+  },
+  "categories": {
+    "daily": "日常管理",
+    "thinking": "深度思考",
+    "inspiration": "灵感挖掘",
+    "planning": "规划基础",
+    "file": "文件",
+    "command": "命令",
+    "ai": "AI",
+    "navigation": "导航"
+  },
+  "commands": {
+    "context": {
+      "name": "加载上下文",
+      "description": "加载项目上下文"
+    },
+    "today": {
+      "name": "今日计划",
+      "description": "生成今日计划"
+    },
+    "closeday": {
+      "name": "每日复盘",
+      "description": "每日复盘"
+    },
+    "schedule": {
+      "name": "时间调度",
+      "description": "时间块分配"
+    },
+    "trace": {
+      "name": "溯源想法",
+      "description": "溯源想法"
+    },
+    "connect": {
+      "name": "寻找连接",
+      "description": "发现笔记关联"
+    },
+    "challenge": {
+      "name": "挑战观点",
+      "description": "挑战观点"
+    },
+    "ghost": {
+      "name": "模拟代写",
+      "description": "模拟代写"
+    },
+    "ideas": {
+      "name": "点子报告",
+      "description": "生成点子报告"
+    },
+    "graduate": {
+      "name": "灵感升级",
+      "description": "灵感升级"
+    },
+    "drift": {
+      "name": "潜意识漂移",
+      "description": "潜意识漂移"
+    },
+    "emerge": {
+      "name": "项目涌现",
+      "description": "项目涌现"
+    },
+    "sync": {
+      "name": "同步进展",
+      "description": "同步全库进展"
+    },
+    "soal": {
+      "name": "进化固化",
+      "description": "将习惯或教训永久固化到2M.md"
+    },
+    "dailyNote": {
+      "label": "创建今日笔记",
+      "description": "创建或打开今天的每日笔记"
+    },
+    "dailyPlan": {
+      "label": "创建今日 PLAN",
+      "description": "创建或打开今天的每日计划"
+    },
+    "importIntelligence": {
+      "label": "导入外部文档为情报",
+      "description": "提取 PDF/Word/表格/图片等并写入 04_ 情报与连接"
+    },
+    "intel": {
+      "name": "情报导入",
+      "description": "抓取网页链接或文档，生成情报笔记并由 Agent 深化"
+    },
+    "newFile": {
+      "label": "新建文件",
+      "description": "创建一个新的Markdown文件",
+      "placeholder": "文件名（留空则自动生成）",
+      "create": "创建",
+      "cancel": "取消"
+    },
+    "showTags": {
+      "label": "显示所有标签",
+      "description": "查看工作区中的所有标签"
+    },
+    "showGraph": {
+      "label": "显示关系图谱",
+      "description": "查看文件之间的关系图谱"
+    },
+    "aiSummarize": {
+      "label": "AI: 总结当前文件",
+      "description": "使用AI总结当前打开的文件"
+    },
+    "aiAnalyze": {
+      "label": "AI: 分析工作区",
+      "description": "使用AI分析整个工作区"
+    },
+    "aiSuggest": {
+      "label": "AI: 智能建议",
+      "description": "获取基于工作区的智能建议"
+    },
+    "aiTasks": {
+      "label": "AI: 提取任务",
+      "description": "从工作区提取所有待办任务"
+    },
+    "settings": {
+      "label": "打开设置",
+      "description": "打开应用设置"
+    }
+  },
+  "keywords": {
+    "daily": "daily",
+    "today": "today",
+    "new": "new",
+    "create": "create",
+    "preview": "preview",
+    "edit": "edit",
+    "tag": "tag",
+    "graph": "graph",
+    "relation": "relation",
+    "ai": "ai",
+    "summarize": "summarize",
+    "analyze": "analyze",
+    "suggest": "suggest",
+    "recommend": "recommend",
+    "task": "task",
+    "todo": "todo",
+    "settings": "settings",
+    "config": "config"
+  }
+}

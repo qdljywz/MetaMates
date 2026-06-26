@@ -1,0 +1,177 @@
+{
+  "empty": {
+    "title": "还没有 AI 助手",
+    "description": "安装并登录 Gemini、Claude 或 CodeBuddy 后，在这里开始对话——这是 Metamates 的主入口。",
+    "openSettings": "去设置安装 AI"
+  },
+  "status": {
+    "detecting": "正在检测 Agent…",
+    "noAgents": "未找到 CLI Agent",
+    "connecting": "正在连接 {{name}}…",
+    "connectionTimeout": "连接 {{name}} 超时，请重试或切换其他 Agent",
+    "connected": "已连接 {{name}}",
+    "error": "连接失败：{{error}}",
+    "disconnected": "已断开连接",
+    "reconnected": "已重新连接",
+    "authRequired": "需要登录认证",
+    "ready": "已检测到 {{name}}，点击输入框开始连接",
+    "warmupConnecting": "正在连接 {{name}}…",
+    "reconnectHint": "连接已断开，可点击重新连接或切换其他 Agent。",
+    "tryAlternateAgents": "可尝试切换到：{{names}}",
+    "quotaExceeded": "{{agent}} 配额或速率受限",
+    "quotaExceededDetail": "⚠️ {{agent}} 返回错误：{{error}}\n\n可切换其他 Agent，或检查该 CLI 的 API Key / 套餐状态。",
+    "geminiModelDailyQuota": "{{agent}} 当前模型今日免费额度已用完",
+    "geminiModelDailyQuotaDetail": "⚠️ {{agent}} 报告：{{error}}\n\n这通常表示**当前所选模型**的日额度用尽，不等于 API Key 余额耗尽。请在模型下拉框切换到 Auto 或其他模型，或在终端直接运行 gemini 验证。",
+    "networkError": "{{agent}} 网络或连接异常",
+    "networkErrorDetail": "⚠️ {{agent}} 无法完成请求：{{error}}\n\n请检查网络、代理或防火墙；终端里直接运行该 CLI 对比结果。",
+    "cloudOffline": "无法连接 {{agent}} 云端（请检查外网）",
+    "planExpired": "{{agent}} 套餐已到期",
+    "planExpiredDetail": "⚠️ {{agent}} 套餐或订阅已到期：{{error}}\n\n请续费对应服务，或切换到其他 Agent。",
+    "promptFailed": "发送失败：{{error}}",
+    "loadEarlier": "加载更早的消息",
+    "loadEarlierWithCount": "加载更早历史（已加载 {{loaded}} / 共 {{total}} 条）",
+    "loadingEarlier": "加载中…",
+    "loadingHistory": "正在加载 {{name}} 的对话…",
+    "typeWhileConnecting": "可先输入，发送时自动连接",
+    "thinking": "正在思考…",
+    "thinkingSlow": "{{agent}} 仍在处理（{{seconds}}s）…",
+    "thinkingVerySlow": "{{agent}} 响应较慢（{{seconds}}s），可点停止或切换 Agent"
+  },
+  "input": {
+    "placeholder": "输入消息…",
+    "placeholderWithAgent": "发送消息到 {{agent}}…",
+    "placeholderWithModel": "{{agent}}，发消息、@ 引用文件或拖拽附件…",
+    "send": "发送",
+    "attachHint": "输入 @ 引用文件，拖拽附件，或点麦克风语音输入（最多 {{max}} 字符）",
+    "attachTruncated": "附件内容已截断至 {{max}} 字符；大文件请让 Agent 用 Read 工具读取",
+    "attachCurrent": "附加当前文件 {{name}}",
+    "attachmentsOnly": "已附加文件",
+    "voiceStart": "语音输入",
+    "voiceStop": "停止语音",
+    "voiceListening": "正在听… 说完再点一次麦克风结束",
+    "voiceUnsupported": "当前环境不支持语音输入",
+    "voiceDenied": "无法使用麦克风，请在系统设置中允许访问",
+    "voiceError": "语音识别失败，请重试",
+    "voiceNetwork": "语音识别需要网络（Electron 依赖 Google 在线服务），请检查网络或改用键盘输入",
+    "voiceServiceBlocked": "当前环境无法使用 Web Speech，请改用键盘输入",
+    "voiceNoSpeech": "未检测到语音，请再试一次",
+    "voiceCapture": "无法访问麦克风，请检查系统权限",
+    "voiceStartFailed": "无法启动语音识别，请稍后重试",
+    "voiceNativeFailed": "Windows 语音识别启动失败，请检查麦克风权限或系统语音组件"
+  },
+  "sidebar": {
+    "expand": "展开 Agent 侧栏",
+    "collapse": "收起 Agent 侧栏",
+    "connected": "已连接",
+    "connecting": "连接中",
+    "disconnected": "未连接",
+    "error": "连接异常"
+  },
+  "workspace": {
+    "switched": "已切换到工作区 {{path}}，正在加载该 Vault 的对话…"
+  },
+  "session": {
+    "active": "会话活跃中",
+    "standby": "已连接 · 待命",
+    "toolRunning": "正在执行工具…",
+    "inactive": "未连接",
+    "ready": "就绪",
+    "streaming": "正在回复…",
+    "error": "连接异常",
+    "model": "模型",
+    "mode": "模式"
+  },
+  "panel": {
+    "title": "Agent",
+    "slashCommands": "方法论命令",
+    "vaultReady": "工作区已就绪",
+    "vaultHint": "{{agent}} 会读写工作区里的笔记，结果写回文件，而不只留在聊天里。",
+    "vaultHintGeneric": "连接 AI 后，在右侧对话即可读写工作区文件。",
+    "workspace": "工作区",
+    "currentFile": "当前文件 · {{name}}"
+  },
+  "actions": {
+    "stop": "停止",
+    "cancel": "取消",
+    "login": "登录",
+    "reconnect": "重新连接"
+  },
+  "messages": {
+    "noWorkspace": "请先打开工作区",
+    "connectFirst": "请先连接 Agent",
+    "intelFailed": "情报导入失败",
+    "intelCreated": "已创建情报笔记：{{name}}",
+    "intelEnhancing": "正在由 Agent 深化情报摘要…",
+    "intelNeedInput": "请粘贴网页链接或文件路径"
+  },
+  "auth": {
+    "title": "CLI 登录认证",
+    "description": "{{backend}} 需要登录后才能使用。",
+    "inProgress": "正在登录，请在浏览器中完成授权…",
+    "browserHint": "若浏览器未自动打开，请点击下方链接：",
+    "openBrowser": "在浏览器中打开登录页",
+    "apiKeyPlaceholder": "粘贴 Gemini API Key",
+    "apiKeySubmit": "使用 API Key 登录",
+    "googleLogin": "使用 Google 登录",
+    "apiKeyMethod": "Gemini API Key",
+    "terminalLogin": "在 PowerShell 中登录",
+    "terminalLoginHint": "Windows 推荐：在 PowerShell 窗口运行 gemini，浏览器会自动弹出 Google 登录页。",
+    "terminalLoginFailed": "无法打开 PowerShell 登录窗口",
+    "deprecatedGoogleLogin": "Google 个人版 Code Assist 登录已调整，建议改用「Gemini API key」或在终端运行 gemini 完成首次登录。"
+  },
+  "permission": {
+    "title": "工具权限请求",
+    "approve": "允许",
+    "deny": "拒绝",
+    "later": "稍后",
+    "toolRequest": "Agent 请求执行工具操作"
+  },
+  "yoloWarning": {
+    "title": "YOLO 模式 — 自动批准工具",
+    "body": "在此模式下，Metamates 将自动批准 Agent 的文件读写与命令执行，不再逐一询问。请确认你信任当前 Agent 且工作区已备份。",
+    "confirm": "启用 YOLO",
+    "cancel": "保持当前模式",
+    "firstRunTitle": "默认 YOLO 模式 — 请确认",
+    "firstRunBody": "Metamates 默认启用 YOLO：Agent 的文件读写与命令将自动批准，不再逐一询问。若需每次确认，请选择「改用默认模式」。",
+    "firstRunConfirm": "我了解，继续使用 YOLO",
+    "firstRunCancel": "改用默认模式"
+  },
+  "modes": {
+    "default": "默认",
+    "yolo": "YOLO",
+    "plan": "计划",
+    "acceptEdits": "自动接受编辑",
+    "autoEdit": "自动接受编辑",
+    "readOnly": "只读",
+    "fullAccess": "完全访问",
+    "agent": "Agent",
+    "ask": "问答",
+    "build": "构建"
+  },
+  "toolCall": {
+    "openFile": "打开文件",
+    "noWorkspace": "请先打开工作区",
+    "fileNotFound": "找不到文件：{{path}}",
+    "outsideWorkspace": "该路径在工作区（Vault）之外，Metamates 无法在此打开：{{path}}",
+    "outsideWorkspaceHint": "⚠️ Agent 写入了 Vault 外路径（Metamates 只管理你的 Obsidian 工作区）：{{path}}",
+    "status": {
+      "inProgress": "执行中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "kind": {
+      "read": "读取文件",
+      "edit": "编辑文件",
+      "execute": "执行命令",
+      "search": "搜索",
+      "unknown": "工具调用"
+    },
+    "diffTitle": "{{file}} 变更"
+  },
+  "writeback": {
+    "verified": "/{{cmd}} 写回已验证",
+    "verifiedDetail": "✅ /{{cmd}} 写回已验证（Act & Verify）：{{paths}}",
+    "failed": "/{{cmd}} 写回未完成",
+    "failedDetail": "⚠️ /{{cmd}} 预期写回至 {{paths}}，但未检测到近期更新：{{detail}}"
+  }
+}

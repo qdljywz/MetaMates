@@ -1,0 +1,79 @@
+{
+  "title": "Help Center",
+  "version": "Version",
+  "github": "GitHub",
+  "feedback": "Report Issue",
+  "tabs": {
+    "quickstart": "Quick Start",
+    "features": "Features",
+    "syntax": "Syntax",
+    "shortcuts": "Shortcuts"
+  },
+  "welcome": {
+    "title": "Welcome to Metamates",
+    "description": "The AI panel on the right is the main entry. Say what you want — AI reads and writes notes in the same folder."
+  },
+  "gettingStarted": {
+    "title": "Getting Started",
+    "step1": "1. Open a folder",
+    "step1Desc": "Choose a folder on the left — AI reads and writes there",
+    "step2": "2. Connect AI",
+    "step2Desc": "Pick an AI in the right panel and send your first message",
+    "step3": "3. See results",
+    "step3Desc": "Open what AI wrote in the center editor; files save automatically",
+    "step4": "4. Shortcuts",
+    "step4Desc": "Try /today or describe the task in plain language"
+  },
+  "editor": {
+    "title": "Editor Features",
+    "realtimeRender": "Real-time Rendering",
+    "realtimeRenderDesc": "Markdown formats render instantly, what you see is what you get",
+    "wikiLink": "Bidirectional Links",
+    "wikiLinkDesc": "Type [[ to create links, click to navigate",
+    "tags": "Tags System",
+    "tagsDesc": "Type # to add tags for categorization",
+    "autoSave": "Auto Save",
+    "autoSaveDesc": "Changes are saved automatically to file"
+  },
+  "features": {
+    "title": "More Features",
+    "fileTree": "File Tree - Drag & drop, right-click menu",
+    "search": "Ctrl+P command palette, Ctrl+Shift+F global search, Ctrl+Shift+P today's PLAN",
+    "graph": "Graph view — visualize note connections",
+    "ai": "Agent execution — 15 slash commands; results write back to the vault (Act & Verify); user memory in 04_Intelligence/Memory_Index.md",
+    "memory": "User memory — mirror summaries to 04_Intelligence/Memory_Index.md, not CLI-only caches",
+    "calendar": "Diary calendar — click a date to open or create diary & PLAN"
+  },
+  "markdown": {
+    "title": "Markdown Syntax",
+    "heading": "Heading",
+    "headingExample": "# H1  ## H2  ### H3",
+    "textStyle": "Text Style",
+    "bold": "Bold",
+    "italic": "Italic",
+    "strikethrough": "Strikethrough",
+    "highlight": "Highlight",
+    "list": "List",
+    "unorderedList": "Unordered list",
+    "orderedList": "Ordered list",
+    "todo": "Todo item"
+  },
+  "extendedSyntax": {
+    "title": "Extended Syntax",
+    "wikiLink": "Bidirectional Link",
+    "wikiLinkExample": "[[filename]] or [[filename|alias]]",
+    "tag": "Tag",
+    "tagExample": "#work #important",
+    "highlight": "Highlight",
+    "highlightExample": "==highlighted text=="
+  },
+  "shortcuts": {
+    "title": "Shortcuts",
+    "commandPalette": "Command palette",
+    "newNote": "New note",
+    "find": "Find in file",
+    "globalSearch": "Global search",
+    "toggleFileTree": "Toggle file tree",
+    "toggleTheme": "Toggle theme"
+  }
+}

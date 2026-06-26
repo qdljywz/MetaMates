@@ -1,0 +1,131 @@
+{
+  "workspace": "E:\\MyM2",
+  "results": [
+    {
+      "section": "单元测试",
+      "name": "slashWritePolicy + agentSlash + connectionStatus",
+      "ok": true,
+      "detail": "passed",
+      "at": "2026-06-26T14:42:45.953Z"
+    },
+    {
+      "section": "YOLO",
+      "name": "语义核实",
+      "ok": true,
+      "detail": "见 vitest businessLogicAssembly — default=yolo, plan≠auto-approve",
+      "at": "2026-06-26T14:42:45.957Z"
+    },
+    {
+      "section": "Slash·组装",
+      "name": "15 条 prompt 业务核实 (vitest)",
+      "ok": true,
+      "detail": "all passed",
+      "at": "2026-06-26T14:42:51.595Z"
+    },
+    {
+      "section": "记忆",
+      "name": "provision 成功",
+      "ok": true,
+      "detail": "已存在",
+      "at": "2026-06-26T14:42:51.606Z"
+    },
+    {
+      "section": "记忆",
+      "name": "索引文件在 Vault 内",
+      "ok": true,
+      "detail": "04_情报与连接/记忆索引.md",
+      "at": "2026-06-26T14:42:51.606Z"
+    },
+    {
+      "section": "Vault",
+      "name": "拒绝 Vault 外绝对路径",
+      "ok": true,
+      "detail": "Path is outside workspace",
+      "at": "2026-06-26T14:42:51.611Z"
+    },
+    {
+      "section": "Vault",
+      "name": "拦截 ~/.codebuddy Shell",
+      "ok": true,
+      "detail": "Shell command targets CLI cache outside the vault",
+      "at": "2026-06-26T14:42:51.618Z"
+    },
+    {
+      "section": "Vault",
+      "name": "拦截 Vault 外 Write",
+      "ok": true,
+      "detail": "Path is outside workspace",
+      "at": "2026-06-26T14:42:51.619Z"
+    },
+    {
+      "section": "ACP实连",
+      "name": "verify-functional-acp",
+      "ok": true,
+      "detail": "跳过 — 设置 RUN_FUNCTIONAL=1 启用",
+      "meta": {
+        "audit": true
+      },
+      "at": "2026-06-26T14:42:51.620Z"
+    },
+    {
+      "section": "E2E审计",
+      "name": "Slash UI 点击 chip",
+      "ok": true,
+      "detail": "DOM 可点击；直发需连接后见 user bubble 或 streaming 才算真正发送 | 风险: 未连接时点击仍可能误报通过 | 缓解: extended-coverage 连接态 + bubble 断言",
+      "meta": {
+        "audit": true
+      },
+      "at": "2026-06-26T14:42:51.620Z"
+    },
+    {
+      "section": "E2E审计",
+      "name": "readSkillFile IPC 返回 >30 字符",
+      "ok": true,
+      "detail": "主进程能读到 skill 文件 | 风险: 不保证 prompt 含写回策略（写回由 assembleSlashPrompt 注入） | 缓解: 本脚本 assembleSlashPrompt 全量检查",
+      "meta": {
+        "audit": true
+      },
+      "at": "2026-06-26T14:42:51.620Z"
+    },
+    {
+      "section": "E2E审计",
+      "name": "Gemini checkGeminiAuth 返回 boolean",
+      "ok": true,
+      "detail": "IPC 通道可用 | 风险: 不代表 OAuth 流程可用 | 缓解: 标记为 gap，需人工登录",
+      "meta": {
+        "audit": true
+      },
+      "at": "2026-06-26T14:42:51.620Z"
+    },
+    {
+      "section": "E2E审计",
+      "name": "图谱 canvas drag",
+      "ok": true,
+      "detail": "节点拖拽验证 graph 模型坐标变化；画布平移为 smoke | 风险: 节点过少或力导向抖动可能导致偶发失败 | 缓解: __METAMATES_GRAPH_E2E__ + Δx/Δy 阈值",
+      "meta": {
+        "audit": true
+      },
+      "at": "2026-06-26T14:42:51.620Z"
+    },
+    {
+      "section": "E2E审计",
+      "name": "语音 IPC start/stop",
+      "ok": true,
+      "detail": "主进程 speech 模块响应 | 风险: 不证明转写进输入框 | 缓解: 麦克风按钮 active class 辅助",
+      "meta": {
+        "audit": true
+      },
+      "at": "2026-06-26T14:42:51.620Z"
+    },
+    {
+      "section": "E2E审计",
+      "name": "CodeBuddy chips enabled=15",
+      "ok": true,
+      "detail": "slash 注册表渲染完整 | 风险: 未连接时 chip disabled，旧 E2E 误点会假失败 | 缓解: warmUpAgentConnection + 连不上则 ⚠️ 跳过（非 ❌）；footer data-status 与侧栏绿点一致",
+      "meta": {
+        "audit": true
+      },
+      "at": "2026-06-26T14:42:51.620Z"
+    }
+  ]
+}

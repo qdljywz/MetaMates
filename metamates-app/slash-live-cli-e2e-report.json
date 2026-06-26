@@ -1,0 +1,97 @@
+{
+  "workspace": "E:\\MyM2",
+  "passed": 7,
+  "failed": 8,
+  "results": [
+    {
+      "cmd": "context",
+      "ok": true,
+      "detail": "📋🔧Tool已完成{\n  \"file_path\": \"E:\\\\MyM2\\\\02_项目与知识\\\\Project_Homepage.md\"\n}   1→﻿---\n   2→date: <% tp.date.now(\"YYYY-MM-DD\")",
+      "at": "2026-06-25T14:20:20.592Z"
+    },
+    {
+      "cmd": "today",
+      "ok": false,
+      "detail": "timeout waiting for agent reply",
+      "at": "2026-06-25T14:26:29.712Z"
+    },
+    {
+      "cmd": "closeday",
+      "ok": false,
+      "detail": "timeout waiting for agent reply",
+      "at": "2026-06-25T14:32:39.996Z"
+    },
+    {
+      "cmd": "schedule",
+      "ok": true,
+      "detail": "📋🔧Tool已完成{\n  \"file_path\": \"E:\\\\MyM2\\\\05_模板与配置\\\\Master_Control.md\"\n}   1→﻿# 🛡️ Master Control: 战略指挥塔\n   2→\n   3→> \"慎终如",
+      "at": "2026-06-25T14:34:53.248Z"
+    },
+    {
+      "cmd": "trace",
+      "ok": false,
+      "detail": "timeout waiting for agent reply",
+      "at": "2026-06-25T14:39:03.214Z"
+    },
+    {
+      "cmd": "connect",
+      "ok": true,
+      "detail": "📋🔧Tool已完成{\n  \"-n\": true,\n  \"glob\": \"*.md\",\n  \"head_limit\": 30,\n  \"output_mode\": \"content\",\n  \"path\": \"E:\\\\MyM2\",\n  \"pa",
+      "at": "2026-06-25T14:41:45.204Z"
+    },
+    {
+      "cmd": "challenge",
+      "ok": false,
+      "detail": "timeout waiting for agent reply",
+      "at": "2026-06-25T14:45:53.748Z"
+    },
+    {
+      "cmd": "ghost",
+      "ok": false,
+      "detail": "timeout waiting for agent reply",
+      "at": "2026-06-25T14:50:03.438Z"
+    },
+    {
+      "cmd": "ideas",
+      "ok": false,
+      "detail": "timeout waiting for agent reply",
+      "at": "2026-06-25T14:54:11.052Z"
+    },
+    {
+      "cmd": "graduate",
+      "ok": true,
+      "detail": "📋🔧Tool已完成{\n  \"pattern\": \"01_日记与计划/2026-06-*.md\"\n}[\"e:\\\\MyM2\\\\01_日记与计划\\\\2026-06-22.md\",\"e:\\\\MyM2\\\\01_日记与计划\\\\2026-06-23.",
+      "at": "2026-06-25T14:59:18.857Z"
+    },
+    {
+      "cmd": "drift",
+      "ok": false,
+      "detail": "timeout waiting for agent reply",
+      "at": "2026-06-25T15:03:25.830Z"
+    },
+    {
+      "cmd": "emerge",
+      "ok": false,
+      "detail": "timeout waiting for agent reply",
+      "at": "2026-06-25T15:07:33.578Z"
+    },
+    {
+      "cmd": "sync",
+      "ok": true,
+      "detail": "📋🔧Tool已完成{\n  \"pattern\": \"02_项目与知识/*.md\"\n}[\"e:\\\\MyM2\\\\02_项目与知识\\\\Project_Homepage.md\",\"e:\\\\MyM2\\\\02_项目与知识\\\\Metamates基建.m",
+      "at": "2026-06-25T15:11:28.175Z"
+    },
+    {
+      "cmd": "soal",
+      "ok": true,
+      "detail": "📋全部验证通过统同步完成━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━📅 同步2026-0615 (北京时间)\n\n9 条全绿（/connect /challenge /ift /sync）\n-知项目与知识//3篇永久链-写",
+      "at": "2026-06-25T15:14:55.710Z"
+    },
+    {
+      "cmd": "intel",
+      "ok": true,
+      "detail": "intel note created",
+      "at": "2026-06-25T15:15:06.105Z"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "title": "终端",
+  "placeholder": "输入命令...",
+  "clear": "清空",
+  "cleared": "终端已清空",
+  "restart": "重启终端",
+  "start": "启动终端",
+  "stop": "停止终端",
+  "starting": "正在启动终端",
+  "startFailed": "启动终端失败",
+  "connected": "已连接",
+  "disconnected": "未连接",
+  "stopped": "终端已停止",
+  "unknownError": "未知错误",
+  "noWorkspace": "无工作区",
+  "ok": "确定",
+  "cancel": "取消",
+  "executing": "正在执行命令...",
+  "quickCommands": {
+    "title": "快捷命令",
+    "gemini": "Gemini CLI",
+    "dir": "列出文件",
+    "cdUp": "返回上级"
+  },
+  "modes": {
+    "ai": "AI 对话",
+    "terminal": "终端"
+  }
+}

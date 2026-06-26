@@ -1,0 +1,47 @@
+{
+  "steps": {
+    "welcome": {
+      "title": "欢迎使用 Metamates",
+      "subtitle": "私人灵感仓库 + 思考引擎",
+      "description": "两件事，一个闭环：",
+      "desktopNote": "灵感存在你电脑的文件夹里；引擎在右侧，和 AI 对话即可开工。",
+      "features": {
+        "agent": "引擎 — 右侧和 AI 对话，这是主入口",
+        "commands": "一条命令（如 /today）= 引擎帮你读仓库、写成品",
+        "vault": "私人灵感仓库 — 碎片、日记、剪藏都在本地 Markdown 里",
+        "capture": "手机也能把灵感丢进仓库收件箱"
+      }
+    },
+    "workspace": {
+      "title": "选择笔记文件夹",
+      "description": "AI 会在这个文件夹里读写笔记。第一次使用会自动建好日记、项目、收件箱等目录。",
+      "selectButton": "选择文件夹",
+      "selected": "已选择",
+      "required": "请先选择一个文件夹",
+      "initialized": "文件夹已准备好",
+      "skillsSynced": "已同步 {{count}} 项工作区模板（含记忆索引与技能）",
+      "desktopOnly": "请在桌面版中使用此功能"
+    },
+    "agent": {
+      "title": "连接 AI 助手",
+      "description": "这是最重要的步骤。连接后，在右侧面板直接对话，AI 就能帮你整理、总结、写入笔记。",
+      "detecting": "正在查找本机 AI…",
+      "found": "找到了 {{count}} 个 AI 助手",
+      "none": "还没找到，可以点下面按钮安装",
+      "installButton": "安装 AI 助手",
+      "skipHint": "也可以先跳过，进入后在右侧面板连接",
+      "connected": "已连接 {{name}}",
+      "connectLater": "进入应用后，在右侧 AI 面板开始对话"
+    },
+    "complete": {
+      "title": "准备好了",
+      "subtitle": "去右侧选 AI，发第一条消息就可以开始了。",
+      "startButton": "开始对话"
+    }
+  },
+  "buttons": {
+    "previous": "上一步",
+    "next": "下一步",
+    "saveAndComplete": "完成"
+  }
+}

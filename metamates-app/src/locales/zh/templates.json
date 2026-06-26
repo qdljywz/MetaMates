@@ -1,0 +1,29 @@
+{
+  "title": "选择模板",
+  "selectTemplate": "请选择一个模板",
+  "cancel": "取消",
+  "useTemplate": "使用模板",
+  "editTemplate": "编辑模板",
+  "saveTemplate": "保存模板",
+  "resetTemplate": "重置",
+  "templateSaved": "模板已保存",
+  "templateReset": "模板已重置为默认",
+  "customized": "已定制",
+  "variables": "可用变量: {{date}} (日期), {{week}} (周), {{month}} (月)",
+  "loadFailed": "加载模板失败",
+  "templateDeleted": "模板已删除",
+  "builtinCannotDelete": "内置模板无法删除",
+  "searchPlaceholder": "搜索模板...",
+  "use": "使用",
+  "builtin": "内置",
+  "noDescription": "无描述",
+  "noTemplates": "暂无模板",
+  "categories": {
+    "daily": "每日",
+    "weekly": "每周",
+    "monthly": "每月",
+    "project": "项目",
+    "review": "回顾",
+    "custom": "自定义"
+  }
+}

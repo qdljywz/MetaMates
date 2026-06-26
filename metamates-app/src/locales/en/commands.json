@@ -1,0 +1,152 @@
+{
+  "title": "Commands",
+  "placeholder": "Enter command or search...",
+  "searchPlaceholder": "Search files or commands... (Enter > for commands, @ for AI, # for tags)",
+  "noMatch": "No matches found",
+  "navigation": {
+    "upDown": "↑↓ Navigate",
+    "enter": "↵ Select",
+    "esc": "Esc Close",
+    "commandMode": "> Command mode",
+    "aiCommand": "@ AI commands"
+  },
+  "categories": {
+    "daily": "Daily Management",
+    "thinking": "Deep Thinking",
+    "inspiration": "Inspiration Mining",
+    "planning": "Planning Basics",
+    "file": "File",
+    "command": "Command",
+    "ai": "AI",
+    "navigation": "Navigation"
+  },
+  "commands": {
+    "context": {
+      "name": "/context",
+      "description": "Load project context"
+    },
+    "today": {
+      "name": "/today",
+      "description": "Generate today's plan"
+    },
+    "closeday": {
+      "name": "/closeday",
+      "description": "Daily review"
+    },
+    "schedule": {
+      "name": "/schedule",
+      "description": "Time block allocation"
+    },
+    "trace": {
+      "name": "/trace",
+      "description": "Trace idea origin"
+    },
+    "connect": {
+      "name": "/connect",
+      "description": "Find note connections"
+    },
+    "challenge": {
+      "name": "/challenge",
+      "description": "Challenge viewpoints"
+    },
+    "ghost": {
+      "name": "/ghost",
+      "description": "Simulate writing"
+    },
+    "ideas": {
+      "name": "/ideas",
+      "description": "Generate ideas report"
+    },
+    "graduate": {
+      "name": "/graduate",
+      "description": "Upgrade ideas"
+    },
+    "drift": {
+      "name": "/drift",
+      "description": "Subconscious drift"
+    },
+    "emerge": {
+      "name": "/emerge",
+      "description": "Project emergence"
+    },
+    "sync": {
+      "name": "/sync",
+      "description": "Sync all progress"
+    },
+    "soal": {
+      "name": "/soal",
+      "description": "Permanently固化 habits or lessons to 2M.md"
+    },
+    "dailyNote": {
+      "label": "Create Daily Note",
+      "description": "Create or open today's daily note"
+    },
+    "dailyPlan": {
+      "label": "Create Daily PLAN",
+      "description": "Create or open today's daily plan"
+    },
+    "importIntelligence": {
+      "label": "Import document as intelligence",
+      "description": "Extract PDF/Word/spreadsheet/image into 04_Intelligence"
+    },
+    "intel": {
+      "name": "Intelligence import",
+      "description": "Capture a URL or file into an intelligence note; Agent deepens the summary"
+    },
+    "newFile": {
+      "label": "New File",
+      "description": "Create a new Markdown file",
+      "placeholder": "File name (leave empty for auto name)",
+      "create": "Create",
+      "cancel": "Cancel"
+    },
+    "showTags": {
+      "label": "Show All Tags",
+      "description": "View all tags in workspace"
+    },
+    "showGraph": {
+      "label": "Show Graph View",
+      "description": "View the relationship graph of files"
+    },
+    "aiSummarize": {
+      "label": "AI: Summarize Current File",
+      "description": "Use AI to summarize the current file"
+    },
+    "aiAnalyze": {
+      "label": "AI: Analyze Workspace",
+      "description": "Use AI to analyze the entire workspace"
+    },
+    "aiSuggest": {
+      "label": "AI: Smart Suggestions",
+      "description": "Get smart suggestions based on workspace"
+    },
+    "aiTasks": {
+      "label": "AI: Extract Tasks",
+      "description": "Extract all todo tasks from workspace"
+    },
+    "settings": {
+      "label": "Open Settings",
+      "description": "Open application settings"
+    }
+  },
+  "keywords": {
+    "daily": "daily",
+    "today": "today",
+    "new": "new",
+    "create": "create",
+    "preview": "preview",
+    "edit": "edit",
+    "tag": "tag",
+    "graph": "graph",
+    "relation": "relation",
+    "ai": "ai",
+    "summarize": "summarize",
+    "analyze": "analyze",
+    "suggest": "suggest",
+    "recommend": "recommend",
+    "task": "task",
+    "todo": "todo",
+    "settings": "settings",
+    "config": "config"
+  }
+}

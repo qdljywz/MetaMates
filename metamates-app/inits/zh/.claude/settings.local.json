@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la \"E:\\\\Trae\\\\Metamates\\\\Test\\\\.claude\\\\skills\"\" 2>/dev/null || echo \"Skills目录不存在 \")"
+    ]
+  }
+}

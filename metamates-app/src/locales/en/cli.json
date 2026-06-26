@@ -1,0 +1,26 @@
+{
+  "title": "Install CLI agents",
+  "hint": "For installed CLIs, use the “Use in Agent panel” switch to show or hide them in the right-hand Agent toolbar. Disabling does not uninstall the CLI.",
+  "loading": "Checking CLI status…",
+  "status": {
+    "installing": "Installing…",
+    "installed": "Installed",
+    "notInstalled": "Not installed",
+    "disabledInApp": "Disabled"
+  },
+  "actions": {
+    "install": "Install",
+    "uninstall": "Uninstall",
+    "notAvailable": "Unavailable",
+    "useInApp": "Use in Agent panel"
+  },
+  "messages": {
+    "installSuccess": "{{name}} installed successfully",
+    "installFailed": "Installation failed",
+    "uninstallSuccess": "{{name}} uninstalled",
+    "uninstallFailed": "Uninstall failed",
+    "enabledSuccess": "{{name}} is now visible in the Agent panel",
+    "disabledSuccess": "{{name}} is hidden from the Agent panel",
+    "toggleFailed": "Failed to update Agent visibility"
+  }
+}

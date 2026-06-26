@@ -1,0 +1,177 @@
+{
+  "empty": {
+    "title": "No AI assistant yet",
+    "description": "Install and sign in to Gemini, Claude, or CodeBuddy — then start here. This is Metamates’ main entry.",
+    "openSettings": "Install AI in Settings"
+  },
+  "status": {
+    "detecting": "Detecting agents…",
+    "noAgents": "No CLI agents found",
+    "connecting": "Connecting to {{name}}…",
+    "connectionTimeout": "Timed out connecting to {{name}} — retry or switch agent",
+    "connected": "Connected to {{name}}",
+    "error": "Connection failed: {{error}}",
+    "disconnected": "Disconnected",
+    "reconnected": "Reconnected",
+    "authRequired": "Sign-in required",
+    "ready": "{{name}} detected — focus the input to connect",
+    "warmupConnecting": "Connecting to {{name}}…",
+    "reconnectHint": "Connection lost. Reconnect or switch to another agent.",
+    "tryAlternateAgents": "Try switching to: {{names}}",
+    "quotaExceeded": "{{agent}} quota or rate limit hit",
+    "quotaExceededDetail": "⚠️ {{agent}} returned an error: {{error}}\n\nSwitch to another agent, or check this CLI's API key / plan status.",
+    "geminiModelDailyQuota": "{{agent}} daily limit reached for the current model",
+    "geminiModelDailyQuotaDetail": "⚠️ {{agent}} reported: {{error}}\n\nThis usually means the **selected model** hit its daily free cap — not that your API key balance is empty. Switch to Auto or another model in the picker, or verify in a terminal with `gemini`.",
+    "networkError": "{{agent}} network or connection error",
+    "networkErrorDetail": "⚠️ {{agent}} could not complete the request: {{error}}\n\nCheck network, proxy, or firewall; compare by running the CLI directly in a terminal.",
+    "cloudOffline": "Cannot reach {{agent}} cloud (check internet access)",
+    "planExpired": "{{agent}} plan expired",
+    "planExpiredDetail": "⚠️ {{agent}} subscription or plan expired: {{error}}\n\nRenew the service or switch to another agent.",
+    "promptFailed": "Send failed: {{error}}",
+    "loadEarlier": "Load earlier messages",
+    "loadEarlierWithCount": "Load earlier history ({{loaded}} / {{total}} loaded)",
+    "loadingEarlier": "Loading…",
+    "loadingHistory": "Loading {{name}} conversation…",
+    "typeWhileConnecting": "Type now — we'll connect when you send",
+    "thinking": "Thinking…",
+    "thinkingSlow": "{{agent}} still working ({{seconds}}s)…",
+    "thinkingVerySlow": "{{agent}} is slow ({{seconds}}s) — stop or switch agent"
+  },
+  "input": {
+    "placeholder": "Type your message…",
+    "placeholderWithAgent": "Send a message to {{agent}}…",
+    "placeholderWithModel": "{{agent}} — message, @ files, or drag attachments…",
+    "send": "Send",
+    "attachHint": "Type @ for files, drag attachments, or tap the mic for voice (up to {{max}} chars)",
+    "attachTruncated": "Attachment content was truncated to {{max}} chars; ask the agent to Read large files",
+    "attachCurrent": "Attach current file {{name}}",
+    "attachmentsOnly": "Attached files",
+    "voiceStart": "Voice input",
+    "voiceStop": "Stop voice",
+    "voiceListening": "Listening… tap the mic again when done",
+    "voiceUnsupported": "Voice input is not supported here",
+    "voiceDenied": "Microphone access denied — allow it in system settings",
+    "voiceError": "Speech recognition failed — try again",
+    "voiceNetwork": "Voice needs network (Electron uses Google online STT). Check connection or type instead.",
+    "voiceServiceBlocked": "Web Speech is blocked in this environment — please type instead",
+    "voiceNoSpeech": "No speech detected — try again",
+    "voiceCapture": "Cannot access microphone — check system permissions",
+    "voiceStartFailed": "Could not start speech recognition — try again later",
+    "voiceNativeFailed": "Windows speech recognition failed — check microphone permissions or system speech components"
+  },
+  "sidebar": {
+    "expand": "Expand agent sidebar",
+    "collapse": "Collapse agent sidebar",
+    "connected": "Connected",
+    "connecting": "Connecting",
+    "disconnected": "Disconnected",
+    "error": "Connection error"
+  },
+  "workspace": {
+    "switched": "Switched to workspace {{path}} — loading conversations for this vault…"
+  },
+  "session": {
+    "active": "Session active",
+    "standby": "Connected · standby",
+    "toolRunning": "Running tool…",
+    "inactive": "Not connected",
+    "ready": "Ready",
+    "streaming": "Replying…",
+    "error": "Connection error",
+    "model": "Model",
+    "mode": "Mode"
+  },
+  "panel": {
+    "title": "Agent",
+    "slashCommands": "Methodology commands",
+    "vaultReady": "Workspace ready",
+    "vaultHint": "{{agent}} reads and writes notes in your workspace — results go to files, not just chat.",
+    "vaultHintGeneric": "Connect AI and chat on the right to read and write workspace files.",
+    "workspace": "Workspace",
+    "currentFile": "Current file · {{name}}"
+  },
+  "actions": {
+    "stop": "Stop",
+    "cancel": "Cancel",
+    "login": "Sign in",
+    "reconnect": "Reconnect"
+  },
+  "messages": {
+    "noWorkspace": "Open a workspace first",
+    "connectFirst": "Connect an Agent first",
+    "intelFailed": "Intelligence import failed",
+    "intelCreated": "Intelligence note created: {{name}}",
+    "intelEnhancing": "Agent is deepening the intelligence summary…",
+    "intelNeedInput": "Paste a web URL or file path"
+  },
+  "auth": {
+    "title": "CLI authentication",
+    "description": "{{backend}} requires sign-in before use.",
+    "inProgress": "Signing in — complete authorization in your browser…",
+    "browserHint": "If the browser did not open automatically, use the link below:",
+    "openBrowser": "Open sign-in page in browser",
+    "apiKeyPlaceholder": "Paste Gemini API key",
+    "apiKeySubmit": "Sign in with API key",
+    "googleLogin": "Log in with Google",
+    "apiKeyMethod": "Gemini API Key",
+    "terminalLogin": "Log in via PowerShell",
+    "terminalLoginHint": "On Windows: run gemini in PowerShell — your browser should open for Google sign-in.",
+    "terminalLoginFailed": "Could not open PowerShell login window",
+    "deprecatedGoogleLogin": "Google personal Code Assist sign-in has changed. Use \"Gemini API key\" or run gemini in a terminal for first-time login."
+  },
+  "permission": {
+    "title": "Tool permission request",
+    "approve": "Allow",
+    "deny": "Deny",
+    "later": "Later",
+    "toolRequest": "Agent wants to run a tool"
+  },
+  "yoloWarning": {
+    "title": "YOLO mode — auto-approve tools",
+    "body": "In this mode Metamates auto-approves file read/write and command execution without asking each time. Only enable if you trust the current agent and have backed up your vault.",
+    "confirm": "Enable YOLO",
+    "cancel": "Keep current mode",
+    "firstRunTitle": "Default YOLO mode — please confirm",
+    "firstRunBody": "Metamates defaults to YOLO: file writes and commands are auto-approved. Choose \"Switch to Default\" if you want a prompt for each tool call.",
+    "firstRunConfirm": "I understand — keep YOLO",
+    "firstRunCancel": "Switch to Default mode"
+  },
+  "modes": {
+    "default": "Default",
+    "yolo": "YOLO",
+    "plan": "Plan",
+    "acceptEdits": "Accept Edits",
+    "autoEdit": "Auto-Accept Edits",
+    "readOnly": "Read Only",
+    "fullAccess": "Full Access",
+    "agent": "Agent",
+    "ask": "Ask",
+    "build": "Build"
+  },
+  "toolCall": {
+    "openFile": "Open file",
+    "noWorkspace": "Open a workspace first",
+    "fileNotFound": "File not found: {{path}}",
+    "outsideWorkspace": "This path is outside your Vault — Metamates cannot open it here: {{path}}",
+    "outsideWorkspaceHint": "⚠️ Agent wrote outside the Vault (Metamates only manages your Obsidian workspace): {{path}}",
+    "status": {
+      "inProgress": "In progress",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "kind": {
+      "read": "Read file",
+      "edit": "Edit file",
+      "execute": "Run command",
+      "search": "Search",
+      "unknown": "Tool call"
+    },
+    "diffTitle": "Changes in {{file}}"
+  },
+  "writeback": {
+    "verified": "/{{cmd}} writeback verified",
+    "verifiedDetail": "✅ /{{cmd}} writeback verified (Act & Verify): {{paths}}",
+    "failed": "/{{cmd}} writeback incomplete",
+    "failedDetail": "⚠️ /{{cmd}} expected writeback to {{paths}}, but no recent update detected: {{detail}}"
+  }
+}

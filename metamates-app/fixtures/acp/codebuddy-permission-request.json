@@ -1,0 +1,9 @@
+{
+  "_source": "Captured from CodeBuddy ACP session/request_permission (AionUi-compatible shape)",
+  "options": [
+    { "kind": "allow_always", "name": "Always Allow", "optionId": "allow_always" },
+    { "kind": "allow_once", "name": "Allow", "optionId": "allow" },
+    { "kind": "reject_once", "name": "Reject", "optionId": "reject" }
+  ],
+  "expectedAllowOptionId": "allow"
+}

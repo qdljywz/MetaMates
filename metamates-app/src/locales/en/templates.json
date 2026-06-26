@@ -1,0 +1,29 @@
+{
+  "title": "Select Template",
+  "selectTemplate": "Please select a template",
+  "cancel": "Cancel",
+  "useTemplate": "Use Template",
+  "editTemplate": "Edit Template",
+  "saveTemplate": "Save Template",
+  "resetTemplate": "Reset",
+  "templateSaved": "Template saved",
+  "templateReset": "Template reset to default",
+  "customized": "Customized",
+  "variables": "Available variables: {{date}} (date), {{week}} (week), {{month}} (month)",
+  "loadFailed": "Failed to load templates",
+  "templateDeleted": "Template deleted",
+  "builtinCannotDelete": "Built-in templates cannot be deleted",
+  "searchPlaceholder": "Search templates...",
+  "use": "Use",
+  "builtin": "Built-in",
+  "noDescription": "No description",
+  "noTemplates": "No templates",
+  "categories": {
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "monthly": "Monthly",
+    "project": "Project",
+    "review": "Review",
+    "custom": "Custom"
+  }
+}

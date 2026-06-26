@@ -1,0 +1,178 @@
+/* ═══ Vintage Newspaper Theme ═══ */
+
+:root[data-theme="light"][data-color-scheme="vintage"] {
+  --canvas-base: #faf8f5;
+  --canvas-surface: #fffefb;
+  --canvas-elevated: #f5f2ed;
+  --canvas-hover: #ede9e1;
+  --accent: #92400e;
+  --accent-soft: rgba(146, 64, 14, 0.08);
+  --accent-glow: rgba(146, 64, 14, 0.15);
+  --text-primary: #292524;
+  --text-secondary: #57534e;
+  --text-muted: #a8a29e;
+  --text-dim: #d6d3d1;
+  --divider: rgba(146, 64, 14, 0.06);
+  --divider-strong: rgba(146, 64, 14, 0.12);
+}
+
+:root[data-theme="dark"][data-color-scheme="vintage"] {
+  --canvas-base: #1c1917;
+  --canvas-surface: #211e1c;
+  --canvas-elevated: #272420;
+  --canvas-hover: #2e2a26;
+  --accent: #d97706;
+  --accent-soft: rgba(217, 119, 6, 0.12);
+  --accent-glow: rgba(217, 119, 6, 0.2);
+  --text-primary: #fafaf9;
+  --text-secondary: #d6d3d1;
+  --text-muted: #a8a29e;
+  --text-dim: #78716c;
+  --divider: rgba(217, 119, 6, 0.05);
+  --divider-strong: rgba(217, 119, 6, 0.1);
+}
+
+[data-color-scheme="vintage"] {
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Georgia', serif;
+  letter-spacing: 0.01em;
+}
+
+[data-color-scheme="vintage"] .title-bar { background: var(--canvas-surface); border-bottom: 1px solid var(--divider); }
+[data-color-scheme="vintage"] .activity-bar { background: var(--canvas-surface); border-right: 1px solid var(--divider); }
+[data-color-scheme="vintage"] .file-tree-panel { background: var(--canvas-surface); }
+[data-color-scheme="vintage"] .editor-area { background: var(--canvas-surface); }
+[data-color-scheme="vintage"] .agent-chat-panel { background: var(--canvas-surface); border-left: 1px solid var(--divider); }
+
+[data-color-scheme="vintage"] .cm-editor { background: var(--canvas-surface) !important; color: var(--text-primary) !important; font-family: 'JetBrains Mono', monospace !important; }
+[data-color-scheme="vintage"] .cm-gutters { background: var(--canvas-elevated) !important; border-right: 1px solid var(--divider) !important; color: var(--text-muted) !important; font-size: 11px !important; opacity: 0.5; }
+[data-color-scheme="vintage"] .cm-line { color: var(--text-primary) !important; padding: 0 10px !important; }
+[data-color-scheme="vintage"] .cm-selectionBackground { background: rgba(217, 119, 6, 0.12) !important; }
+
+[data-color-scheme="vintage"] .status-bar {
+  background: var(--canvas-elevated);
+  border-top: 1px solid var(--divider);
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 0 14px !important;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.03em;
+}
+
+[data-color-scheme="vintage"] ::-webkit-scrollbar { width: 6px; height: 6px; }
+[data-color-scheme="vintage"] ::-webkit-scrollbar-track { background: transparent; }
+[data-color-scheme="vintage"] ::-webkit-scrollbar-thumb { background: var(--divider-strong); border-radius: 3px; }
+
+/* Vintage Buttons - Letterpress 3D */
+[data-color-scheme="vintage"] .ant-btn-primary {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  border: none !important;
+  box-shadow: 0 3px 0 #92400e, 0 4px 8px rgba(146, 64, 14, 0.3), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+}
+[data-color-scheme="vintage"] .ant-btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 5px 0 #92400e, 0 8px 16px rgba(146, 64, 14, 0.35), inset 0 1px 0 rgba(255,255,255,0.25) !important;
+}
+[data-color-scheme="vintage"] .ant-btn-primary:active:not(:disabled) {
+  transform: translateY(2px) !important;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2), 0 1px 0 #92400e !important;
+}
+
+/* Vintage Toolbar Buttons - Letterpress 3D (the one user loved!) */
+[data-color-scheme="vintage"] .editor-area .ant-btn-text,
+[data-color-scheme="vintage"] .editor-area .ant-btn.ant-btn-sm.ant-btn-text {
+  background: linear-gradient(180deg, var(--canvas-elevated), var(--canvas-surface)) !important;
+  border: 1px solid var(--divider-strong) !important;
+  border-radius: 5px !important;
+  color: '#78716c' !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 11px !important;
+  box-shadow:
+    0 2px 0 rgba(146,64,14,0.12),
+    0 4px 8px rgba(146,64,14,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.7),
+    inset 0 -1px 0 rgba(0,0,0,0.06) !important;
+}
+[data-color-scheme="vintage"] .editor-area .ant-btn-text:hover,
+[data-color-scheme="vintage"] .editor-area .ant-btn.ant-btn-sm.ant-btn-text:hover {
+  top: -3px !important;
+  border-color: var(--accent) !important;
+  color: #d97706 !important;
+  box-shadow:
+    0 6px 0 rgba(217,119,6,0.18),
+    0 10px 20px rgba(146,64,14,0.16),
+    0 0 24px rgba(217,119,6,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.85),
+    inset 0 -1px 0 rgba(0,0,0,0.04) !important;
+}
+[data-color-scheme="vintage"] .editor-area .ant-btn-text:active,
+[data-color-scheme="vintage"] .editor-area .ant-btn.ant-btn-sm.ant-btn-text:active {
+  top: 3px !important;
+  box-shadow:
+    inset 0 3px 6px rgba(146,64,14,0.18),
+    inset 0 1px 0 rgba(255,255,255,0.35) !important;
+}
+
+/* Vintage Default Buttons - Letterpress */
+[data-color-scheme="vintage"] .ant-btn-default {
+  background: linear-gradient(180deg, var(--canvas-elevated), var(--canvas-surface)) !important;
+  border: 1px solid var(--divider-strong) !important;
+  color: '#57534e' !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 12px !important;
+  box-shadow:
+    0 2px 0 rgba(146,64,14,0.12),
+    0 4px 8px rgba(146,64,14,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    inset 0 -1px 0 rgba(0,0,0,0.05);
+}
+[data-color-scheme="vintage"] .ant-btn-default:hover:not(:disabled) {
+  top: -2px !important;
+  border-color: var(--accent) !important;
+  color: #d97706 !important;
+  box-shadow:
+    0 5px 0 rgba(217,119,6,0.16),
+    0 8px 16px rgba(146,64,14,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.7),
+    inset 0 -1px 0 rgba(0,0,0,0.04);
+}
+
+/* Vintage Native Buttons (Send) - Bold Letterpress */
+[data-color-scheme="vintage"] button:not(.ant-btn):not([class*="title-bar"]):not([class*="activity"]) {
+  font-family: 'JetBrains Mono', monospace !important;
+  box-shadow:
+    0 3px 0 rgba(146,64,14,0.18),
+    0 5px 12px rgba(146,64,14,0.15),
+    inset 0 1px 0 rgba(255,255,255,0.22);
+}
+[data-color-scheme="vintage"] button:not(.ant-btn):not([class*="title-bar"]):not([class*="activity"]):hover:not(:disabled) {
+  top: -3px !important;
+  box-shadow:
+    0 7px 0 rgba(217,119,6,0.2),
+    0 12px 24px rgba(146,64,14,0.18),
+    0 0 28px rgba(217,119,6,0.1),
+    inset 0 1px 0 rgba(255,255,255,0.32);
+}
+[data-color-scheme="vintage"] button:not(.ant-btn):not([class*="title-bar"]):not([class*="activity"]):active:not(:disabled) {
+  top: 3px !important;
+  box-shadow:
+    inset 0 3px 8px rgba(146,64,14,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.35) !important;
+}
+
+/* Vintage Danger Buttons */
+[data-color-scheme="vintage"] .ant-btn-dangerous:hover,
+[data-color-scheme="vintage"] .ant-btn-danger:hover {
+  color: #b91c1c !important;
+  border-color: rgba(185,28,28,0.35) !important;
+  box-shadow: 0 2px 0 rgba(185,28,28,0.15), 0 3px 8px rgba(185,28,28,0.12) !important;
+}
+
+[data-color-scheme="vintage"] .ant-modal-content {
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(28, 25, 23, 0.3), 0 0 0 1px var(--divider-strong);
+  border: 1px solid var(--divider-strong);
+}
+[data-color-scheme="vintage"] .ant-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}

@@ -1,0 +1,10 @@
+{
+  "title": "Use the Metamates desktop app",
+  "subtitle": "Metamates is a local Electron app, not a web app. Browser mode cannot access your vault, agents, or terminal.",
+  "browserHint": "You opened the dev URL in a browser (e.g. localhost:3000). Use the Electron desktop window instead, or find Metamates on the taskbar.",
+  "preloadFailedTitle": "Desktop shell failed to load",
+  "preloadFailedSubtitle": "The Electron window opened but the preload bridge is missing. Quit Metamates completely and run npm run electron:dev again.",
+  "runHint": "From the project directory, run:",
+  "or": "or",
+  "footer": "If already installed, launch the Metamates desktop app. The /mobile page is only for clip-saving, not the main entry."
+}

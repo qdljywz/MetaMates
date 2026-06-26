@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Metamates · 使用指南</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-deep: #0c1117;
+      --bg-mid: #121a22;
+      --surface: rgba(255, 255, 255, 0.035);
+      --surface-hover: rgba(255, 255, 255, 0.06);
+      --surface-solid: #161f28;
+      --ink: #f0ece4;
+      --ink-soft: #b8c0c8;
+      --muted: #6e7a86;
+      --line: rgba(255, 255, 255, 0.08);
+      --line-strong: rgba(255, 255, 255, 0.14);
+      --teal: #3dd6c8;
+      --teal-dim: rgba(61, 214, 200, 0.12);
+      --teal-glow: rgba(61, 214, 200, 0.35);
+      --gold: #e8b86d;
+      --gold-dim: rgba(232, 184, 109, 0.12);
+      --rose: #e07a8a;
+      --violet: #a78bfa;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--line);
+      --shadow-glow: 0 8px 40px rgba(61, 214, 200, 0.08);
+      --display: "Fraunces", "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+      --sidebar-w: 248px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.78;
+      color: var(--ink-soft);
+      background: var(--bg-deep);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ── Atmospheric background ── */
+    .atmosphere {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.45;
+      animation: drift 22s ease-in-out infinite;
+    }
+
+    .orb-1 {
+      width: 520px; height: 520px;
+      background: radial-gradient(circle, rgba(61, 214, 200, 0.35), transparent 70%);
+      top: -120px; right: -80px;
+    }
+
+    .orb-2 {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(232, 184, 109, 0.22), transparent 70%);
+      bottom: 10%; left: -100px;
+      animation-delay: -8s;
+    }
+
+    .orb-3 {
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, rgba(167, 139, 250, 0.15), transparent 70%);
+      top: 45%; right: 25%;
+      animation-delay: -14s;
+    }
+
+    .grid-overlay {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 64px 64px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black, transparent);
+    }
+
+    .noise {
+      position: absolute;
+      inset: 0;
+      opacity: 0.04;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    @keyframes drift {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      33% { transform: translate(30px, -20px) scale(1.05); }
+      66% { transform: translate(-20px, 15px) scale(0.95); }
+    }
+
+    a { color: var(--teal); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: #6ee8dc; }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.82em;
+      background: rgba(61, 214, 200, 0.1);
+      color: var(--teal);
+      padding: 0.12em 0.4em;
+      border-radius: 5px;
+      border: 1px solid rgba(61, 214, 200, 0.15);
+    }
+
+    /* ── Layout ── */
+    .shell {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 1.75rem 1.25rem;
+      border-right: 1px solid var(--line);
+      background: rgba(12, 17, 23, 0.75);
+      backdrop-filter: blur(20px) saturate(1.2);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-mark {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--teal-dim), var(--gold-dim));
+      border: 1px solid var(--line-strong);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      box-shadow: var(--shadow-glow);
+    }
+
+    .brand {
+      font-family: var(--display);
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--ink);
+      letter-spacing: 0.01em;
+    }
+
+    .brand-sub {
+      font-size: 0.68rem;
+      color: var(--muted);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 1.75rem;
+      padding-left: 2.85rem;
+    }
+
+    .toc-label {
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 0.5rem 0.35rem;
+    }
+
+    .toc {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .toc a {
+      display: block;
+      padding: 0.42rem 0.7rem;
+      border-radius: var(--radius-sm);
+      color: var(--muted);
+      font-size: 0.86rem;
+      border-left: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .toc a:hover {
+      color: var(--ink);
+      background: var(--surface-hover);
+      text-decoration: none;
+    }
+
+    .toc a.active {
+      color: var(--teal);
+      background: var(--teal-dim);
+      border-left-color: var(--teal);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .version-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.6rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: 0.68rem;
+      color: var(--ink-soft);
+      margin-top: 0.5rem;
+    }
+
+    .version-pill::before {
+      content: "";
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--teal);
+      box-shadow: 0 0 8px var(--teal-glow);
+      animation: pulse 2s ease infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* ── Main ── */
+    .main {
+      max-width: 780px;
+      padding: 0 3rem 5rem;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      position: relative;
+      margin: 0 -3rem 3.5rem;
+      padding: 4rem 3rem 3.5rem;
+      overflow: hidden;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(165deg, rgba(61, 214, 200, 0.06) 0%, transparent 45%, rgba(232, 184, 109, 0.04) 100%);
+      pointer-events: none;
+    }
+
+    .hero-deco {
+      position: absolute;
+      right: 2rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 180px;
+      height: 180px;
+      opacity: 0.15;
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin-bottom: 1.25rem;
+      animation: fadeUp 0.7s ease both;
+    }
+
+    .eyebrow-line {
+      width: 24px;
+      height: 1px;
+      background: linear-gradient(90deg, var(--teal), transparent);
+    }
+
+    h1 {
+      font-family: var(--display);
+      font-size: clamp(2.4rem, 5vw, 3.4rem);
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.18;
+      letter-spacing: -0.02em;
+      margin: 0 0 1.25rem;
+      animation: fadeUp 0.7s 0.08s ease both;
+      max-width: 14em;
+    }
+
+    h1 .highlight {
+      background: linear-gradient(120deg, var(--teal) 0%, var(--gold) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .lede {
+      font-size: 1.08rem;
+      color: var(--ink-soft);
+      max-width: 34em;
+      margin: 0 0 2rem;
+      animation: fadeUp 0.7s 0.16s ease both;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+      animation: fadeUp 0.7s 0.24s ease both;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.65rem 1.15rem;
+      border-radius: 999px;
+      font-size: 0.86rem;
+      font-weight: 500;
+      transition: all 0.25s;
+      border: 1px solid transparent;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, rgba(61, 214, 200, 0.25), rgba(61, 214, 200, 0.08));
+      border-color: rgba(61, 214, 200, 0.35);
+      color: var(--teal);
+      box-shadow: 0 0 24px rgba(61, 214, 200, 0.12);
+    }
+
+    .btn-primary:hover {
+      background: rgba(61, 214, 200, 0.2);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 28px rgba(61, 214, 200, 0.2);
+      text-decoration: none;
+      color: #6ee8dc;
+    }
+
+    .btn-ghost {
+      background: var(--surface);
+      border-color: var(--line);
+      color: var(--ink-soft);
+    }
+
+    .btn-ghost:hover {
+      background: var(--surface-hover);
+      color: var(--ink);
+      text-decoration: none;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Pillars ── */
+    .pillars {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 2.5rem;
+      animation: fadeUp 0.7s 0.32s ease both;
+    }
+
+    .pillar {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1.35rem 1.25rem;
+      transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+      overflow: hidden;
+    }
+
+    .pillar::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--teal), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .pillar:hover {
+      transform: translateY(-4px);
+      border-color: var(--line-strong);
+      box-shadow: var(--shadow-glow);
+    }
+
+    .pillar:hover::before { opacity: 1; }
+
+    .pillar-icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.65rem;
+      display: block;
+    }
+
+    .pillar strong {
+      display: block;
+      font-family: var(--display);
+      font-size: 1rem;
+      color: var(--ink);
+      margin-bottom: 0.4rem;
+    }
+
+    .pillar span {
+      font-size: 0.84rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── Sections ── */
+    section {
+      margin-bottom: 4rem;
+      scroll-margin-top: 2rem;
+    }
+
+    section.reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+
+    section.reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .section-head {
+      display: flex;
+      align-items: flex-end;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-num {
+      font-family: var(--display);
+      font-size: 2.5rem;
+      font-weight: 700;
+      line-height: 1;
+      background: linear-gradient(180deg, var(--teal), rgba(61, 214, 200, 0.2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      opacity: 0.7;
+    }
+
+    h2 {
+      font-family: var(--display);
+      font-size: 1.65rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0;
+      flex: 1;
+    }
+
+    h3 {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 2rem 0 1rem;
+    }
+
+    h3::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, var(--line), transparent);
+    }
+
+    p { margin: 0 0 1rem; }
+
+    /* ── Steps ── */
+    .steps {
+      counter-reset: step;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .steps li {
+      counter-increment: step;
+      position: relative;
+      padding: 0 0 1.75rem 3.25rem;
+      border-left: 1px solid var(--line);
+      margin-left: 1rem;
+    }
+
+    .steps li:last-child {
+      padding-bottom: 0;
+      border-left-color: transparent;
+    }
+
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: -1rem;
+      top: 0;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      background: var(--surface-solid);
+      border: 1px solid var(--line-strong);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--display);
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--teal);
+      box-shadow: 0 0 16px rgba(61, 214, 200, 0.1);
+    }
+
+    .steps strong {
+      display: block;
+      color: var(--ink);
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+      font-size: 1rem;
+    }
+
+    /* ── Mock window ── */
+    .mock-wrap {
+      margin: 1.5rem 0;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      box-shadow: var(--shadow), var(--shadow-glow);
+      background: var(--surface-solid);
+    }
+
+    .mock-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.65rem 1rem;
+      background: rgba(0, 0, 0, 0.25);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .mock-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+
+    .mock-dot.r { background: #ff5f57; }
+    .mock-dot.y { background: #febc2e; }
+    .mock-dot.g { background: #28c840; }
+
+    .mock-title {
+      flex: 1;
+      text-align: center;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-right: 2rem;
+    }
+
+    .mock {
+      display: grid;
+      grid-template-columns: 56px 1fr 148px;
+      gap: 1px;
+      background: var(--line);
+    }
+
+    .mock > div {
+      background: var(--surface-solid);
+      padding: 1.1rem 0.75rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.45;
+    }
+
+    .mock .nav-col {
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    .mock .editor {
+      padding: 1.35rem 1.15rem;
+      text-align: left;
+    }
+
+    .mock .editor em {
+      display: block;
+      font-style: normal;
+      font-family: var(--display);
+      font-size: 0.95rem;
+      color: var(--ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .mock-bar {
+      height: 5px;
+      background: var(--line-strong);
+      border-radius: 3px;
+      margin-bottom: 0.45rem;
+    }
+
+    .mock-bar.short { width: 45%; }
+    .mock-bar.mid { width: 72%; }
+
+    .mock .agent-col {
+      background: linear-gradient(180deg, rgba(61, 214, 200, 0.06), transparent);
+      border-left: 1px solid var(--line);
+    }
+
+    /* ── Folders ── */
+    .folders {
+      display: grid;
+      gap: 0.55rem;
+      margin: 1.25rem 0;
+    }
+
+    .folder {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.85rem 1.1rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      transition: all 0.25s;
+    }
+
+    .folder:hover {
+      border-color: rgba(61, 214, 200, 0.25);
+      background: var(--surface-hover);
+      transform: translateX(4px);
+    }
+
+    .folder-num {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--teal);
+      opacity: 0.7;
+      min-width: 1.5rem;
+    }
+
+    .folder-name {
+      font-family: var(--display);
+      font-size: 0.95rem;
+      color: var(--ink);
+      white-space: nowrap;
+      min-width: 6em;
+    }
+
+    .folder-desc {
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+
+    /* ── Commands ── */
+    .cmd-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+    }
+
+    .cmd {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.7rem;
+      padding: 0.85rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      transition: all 0.25s;
+      cursor: default;
+    }
+
+    .cmd:hover {
+      border-color: var(--cat-color, var(--teal-glow));
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      transform: translateY(-2px);
+    }
+
+    .cmd.cat-daily { --cat-color: rgba(61, 214, 200, 0.4); }
+    .cmd.cat-think { --cat-color: rgba(167, 139, 250, 0.4); }
+    .cmd.cat-inspire { --cat-color: rgba(232, 184, 109, 0.4); }
+    .cmd.cat-evolve { --cat-color: rgba(224, 122, 138, 0.4); }
+
+    .cmd code {
+      font-size: 0.74rem;
+      font-weight: 500;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .cmd span {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .cmd-wide { grid-column: 1 / -1; }
+
+    /* ── Intel ── */
+    .ways {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 1.25rem 0;
+    }
+
+    .way {
+      font-size: 0.84rem;
+      padding: 0.5rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--ink-soft);
+      transition: all 0.2s;
+    }
+
+    .way:hover {
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    .intel-flow {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.85rem;
+      margin: 1.5rem 0;
+    }
+
+    .intel-step {
+      position: relative;
+      text-align: center;
+      padding: 1.5rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      transition: transform 0.3s;
+    }
+
+    .intel-step:hover { transform: translateY(-3px); }
+
+    .intel-step:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      right: -0.55rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 0.9rem;
+      z-index: 1;
+    }
+
+    .intel-step .num {
+      display: inline-flex;
+      width: 2rem;
+      height: 2rem;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--teal), rgba(61, 214, 200, 0.5));
+      color: var(--bg-deep);
+      font-family: var(--display);
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      box-shadow: 0 0 20px var(--teal-glow);
+    }
+
+    .intel-step strong {
+      display: block;
+      font-family: var(--display);
+      font-size: 0.95rem;
+      color: var(--ink);
+      margin-bottom: 0.3rem;
+    }
+
+    .intel-step p {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    /* ── Callouts & settings ── */
+    .callout {
+      padding: 1rem 1.15rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      margin: 1.25rem 0;
+      line-height: 1.65;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .callout::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+    }
+
+    .callout-tip {
+      background: var(--teal-dim);
+      border: 1px solid rgba(61, 214, 200, 0.2);
+    }
+
+    .callout-tip::before { background: var(--teal); }
+
+    .callout-warn {
+      background: var(--gold-dim);
+      border: 1px solid rgba(232, 184, 109, 0.25);
+    }
+
+    .callout-warn::before { background: var(--gold); }
+
+    .callout strong { color: var(--ink); }
+
+    .setting-block {
+      margin: 1.5rem 0 2rem;
+      padding: 1.35rem 1.4rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .setting-block:hover {
+      border-color: var(--line-strong);
+      box-shadow: var(--shadow-glow);
+    }
+
+    .setting-block h4 {
+      font-family: var(--display);
+      font-size: 1.1rem;
+      color: var(--ink);
+      margin: 0 0 0.4rem;
+    }
+
+    .setting-block .purpose {
+      font-size: 0.86rem;
+      color: var(--muted);
+      margin: 0 0 1rem;
+    }
+
+    .checklist {
+      list-style: none;
+      padding: 0;
+      margin: 0.75rem 0 0;
+    }
+
+    .checklist li {
+      position: relative;
+      padding: 0.4rem 0 0.4rem 1.75rem;
+      font-size: 0.9rem;
+    }
+
+    .checklist li::before {
+      content: "○";
+      position: absolute;
+      left: 0;
+      color: var(--teal);
+      font-size: 0.85rem;
+    }
+
+    pre {
+      background: rgba(0, 0, 0, 0.45);
+      color: #c9d1d9;
+      padding: 1.15rem 1.2rem;
+      border-radius: var(--radius-sm);
+      overflow-x: auto;
+      font-size: 0.76rem;
+      line-height: 1.6;
+      margin: 0.85rem 0;
+      border: 1px solid var(--line);
+    }
+
+    pre code {
+      font-family: var(--mono);
+      background: none;
+      padding: 0;
+      color: inherit;
+      border: none;
+    }
+
+    .setting-order {
+      display: grid;
+      gap: 0.6rem;
+      margin: 1.25rem 0;
+    }
+
+    .order-item {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      padding: 0.9rem 1.1rem;
+      background: linear-gradient(135deg, var(--teal-dim), transparent);
+      border: 1px solid rgba(61, 214, 200, 0.15);
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+    }
+
+    .order-num {
+      flex-shrink: 0;
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 50%;
+      background: var(--teal);
+      color: var(--bg-deep);
+      font-family: var(--display);
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.18rem 0.5rem;
+      border-radius: 4px;
+      vertical-align: middle;
+      margin-left: 0.4rem;
+    }
+
+    .badge-stable {
+      background: var(--teal-dim);
+      color: var(--teal);
+      border: 1px solid rgba(61, 214, 200, 0.25);
+    }
+
+    .badge-exp {
+      background: var(--gold-dim);
+      color: var(--gold);
+      border: 1px solid rgba(232, 184, 109, 0.3);
+    }
+
+    .setting-block.experimental {
+      border-style: dashed;
+      border-color: rgba(232, 184, 109, 0.2);
+      opacity: 0.95;
+    }
+
+    .roadmap-list {
+      list-style: none;
+      padding: 0;
+      margin: 1rem 0;
+      display: grid;
+      gap: 0.5rem;
+    }
+
+    .roadmap-list li {
+      padding: 0.75rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      transition: transform 0.2s;
+    }
+
+    .roadmap-list li:hover { transform: translateX(4px); }
+
+    .scope-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 0.86rem;
+      margin: 1.25rem 0 1.5rem;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+
+    .scope-table th,
+    .scope-table td {
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+    }
+
+    .scope-table tr:last-child td { border-bottom: none; }
+
+    .scope-table th {
+      background: rgba(0, 0, 0, 0.3);
+      color: var(--ink);
+      font-weight: 600;
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .scope-table td { background: var(--surface); }
+
+    /* ── Keys ── */
+    .keys {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+
+    .key-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.7rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      font-size: 0.86rem;
+      transition: border-color 0.2s;
+    }
+
+    .key-row:hover { border-color: var(--line-strong); }
+
+    .key-row span { color: var(--muted); }
+
+    kbd {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      padding: 0.25rem 0.55rem;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      color: var(--ink);
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+    }
+
+    /* ── FAQ ── */
+    .faq-grid {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .faq-item {
+      padding: 1.15rem 1.25rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      transition: all 0.25s;
+    }
+
+    .faq-item:hover {
+      border-color: var(--line-strong);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .faq-item strong {
+      display: block;
+      font-family: var(--display);
+      font-size: 1rem;
+      color: var(--ink);
+      margin-bottom: 0.4rem;
+    }
+
+    .faq-item p {
+      margin: 0;
+      font-size: 0.9rem;
+    }
+
+    footer {
+      margin-top: 4rem;
+      padding: 2rem 0;
+      border-top: 1px solid var(--line);
+      font-size: 0.86rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    footer a { font-weight: 500; }
+
+    @media (max-width: 900px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar {
+        position: static;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--line);
+      }
+      .toc { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+      .toc-label, .sidebar-footer { display: none; }
+      .main { padding: 0 1.25rem 3rem; }
+      .hero { margin: 0 -1.25rem 2.5rem; padding: 2.5rem 1.25rem 2rem; }
+      .hero-deco { display: none; }
+      .pillars, .intel-flow, .cmd-grid, .keys { grid-template-columns: 1fr; }
+      .mock { grid-template-columns: 44px 1fr; }
+      .mock .agent-col { grid-column: 1 / -1; border-left: none; border-top: 1px solid var(--line); }
+      .intel-step:not(:last-child)::after { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+      section.reveal { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="atmosphere" aria-hidden="true">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="grid-overlay"></div>
+    <div class="noise"></div>
+  </div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand-mark">
+        <div class="brand-icon" aria-hidden="true">◈</div>
+        <div class="brand">Metamates</div>
+      </div>
+      <div class="brand-sub">使用指南</div>
+      <p class="toc-label">目录</p>
+      <ul class="toc" id="toc">
+        <li><a href="#overview">概览</a></li>
+        <li><a href="#start">快速开始</a></li>
+        <li><a href="#workspace">工作区</a></li>
+        <li><a href="#commands">命令</a></li>
+        <li><a href="#intel">情报导入</a></li>
+        <li><a href="#settings">设置（现在可用）</a></li>
+        <li><a href="#settings-experimental">实验性功能</a></li>
+        <li><a href="#shortcuts">快捷键</a></li>
+        <li><a href="#faq">常见问题</a></li>
+      </ul>
+      <div class="sidebar-footer">
+        本地知识工作台
+        <div class="version-pill">v0.2 · 稳定版</div>
+      </div>
+    </aside>
+
+    <article class="main">
+      <header class="hero" id="overview">
+        <svg class="hero-deco" viewBox="0 0 200 200" fill="none" aria-hidden="true">
+          <circle cx="100" cy="100" r="80" stroke="rgba(61,214,200,0.3)" stroke-width="0.5"/>
+          <circle cx="100" cy="100" r="60" stroke="rgba(61,214,200,0.2)" stroke-width="0.5"/>
+          <circle cx="100" cy="100" r="40" stroke="rgba(232,184,109,0.25)" stroke-width="0.5"/>
+          <path d="M100 20 L100 180 M20 100 L180 100" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
+        </svg>
+        <div class="eyebrow"><span class="eyebrow-line"></span> Metamates · v0.2</div>
+        <h1>笔记在本地，<br /><span class="highlight">思考有回响。</span></h1>
+        <p class="lede">
+          Metamates 是一款桌面知识工作台。您照常写 Markdown 笔记，AI 在同一工作区里协助整理、规划与检索——产出写回文件，而非留在对话里。
+          设置页中部分能力尚在实验阶段，手册已分「<a href="#settings">现在可用</a>」与「<a href="#settings-experimental">实验功能</a>」两档。
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#start">5 分钟上手 →</a>
+          <a class="btn btn-ghost" href="#settings">配置 AI 助手</a>
+        </div>
+        <div class="pillars">
+          <div class="pillar">
+            <span class="pillar-icon">📁</span>
+            <strong>本地优先</strong>
+            <span>数据保存在您选择的文件夹，标准 Markdown，随时可迁移。</span>
+          </div>
+          <div class="pillar">
+            <span class="pillar-icon">🧠</span>
+            <strong>笔记即上下文</strong>
+            <span>AI 读取您的项目与日记，给出贴合您实际情况的建议。</span>
+          </div>
+          <div class="pillar">
+            <span class="pillar-icon">⚡</span>
+            <strong>命令即动作</strong>
+            <span>一条命令完成计划、复盘、情报整理等，结果自动落盘。</span>
+          </div>
+        </div>
+      </header>
+
+      <section id="start" class="reveal">
+        <div class="section-head">
+          <span class="section-num">01</span>
+          <h2>快速开始</h2>
+        </div>
+        <ol class="steps">
+          <li>
+            <strong>安装并打开 Metamates</strong>
+            首次启动时选择或新建工作区文件夹。
+          </li>
+          <li>
+            <strong>连接 AI 助手</strong>
+            点击标题栏齿轮打开设置，按<a href="#setting-cli">「AI CLI 安装」</a>步骤完成至少一个助手的安装与登录。
+          </li>
+          <li>
+            <strong>开始写作与协作</strong>
+            在中间编辑笔记，在右侧面板发送指令或点击命令按钮。
+          </li>
+        </ol>
+      </section>
+
+      <section id="workspace" class="reveal">
+        <div class="section-head">
+          <span class="section-num">02</span>
+          <h2>界面与工作区</h2>
+        </div>
+        <p>左侧浏览文件与日历，中间编辑笔记，右侧与 AI 协作。布局简洁，专注写作。</p>
+        <div class="mock-wrap" aria-hidden="true">
+          <div class="mock-titlebar">
+            <span class="mock-dot r"></span>
+            <span class="mock-dot y"></span>
+            <span class="mock-dot g"></span>
+            <span class="mock-title">Metamates — 我的工作区</span>
+          </div>
+          <div class="mock">
+            <div class="nav-col">导航</div>
+            <div class="editor">
+              <em>今日计划</em>
+              <div class="mock-bar mid"></div>
+              <div class="mock-bar short"></div>
+              <div class="mock-bar"></div>
+            </div>
+            <div class="agent-col">AI<br />助手</div>
+          </div>
+        </div>
+        <p>工作区首次初始化后，将按用途分为五个区域：</p>
+        <div class="folders">
+          <div class="folder"><span class="folder-num">01</span><span class="folder-name">日记与计划</span><span class="folder-desc">每日记录、待办与复盘</span></div>
+          <div class="folder"><span class="folder-num">02</span><span class="folder-name">项目与知识</span><span class="folder-desc">长期项目与结构化文档</span></div>
+          <div class="folder"><span class="folder-num">03</span><span class="folder-name">点滴积累</span><span class="folder-desc">灵感碎片与原子笔记</span></div>
+          <div class="folder"><span class="folder-num">04</span><span class="folder-name">情报与连接</span><span class="folder-desc">外部资料、报告与链接摘要</span></div>
+          <div class="folder"><span class="folder-num">05</span><span class="folder-name">模板与配置</span><span class="folder-desc">战略看板与个人偏好设置</span></div>
+        </div>
+      </section>
+
+      <section id="commands" class="reveal">
+        <div class="section-head">
+          <span class="section-num">03</span>
+          <h2>命令一览</h2>
+        </div>
+        <p>在右侧 AI 面板底部选择命令，或在输入框键入 <code>/</code> 加命令名。带「需输入」的命令会提示您补充主题或链接。</p>
+
+        <h3>日常</h3>
+        <div class="cmd-grid">
+          <div class="cmd cat-daily"><code>/context</code><span>了解当前项目与优先级</span></div>
+          <div class="cmd cat-daily"><code>/today</code><span>生成今日计划</span></div>
+          <div class="cmd cat-daily"><code>/closeday</code><span>每日复盘</span></div>
+          <div class="cmd cat-daily"><code>/schedule</code><span>安排本周时间</span></div>
+          <div class="cmd cat-daily cmd-wide"><code>/sync</code><span>同步进展至战略看板</span></div>
+        </div>
+
+        <h3>思考</h3>
+        <div class="cmd-grid">
+          <div class="cmd cat-think"><code>/trace</code><span>追溯一个想法的演变 · 需输入</span></div>
+          <div class="cmd cat-think"><code>/connect</code><span>发现两个主题间的联系 · 需输入</span></div>
+          <div class="cmd cat-think"><code>/challenge</code><span>检验观点是否站得住脚 · 需输入</span></div>
+          <div class="cmd cat-think"><code>/ghost</code><span>以您的风格起草回复 · 需输入</span></div>
+        </div>
+
+        <h3>灵感</h3>
+        <div class="cmd-grid">
+          <div class="cmd cat-inspire"><code>/ideas</code><span>从笔记中提炼新方向</span></div>
+          <div class="cmd cat-inspire"><code>/graduate</code><span>将灵感升格为正式笔记</span></div>
+          <div class="cmd cat-inspire"><code>/drift</code><span>察觉潜藏的主题趋势</span></div>
+          <div class="cmd cat-inspire"><code>/emerge</code><span>识别正在成形的项目</span></div>
+          <div class="cmd cat-inspire cmd-wide"><code>/intel</code><span>导入网页或文档为情报笔记 · 需输入</span></div>
+        </div>
+
+        <h3>进化</h3>
+        <div class="cmd-grid">
+          <div class="cmd cat-evolve cmd-wide"><code>/soal</code><span>将习惯与教训写入个人进化档案 · 需输入</span></div>
+        </div>
+      </section>
+
+      <section id="intel" class="reveal">
+        <div class="section-head">
+          <span class="section-num">04</span>
+          <h2>情报导入</h2>
+        </div>
+        <p>将网页、PDF、Office 文档或图片中的信息，整理为可检索、可关联的情报笔记。</p>
+        <div class="ways">
+          <span class="way">命令 <code>/intel</code></span>
+          <span class="way">直接发送链接</span>
+          <span class="way">文件右键导入</span>
+          <span class="way">Ctrl+P 搜索「导入」</span>
+        </div>
+        <div class="intel-flow">
+          <div class="intel-step">
+            <div class="num">1</div>
+            <strong>提取</strong>
+            <p>自动读取正文并保存原件</p>
+          </div>
+          <div class="intel-step">
+            <div class="num">2</div>
+            <strong>摘要</strong>
+            <p>生成结构化情报笔记</p>
+          </div>
+          <div class="intel-step">
+            <div class="num">3</div>
+            <strong>深化</strong>
+            <p>AI 补充要点与笔记关联</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="settings" class="reveal">
+        <div class="section-head">
+          <span class="section-num">05</span>
+          <h2>设置 · 现在可用</h2>
+        </div>
+        <p>
+          当前版本（v0.2）的主线是：<strong style="color:var(--ink)">本地工作区 + 笔记编辑 + Agent 对话 + slash 命令</strong>。
+          下面这些是建议现在配置、且与主线直接相关的设置；其余带「实验性」标签的见<a href="#settings-experimental">下一节</a>。
+        </p>
+
+        <div class="callout callout-tip">
+          <strong>打开设置：</strong>点击标题栏右侧齿轮图标 → 修改后务必点「保存」。请先确认左侧已加载工作区（能看到 <code>01_日记与计划</code> 等文件夹）。
+        </div>
+
+        <table class="scope-table" aria-label="功能成熟度">
+          <thead>
+            <tr><th>档位</th><th>含义</th><th>现在要不要配</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge badge-stable">稳定</span></td>
+              <td>主路径，文档步骤可照着做</td>
+              <td><strong style="color:var(--teal)">是</strong></td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-exp">实验</span></td>
+              <td>有入口、方向明确，未完整验收</td>
+              <td>可跳过，见<a href="#settings-experimental">下一节</a></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>推荐配置顺序（仅 2 步）</h3>
+        <div class="setting-order">
+          <div class="order-item"><span class="order-num">1</span><span><strong style="color:var(--ink)"><a href="#setting-cli">AI CLI 安装</a></strong> — 必做，否则 Agent 无法对话</span></div>
+          <div class="order-item"><span class="order-num">2</span><span><strong style="color:var(--ink)"><a href="#setting-skills">重新同步 CLI Skills</a></strong> — 建议，启用 <code>/today</code> 等命令</span></div>
+        </div>
+
+        <div class="setting-block" id="setting-autosave">
+          <h4>自动保存 <span class="badge badge-stable">稳定</span></h4>
+          <p class="purpose">编辑笔记时自动写入磁盘，一般保持开启即可。</p>
+          <ul class="checklist">
+            <li>设置 →「自动保存」→ 开关拨到<strong style="color:var(--ink)">开</strong> → 点「保存」</li>
+            <li>验证：编辑笔记后切换标签页，内容应仍在</li>
+          </ul>
+        </div>
+
+        <div class="setting-block" id="setting-cli">
+          <h4>AI CLI 安装 <span class="badge badge-stable">必做</span></h4>
+          <p class="purpose">Metamates 通过本机 CLI（Gemini、Claude Code、CodeBuddy、Codex 等）与 AI 对话。至少安装并登录一个。</p>
+          <ul class="checklist">
+            <li>设置 →「AI CLI 安装」→ 点击<strong style="color:var(--ink)">「管理 CLI Agent」</strong></li>
+            <li>选择助手（建议先试 Gemini 或 CodeBuddy）→ 未安装则点<strong style="color:var(--ink)">安装</strong></li>
+            <li>在 PowerShell 完成登录（如 <code>gemini</code>、<code>codebuddy</code>、<code>claude</code>）</li>
+            <li>回到 Metamates，点击右侧 Agent 面板顶部对应 pill</li>
+            <li>验证：显示「已连接」后发送「你好」能收到回复</li>
+          </ul>
+          <div class="callout callout-tip">
+            <strong>提示：</strong>登录弹窗仅在您<strong style="color:var(--ink)">主动点击 Agent 或发送消息</strong>时出现，不会在启动时挡住界面。
+          </div>
+        </div>
+
+        <div class="setting-block" id="setting-skills">
+          <h4>重新同步 CLI Skills <span class="badge badge-stable">建议</span></h4>
+          <p class="purpose">将 <code>/today</code>、<code>/context</code> 等技能写入工作区各 CLI 目录；<strong style="color:var(--ink)">不覆盖</strong>您已修改的文件。</p>
+          <ul class="checklist">
+            <li>确认工作区已打开 → 设置 →「重新同步 CLI Skills」</li>
+            <li>验证：Agent 输入框输入 <code>/</code> 应出现命令列表</li>
+          </ul>
+          <div class="callout callout-tip">
+            <strong>工作区隔离：</strong>每个工作区有独立的 Agent 聊天记录和 skills；切换文件夹后会加载对应历史。
+          </div>
+        </div>
+
+        <h3>外观与语言</h3>
+        <p style="font-size:0.9rem">设置弹窗上半部分，按需调整即可：</p>
+        <div class="cmd-grid" style="margin-top:0.75rem">
+          <div class="cmd"><code>主题</code><span>深色 / 浅色 / 跟随系统</span></div>
+          <div class="cmd"><code>主题风格</code><span>Nordic、Forest 等配色</span></div>
+          <div class="cmd"><code>字号</code><span>编辑器字体大小</span></div>
+          <div class="cmd"><code>语言</code><span>界面与初始化模板（中/英）</span></div>
+        </div>
+
+        <h3>配置出问题时</h3>
+        <div class="faq-grid">
+          <div class="faq-item">
+            <strong>Agent 连不上</strong>
+            <p>先在 PowerShell 单独运行对应 CLI 确认能登录；再在设置「管理 CLI Agent」查看安装状态。</p>
+          </div>
+          <div class="faq-item">
+            <strong>slash 命令不出现</strong>
+            <p>执行「重新同步 CLI Skills」，并确认当前工作区路径正确。</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="settings-experimental" class="reveal">
+        <div class="section-head">
+          <span class="section-num">06</span>
+          <h2>实验性功能 · 路线图</h2>
+        </div>
+        <p>
+          以下设置在应用里<strong style="color:var(--ink)">已有入口和部分实现</strong>，但尚未作为 v0.2 的主线承诺，也<strong style="color:var(--ink)">未经完整验收</strong>。
+          您可以先跳过；等有需求时再按文档尝试，遇到问题属于预期范围。
+        </p>
+
+        <div class="callout callout-warn">
+          <strong>说明：</strong>实验性功能可能变动、文档滞后或与界面不完全一致。正式支持前，请勿依赖它们完成关键工作流。
+        </div>
+
+        <h3>规划中的能力</h3>
+        <ul class="roadmap-list">
+          <li><strong style="color:var(--ink)">日历 (iCal)</strong> — 导入 .ics，状态栏显示今日日程，配合 <code>/schedule</code></li>
+          <li><strong style="color:var(--ink)">Vault API</strong> — 本地 HTTP 接口，供 Cursor / Claude Desktop 读写笔记</li>
+          <li><strong style="color:var(--ink)">MCP 服务器</strong> — 为内置 Agent 注入自定义工具</li>
+          <li><strong style="color:var(--ink)">Ollama</strong> — 本地大模型，数据不出本机</li>
+        </ul>
+
+        <div class="setting-block experimental" id="setting-calendar">
+          <h4>日历 (iCal) <span class="badge badge-exp">实验性</span></h4>
+          <p class="purpose">导入日程后，状态栏显示今日事件数；与 <code>/today</code>、<code>/schedule</code> 的深度联动待完善。</p>
+          <ul class="checklist">
+            <li>从 Google / Outlook 导出 <code>.ics</code></li>
+            <li>设置 →「日历 (iCal)」→「浏览」选文件 → 保存</li>
+            <li>验证：状态栏出现日历图标与事件数（若无效，属已知限制）</li>
+          </ul>
+        </div>
+
+        <div class="setting-block experimental" id="setting-vault-api">
+          <h4>Vault API（MCP 桥接） <span class="badge badge-exp">实验性</span></h4>
+          <p class="purpose">在 localhost 暴露工作区 HTTP API，供外部 AI 工具搜索/读写 Markdown。需 Metamates 保持运行。</p>
+          <ul class="checklist">
+            <li>设置 → 开启 Vault API → 端口默认 <code>17333</code> → 保存</li>
+            <li>验证：设置页显示「运行中：http://127.0.0.1:17333」</li>
+          </ul>
+          <p style="font-size:0.86rem;margin:1rem 0 0.5rem">Claude Desktop / Cursor 连接示例（路径改为本机实际位置）：</p>
+          <pre><code>{
+  "mcpServers": {
+    "metamates-vault": {
+      "command": "node",
+      "args": ["E:/Trae/Metamates/metamates-app/scripts/vault-mcp-bridge.mjs"],
+      "env": { "VAULT_API_URL": "http://127.0.0.1:17333" }
+    }
+  }
+}</code></pre>
+          <p style="font-size:0.84rem;color:var(--muted);margin:0">「移动阅读」「局域网访问」同理——可用但未全面验证，默认保持局域网关闭。</p>
+        </div>
+
+        <div class="setting-block experimental" id="setting-mcp">
+          <h4>MCP 服务器 <span class="badge badge-exp">实验性</span></h4>
+          <p class="purpose">给内置 Agent 面板注入额外 MCP 工具。开启 Vault API 时会自动注入 <code>metamates-vault</code>。</p>
+          <ul class="checklist">
+            <li>设置 →「管理 MCP 服务器」→ 添加命令与参数</li>
+            <li>保存后会尝试重载 Agent 会话（成功率因 MCP 而异）</li>
+          </ul>
+        </div>
+
+        <div class="setting-block experimental" id="setting-ollama">
+          <h4>Ollama 本地模型 <span class="badge badge-exp">实验性</span></h4>
+          <p class="purpose">连接本机 Ollama。设置页可检测在线状态；与 Agent pill 的完整打通仍在路线图中。</p>
+          <ul class="checklist">
+            <li>安装 <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> 并 <code>ollama pull llama3.2</code></li>
+            <li>设置 → 开启 Ollama → 填地址与模型名 → 保存</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="shortcuts" class="reveal">
+        <div class="section-head">
+          <span class="section-num">07</span>
+          <h2>常用快捷键</h2>
+        </div>
+        <div class="keys">
+          <div class="key-row"><span>命令面板</span><kbd>Ctrl + P</kbd></div>
+          <div class="key-row"><span>全局搜索</span><kbd>Ctrl + Shift + F</kbd></div>
+          <div class="key-row"><span>今日计划</span><kbd>Ctrl + Shift + P</kbd></div>
+          <div class="key-row"><span>写入进化档案</span><kbd>Ctrl + Shift + O</kbd></div>
+          <div class="key-row"><span>切换标签页</span><kbd>Ctrl + Tab</kbd></div>
+          <div class="key-row"><span>保存</span><kbd>Ctrl + S</kbd></div>
+        </div>
+      </section>
+
+      <section id="faq" class="reveal">
+        <div class="section-head">
+          <span class="section-num">08</span>
+          <h2>常见问题</h2>
+        </div>
+        <div class="faq-grid">
+          <div class="faq-item">
+            <strong>我的数据存在哪里？</strong>
+            <p>全部在您选择的工作区文件夹中，以 Markdown 格式保存。备份该文件夹即可。</p>
+          </div>
+          <div class="faq-item">
+            <strong>AI 助手无法连接？</strong>
+            <p>请确认已在电脑上安装对应助手并完成登录，然后在 Metamates 设置中检查连接状态。</p>
+          </div>
+          <div class="faq-item">
+            <strong>笔记之间如何建立关联？</strong>
+            <p>使用 <code>[[笔记名称]]</code> 创建双向链接，或使用 <code>#标签</code> 分类。关系图谱可可视化这些连接。</p>
+          </div>
+          <div class="faq-item">
+            <strong>设置里的 Vault API、MCP、Ollama、日历要不要配？</strong>
+            <p>v0.2 不必配。它们属于<a href="#settings-experimental">实验性功能</a>，可等有需求再试；不影响笔记编辑与 Agent 对话主流程。</p>
+          </div>
+        </div>
+      </section>
+
+      <footer>
+        <p>需要更多帮助？<a href="https://github.com/metamates/metamates-app/issues">在 GitHub 提交问题</a></p>
+      </footer>
+    </article>
+  </div>
+
+  <script>
+    (function () {
+      var sections = document.querySelectorAll("section.reveal");
+      var tocLinks = document.querySelectorAll("#toc a");
+
+      if ("IntersectionObserver" in window) {
+        var revealObs = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting) e.target.classList.add("visible");
+          });
+        }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
+        sections.forEach(function (s) { revealObs.observe(s); });
+      } else {
+        sections.forEach(function (s) { s.classList.add("visible"); });
+      }
+
+      var sectionIds = [];
+      tocLinks.forEach(function (a) {
+        var id = a.getAttribute("href").slice(1);
+        var el = document.getElementById(id);
+        if (el) sectionIds.push({ id: id, el: el, link: a });
+      });
+
+      function updateToc() {
+        var current = sectionIds[0];
+        var scrollY = window.scrollY + 120;
+        sectionIds.forEach(function (item) {
+          if (item.el.offsetTop <= scrollY) current = item;
+        });
+        tocLinks.forEach(function (a) { a.classList.remove("active"); });
+        if (current) current.link.classList.add("active");
+      }
+
+      window.addEventListener("scroll", updateToc, { passive: true });
+      updateToc();
+    })();
+  </script>
+</body>
+</html>

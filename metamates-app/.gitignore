@@ -1,0 +1,135 @@
+# 本地会话数据库
+conversations.db
+conversations.db.bak
+conversations.sqlite
+conversations.sqlite-wal
+conversations.sqlite-shm
+session-store.json
+
+# 依赖
+node_modules/
+
+# 构建输出（均可 npm run build / electron:build 重建）
+dist/
+dist-electron/
+release/
+release-build/
+dist-release/
+dist-release-*/
+dist-release-new/
+acp-poc/
+poc/
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 日志
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# TypeScript 增量编译
+*.tsbuildinfo
+.electron-compile.lock
+
+# 测试结果
+test-results/
+playwright-report/
+coverage/
+
+# IDE 和编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS 文件
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+
+# 敏感配置
+config/ai-config.json
+config/*-api-key*.txt
+config/api-keys/
+
+# Electron 打包输出
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+
+# 证书文件
+*.pem
+.certificate
+
+# 崩溃日志
+crash.log
+crash.dmp
+
+# E2E 测试临时工作区
+e2e/.workspace/
+
+# 本地开发用 Vault（勿入库）
+MyM2/
+
+# Sprint 文档
+sprints/
+
+# 临时脚本
+*.cjs
+!electron/preload.cjs
+!dist-electron/preload.cjs
+
+# 测试文件
+test-*.html
+test-*.ts
+!src/test/*.test.ts
+
+# 保留示例配置
+!config/*.example.*
+!.env.example
+
+# 保留重要文档
+!README.md
+!LICENSE
+!CHANGELOG.md
+!version.md
+!CONTRIBUTING.md
+!docs/
+
+# 保留配置文件
+!playwright.config.ts
+!vitest.config.ts
+!tsconfig.json
+!tsconfig.*.json
+!vite.config.ts
+!electron-builder.yml
+!electron-builder.json
+
+# 保留源代码目录
+!src/
+!electron/
+!public/
+
+# 保留依赖锁定文件
+!package-lock.json
+!pnpm-lock.yaml
+!yarn.lock

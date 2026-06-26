@@ -1,0 +1,47 @@
+{
+  "steps": {
+    "welcome": {
+      "title": "Welcome to Metamates",
+      "subtitle": "Private inspiration repo + thinking engine",
+      "description": "Two parts, one loop:",
+      "desktopNote": "Ideas live in a folder on your computer; the engine on the right starts with AI chat.",
+      "features": {
+        "agent": "Engine — chat with AI on the right; that’s the main entry",
+        "commands": "One command (e.g. /today) = engine reads your repo and writes results",
+        "vault": "Private repo — fragments, diary, clips as local Markdown",
+        "capture": "Phone can drop ideas into your inbox"
+      }
+    },
+    "workspace": {
+      "title": "Choose a notes folder",
+      "description": "AI reads and writes in this folder. On first run we create diary, project, and inbox folders for you.",
+      "selectButton": "Choose folder",
+      "selected": "Selected",
+      "required": "Please choose a folder first",
+      "initialized": "Folder is ready",
+      "skillsSynced": "Synced {{count}} workspace template item(s) (memory index & skills)",
+      "desktopOnly": "This step is for the desktop app only"
+    },
+    "agent": {
+      "title": "Connect an AI assistant",
+      "description": "This is the key step. Once connected, talk in the panel on the right — AI can organize, summarize, and update your notes.",
+      "detecting": "Looking for AI assistants…",
+      "found": "Found {{count}} assistant(s)",
+      "none": "None found yet — you can install one below",
+      "installButton": "Install AI assistant",
+      "skipHint": "Skip for now and connect from the panel on the right",
+      "connected": "Connected to {{name}}",
+      "connectLater": "After entering the app, start chatting in the AI panel on the right"
+    },
+    "complete": {
+      "title": "You’re set",
+      "subtitle": "Pick an AI on the right and send your first message.",
+      "startButton": "Start chatting"
+    }
+  },
+  "buttons": {
+    "previous": "Previous",
+    "next": "Next",
+    "saveAndComplete": "Finish"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "_source": "Gemini CLI session/new models block (availableModels + modelId, not models[])",
+  "raw": {
+    "availableModels": [
+      { "modelId": "auto", "name": "Auto" },
+      { "modelId": "gemini-2.5-pro", "name": "gemini-2.5-pro" }
+    ],
+    "currentModelId": "gemini-2.5-pro"
+  },
+  "expectedModelIds": ["auto", "gemini-2.5-pro"],
+  "expectedAutoModelId": "auto"
+}
