@@ -46,7 +46,7 @@ const ResultModal: React.FC<ResultModalProps> = ({
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px' }}>
           <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} spin />} />
-          <Paragraph style={{ marginTop: 16, color: '#888' }}>
+          <Paragraph style={{ marginTop: 16, color: 'var(--text-muted)' }}>
             AI正在处理，请稍候...
           </Paragraph>
         </div>

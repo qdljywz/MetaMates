@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Metamates · 使用指南</title>
+  <title>MetaMates · 使用指南</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -1153,7 +1153,7 @@
     <aside class="sidebar">
       <div class="brand-mark">
         <div class="brand-icon" aria-hidden="true">◈</div>
-        <div class="brand">Metamates</div>
+        <div class="brand">MetaMates</div>
       </div>
       <div class="brand-sub">使用指南</div>
       <p class="toc-label">目录</p>
@@ -1170,7 +1170,7 @@
       </ul>
       <div class="sidebar-footer">
         本地知识工作台
-        <div class="version-pill">v0.2 · 稳定版</div>
+        <div class="version-pill">v0.1.0 · 基线</div>
       </div>
     </aside>
 
@@ -1182,10 +1182,10 @@
           <circle cx="100" cy="100" r="40" stroke="rgba(232,184,109,0.25)" stroke-width="0.5"/>
           <path d="M100 20 L100 180 M20 100 L180 100" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
         </svg>
-        <div class="eyebrow"><span class="eyebrow-line"></span> Metamates · v0.2</div>
+        <div class="eyebrow"><span class="eyebrow-line"></span> MetaMates · v0.1.0</div>
         <h1>笔记在本地，<br /><span class="highlight">思考有回响。</span></h1>
         <p class="lede">
-          Metamates 是一款桌面知识工作台。您照常写 Markdown 笔记，AI 在同一工作区里协助整理、规划与检索——产出写回文件，而非留在对话里。
+          MetaMates 是一款桌面知识工作台。您照常写 Markdown 笔记，AI 在同一工作区里协助整理、规划与检索——产出写回文件，而非留在对话里。
           设置页中部分能力尚在实验阶段，手册已分「<a href="#settings">现在可用</a>」与「<a href="#settings-experimental">实验功能</a>」两档。
         </p>
         <div class="hero-actions">
@@ -1218,7 +1218,7 @@
         </div>
         <ol class="steps">
           <li>
-            <strong>安装并打开 Metamates</strong>
+            <strong>安装并打开 MetaMates</strong>
             首次启动时选择或新建工作区文件夹。
           </li>
           <li>
@@ -1243,7 +1243,7 @@
             <span class="mock-dot r"></span>
             <span class="mock-dot y"></span>
             <span class="mock-dot g"></span>
-            <span class="mock-title">Metamates — 我的工作区</span>
+            <span class="mock-title">MetaMates — 我的工作区</span>
           </div>
           <div class="mock">
             <div class="nav-col">导航</div>
@@ -1342,7 +1342,7 @@
           <h2>设置 · 现在可用</h2>
         </div>
         <p>
-          当前版本（v0.2）的主线是：<strong style="color:var(--ink)">本地工作区 + 笔记编辑 + Agent 对话 + slash 命令</strong>。
+          当前版本（v0.1.0）的主线是：<strong style="color:var(--ink)">本地工作区 + 笔记编辑 + Agent 对话 + slash 命令写回</strong>。
           下面这些是建议现在配置、且与主线直接相关的设置；其余带「实验性」标签的见<a href="#settings-experimental">下一节</a>。
         </p>
 
@@ -1385,12 +1385,12 @@
 
         <div class="setting-block" id="setting-cli">
           <h4>AI CLI 安装 <span class="badge badge-stable">必做</span></h4>
-          <p class="purpose">Metamates 通过本机 CLI（Gemini、Claude Code、CodeBuddy、Codex 等）与 AI 对话。至少安装并登录一个。</p>
+          <p class="purpose">MetaMates 通过本机 CLI（Gemini、Claude Code、CodeBuddy、Codex 等）与 AI 对话。至少安装并登录一个。</p>
           <ul class="checklist">
             <li>设置 →「AI CLI 安装」→ 点击<strong style="color:var(--ink)">「管理 CLI Agent」</strong></li>
             <li>选择助手（建议先试 Gemini 或 CodeBuddy）→ 未安装则点<strong style="color:var(--ink)">安装</strong></li>
             <li>在 PowerShell 完成登录（如 <code>gemini</code>、<code>codebuddy</code>、<code>claude</code>）</li>
-            <li>回到 Metamates，点击右侧 Agent 面板顶部对应 pill</li>
+            <li>回到 MetaMates，点击右侧 Agent 面板顶部对应 pill</li>
             <li>验证：显示「已连接」后发送「你好」能收到回复</li>
           </ul>
           <div class="callout callout-tip">
@@ -1438,7 +1438,7 @@
           <h2>实验性功能 · 路线图</h2>
         </div>
         <p>
-          以下设置在应用里<strong style="color:var(--ink)">已有入口和部分实现</strong>，但尚未作为 v0.2 的主线承诺，也<strong style="color:var(--ink)">未经完整验收</strong>。
+          以下设置在应用里<strong style="color:var(--ink)">已有入口和部分实现</strong>，但尚未作为 v0.1.0 的主线承诺，也<strong style="color:var(--ink)">未经完整验收</strong>。
           您可以先跳过；等有需求时再按文档尝试，遇到问题属于预期范围。
         </p>
 
@@ -1466,7 +1466,7 @@
 
         <div class="setting-block experimental" id="setting-vault-api">
           <h4>Vault API（MCP 桥接） <span class="badge badge-exp">实验性</span></h4>
-          <p class="purpose">在 localhost 暴露工作区 HTTP API，供外部 AI 工具搜索/读写 Markdown。需 Metamates 保持运行。</p>
+          <p class="purpose">在 localhost 暴露工作区 HTTP API，供外部 AI 工具搜索/读写 Markdown。需 MetaMates 保持运行。</p>
           <ul class="checklist">
             <li>设置 → 开启 Vault API → 端口默认 <code>17333</code> → 保存</li>
             <li>验证：设置页显示「运行中：http://127.0.0.1:17333」</li>
@@ -1476,7 +1476,7 @@
   "mcpServers": {
     "metamates-vault": {
       "command": "node",
-      "args": ["E:/Trae/Metamates/metamates-app/scripts/vault-mcp-bridge.mjs"],
+      "args": ["<path-to-metamates-app>/scripts/vault-mcp-bridge.mjs"],
       "env": { "VAULT_API_URL": "http://127.0.0.1:17333" }
     }
   }
@@ -1530,7 +1530,7 @@
           </div>
           <div class="faq-item">
             <strong>AI 助手无法连接？</strong>
-            <p>请确认已在电脑上安装对应助手并完成登录，然后在 Metamates 设置中检查连接状态。</p>
+            <p>请确认已在电脑上安装对应助手并完成登录，然后在 MetaMates 设置中检查连接状态。</p>
           </div>
           <div class="faq-item">
             <strong>笔记之间如何建立关联？</strong>
@@ -1538,13 +1538,13 @@
           </div>
           <div class="faq-item">
             <strong>设置里的 Vault API、MCP、Ollama、日历要不要配？</strong>
-            <p>v0.2 不必配。它们属于<a href="#settings-experimental">实验性功能</a>，可等有需求再试；不影响笔记编辑与 Agent 对话主流程。</p>
+            <p>v0.1.0 不必配。它们属于<a href="#settings-experimental">实验性功能</a>，可等有需求再试；不影响笔记编辑与 Agent 对话主流程。</p>
           </div>
         </div>
       </section>
 
       <footer>
-        <p>需要更多帮助？<a href="https://github.com/metamates/metamates-app/issues">在 GitHub 提交问题</a></p>
+        <p>需要更多帮助？<a href="https://github.com/qdljywz/MetaMates/issues">在 GitHub 提交问题</a></p>
       </footer>
     </article>
   </div>

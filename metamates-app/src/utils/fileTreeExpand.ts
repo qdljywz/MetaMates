@@ -2,11 +2,35 @@
  * Helpers for revealing open files in the Ant Design file tree.
  */
 
+import type { FileChangeEvent } from '../types/electron'
+
 /**
  * Normalize path separators for stable comparison on Windows.
  */
 export function normalizeTreePath(filePath: string): string {
   return filePath.replace(/\//g, '\\').replace(/\\+$/, '')
+}
+
+/**
+ * Compare two paths case-insensitively (Windows vault paths).
+ */
+export function treePathsEqual(a: string, b: string): boolean {
+  return normalizeTreePath(a).toLowerCase() === normalizeTreePath(b).toLowerCase()
+}
+
+/**
+ * Which directory should be re-listed after a vault file change (create / delete / rename).
+ */
+export function getTreeRefreshParentDir(
+  workspacePath: string,
+  event?: Pick<FileChangeEvent, 'dirPath' | 'filename'>,
+): string {
+  if (!event?.dirPath) return workspacePath
+  if (!event.filename) return event.dirPath
+  const joined = `${normalizeTreePath(event.dirPath)}\\${event.filename.replace(/\//g, '\\')}`
+  const parentEnd = Math.max(joined.lastIndexOf('\\'), joined.lastIndexOf('/'))
+  if (parentEnd <= 0) return workspacePath
+  return joined.slice(0, parentEnd)
 }
 
 /**

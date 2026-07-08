@@ -13,8 +13,8 @@
 ### 🧩 [项目 A]
 ![[Master_Control#项目 A 进度汇总]]
 
-### 🧠 Metamates 建设 (AI & Tools)
-![[Master_Control#Metamates 建设进度汇总]]
+### 🧠 MetaMates 建设 (AI & Tools)
+![[Master_Control#MetaMates 建设进度汇总]]
 
 ---
 

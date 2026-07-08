@@ -1,15 +1,17 @@
-# Metamates Workspace
+# MetaMates Workspace
 
-> **Personal inspiration vault** — a local Markdown folder read and written by the [Metamates](https://github.com/metamates/metamates-app) desktop app. Capture fragments, journals, and clips here first; the **engine on the right** (AI chat + slash commands) reads the vault and writes plans and insights back into these files.
+> **Personal inspiration vault** — a local Markdown folder read and written by the [MetaMates](https://github.com/qdljywz/MetaMates) desktop app. Capture fragments, journals, and clips here first; the **engine on the right** (AI chat + slash commands) reads the vault and writes plans and insights back into these files.
 
 ---
 
-## Using this folder in Metamates
+## Using this folder in MetaMates
 
-1. **Open workspace**: Select this folder in Metamates (the first-run wizard copies structure from `inits/en`).
+1. **Open workspace**: Select this folder in MetaMates (the first-run wizard copies structure from `inits/en`).
 2. **Start from the engine**: Pick an AI on the right, send a message or tap `/today` and other commands — **this is the main entry point**.
 3. **Review output**: Files the engine writes back open in the center editor; the calendar opens today's journal / PLAN.
 4. **Mobile capture**: With Vault API enabled, quick captures land in `01_Log_and_Plan/Inbox/`.
+5. **Timezone**: Set your IANA timezone in MetaMates **Settings** (e.g. `Asia/Shanghai`) — journals, PLAN files, and agent dates follow it.
+6. **Empty-state guidance**: With no editor tabs open, the center **Thinking Engine** asks context-aware questions from PLAN, calendar, Ideas, and Inbox backlog.
 
 Each CLI keeps **one continuous thread**; switching agents preserves separate histories.
 
@@ -25,7 +27,7 @@ Each CLI keeps **one continuous thread**; switching agents preserves separate hi
 | `Daily_Plan.md` | Daily plan template (P0, time blocks) |
 | `YYYY-MM-DD.md` | Diary for that date |
 | `YYYY-MM-DD PLAN.md` | Master plan for that date |
-| `Inbox/` | Mobile capture & quick entries |
+| `Inbox/` | Mobile capture & quick entries (empty at init; `/graduate` archives sources to `Inbox/processed/`) |
 
 ### 📂 `02_Project_and_Knowledge`
 
@@ -53,7 +55,7 @@ External intel, meetings, connections. See `Intelligence_Home.md`.
 
 ## Methodology commands (15)
 
-Use from the **Agent panel** on the right in Metamates (no need to type full prompts manually):
+Use from the **Agent panel** on the right in MetaMates (no need to type full prompts manually):
 
 - **Daily**: `/context` `/today` `/closeday` `/schedule` `/sync`
 - **Thinking**: `/trace` `/connect` `/challenge` `/ghost`
@@ -73,4 +75,4 @@ Use from the **Agent panel** on the right in Metamates (no need to type full pro
 
 ---
 
-**Workspace template version**: 1.3 · synced with Metamates desktop · 2026-06-22
+**Workspace template version**: 1.4 · synced with MetaMates desktop · 2026-07-07

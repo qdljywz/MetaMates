@@ -1,5 +1,5 @@
 /**
- * Canonical ACP CLI definitions for Metamates (personal edition).
+ * Canonical ACP CLI definitions for MetaMates (personal edition).
  * Electron spawn + renderer install/detection should stay aligned with this file.
  */
 
@@ -32,7 +32,7 @@ export interface AcpCliDefinition {
   installUrl?: string
 }
 
-/** CLIs Metamates spawns via ACP — aligned with AionUi ACP_BACKENDS_ALL. */
+/** CLIs MetaMates spawns via ACP — aligned with AionUi ACP_BACKENDS_ALL. */
 export const POTENTIAL_ACP_CLIS: AcpCliDefinition[] = [
   {
     cmd: 'gemini',

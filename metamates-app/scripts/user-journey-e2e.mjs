@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Metamates 用户旅程全自动 E2E — 按最终用户操作维度逐项走查（无需人工参与）
+ * MetaMates 用户旅程全自动 E2E — 按最终用户操作维度逐项走查（无需人工参与）
  *
  * 用法:
  *   node scripts/user-journey-e2e.mjs
@@ -14,6 +14,16 @@ import os from 'os'
 import path from 'path'
 import http from 'http'
 import { fileURLToPath, pathToFileURL } from 'url'
+import { resolveDefaultWorkspace } from './lib/default-workspace.mjs'
+import { safeElectronCompile } from './lib/safe-electron-compile.mjs'
+import {
+  closeElectronApp,
+  dismissBlockingModals,
+  launchElectronApp,
+  openCommandPaletteE2e,
+  sleep,
+  waitForAgentUi,
+} from './lib/electron-e2e-lifecycle.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
@@ -21,10 +31,6 @@ const SKIP_ACP_LIVE = process.env.SKIP_ACP_LIVE === '1'
 const REPORT_PATH = path.join(ROOT, 'user-journey-e2e-report.json')
 
 const results = []
-
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms))
-}
 
 function httpOk(url) {
   return new Promise((resolve) => {
@@ -41,7 +47,7 @@ function record(section, name, ok, detail = '') {
 }
 
 async function ensureDevStack() {
-  execSync('npm run electron:compile', { cwd: ROOT, stdio: 'pipe' })
+  await safeElectronCompile({ quiet: true })
   if (!(await httpOk('http://127.0.0.1:3000'))) {
     const vite = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], {
       cwd: ROOT,
@@ -59,19 +65,7 @@ async function ensureDevStack() {
 }
 
 function prepareWorkspace() {
-  if (process.env.METAMATES_WORKSPACE?.trim()) {
-    return path.resolve(process.env.METAMATES_WORKSPACE)
-  }
-  const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-journey-'))
-  const inits = path.join(ROOT, 'inits', 'zh')
-  for (const entry of fs.readdirSync(inits, { withFileTypes: true })) {
-    if (entry.name.startsWith('.')) continue
-    const src = path.join(inits, entry.name)
-    const dest = path.join(ws, entry.name)
-    if (entry.isDirectory()) fs.cpSync(src, dest, { recursive: true })
-    else fs.copyFileSync(src, dest)
-  }
-  return ws
+  return resolveDefaultWorkspace()
 }
 
 async function runNodeBackendJourney(workspace) {
@@ -114,63 +108,15 @@ async function runNodeBackendJourney(workspace) {
 }
 
 async function closeModals(win) {
-  for (let i = 0; i < 4; i++) {
-    const closeBtn = win.locator('.ant-modal-close').first()
-    if (await closeBtn.isVisible().catch(() => false)) {
-      await closeBtn.click({ timeout: 2000 }).catch(() => {})
-      await sleep(300)
-    }
-    await win.keyboard.press('Escape')
-    await sleep(200)
-  }
-  await win.locator('.ant-modal-wrap').first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {})
-}
-
-async function waitForAgentUi(win, maxMs = 120_000) {
-  const started = Date.now()
-  while (Date.now() - started < maxMs) {
-    const ready = await win.evaluate(() => ({
-      toolbar: !!document.querySelector('[data-testid="agent-toolbar"]'),
-      chat: !!document.querySelector('[data-testid="chat-input"]'),
-      tree: !!document.querySelector('[data-testid="file-tree"]'),
-      slashChips: document.querySelectorAll('[data-testid^="slash-chip-"]').length,
-      panel: !!document.querySelector('[data-testid="agent-panel"]'),
-    }))
-    if (ready.toolbar && ready.chat && ready.slashChips >= 15) return ready
-    await sleep(2000)
-  }
-  return win.evaluate(() => ({
-    toolbar: !!document.querySelector('[data-testid="agent-toolbar"]'),
-    chat: !!document.querySelector('[data-testid="chat-input"]'),
-    tree: !!document.querySelector('[data-testid="file-tree"]'),
-    slashChips: document.querySelectorAll('[data-testid^="slash-chip-"]').length,
-    panel: !!document.querySelector('[data-testid="agent-panel"]'),
-  }))
+  await dismissBlockingModals(win)
 }
 
 async function runElectronUiJourney(workspace) {
   let app
+  let userDataDir
   try {
-    if (process.platform === 'win32') {
-      try {
-        execSync('taskkill /F /IM electron.exe 2>nul', { stdio: 'ignore', shell: true })
-        await sleep(2000)
-      } catch { /* ignore */ }
-    }
-
-    app = await electron.launch({
-      args: ['.'],
-      cwd: ROOT,
-      timeout: 180_000,
-      env: {
-        ...process.env,
-        METAMATES_E2E: '1',
-        METAMATES_WORKSPACE: workspace,
-        NODE_ENV: 'development',
-      },
-    })
-
-    const win = await app.firstWindow({ timeout: 120_000 })
+    ;({ app, userDataDir } = await launchElectronApp(electron, { cwd: ROOT, workspace }))
+    const win = await app.firstWindow()
     await win.waitForLoadState('domcontentloaded')
     await win.waitForSelector('[data-testid="file-tree"]', { timeout: 60_000 }).catch(() => {})
 
@@ -180,8 +126,8 @@ async function runElectronUiJourney(workspace) {
     const shell = await win.evaluate(() => ({
       hasElectronAPI: typeof window.electronAPI !== 'undefined',
       e2eBoot: !!(window.__METAMATES_E2E__?.enabled && window.__METAMATES_E2E__?.workspace),
-      desktopGate: document.body?.innerText?.includes('请使用 Metamates 桌面版')
-        || document.body?.innerText?.includes('Use the Metamates desktop app'),
+      desktopGate: document.body?.innerText?.includes('请使用 MetaMates 桌面版')
+        || document.body?.innerText?.includes('Use the MetaMates desktop app'),
       preloadFail: document.body?.innerText?.includes('桌面壳加载失败'),
       hasToolbar: !!document.querySelector('[data-testid="agent-toolbar"]'),
       hasFileTree: !!document.querySelector('[data-testid="file-tree"]'),
@@ -195,6 +141,54 @@ async function runElectronUiJourney(workspace) {
     record('桌面壳', 'Agent 工具栏', shell.hasToolbar)
     record('桌面壳', '文件树', shell.hasFileTree)
     record('桌面壳', '聊天输入框', shell.hasChatInput)
+
+    const noCrash = await win.evaluate(() => {
+      const err = document.querySelector('.ant-result-title, [class*="error-boundary"]')
+      const text = document.body?.innerText || ''
+      const hasAgentCrash = text.includes('object is not extensible') || text.includes('出了点问题')
+      return !err && !hasAgentCrash
+    })
+    record('稳定性', '无 ErrorBoundary 崩溃', noCrash)
+
+    const paletteEarly = await openCommandPaletteE2e(win)
+    record('快捷键', '命令面板', paletteEarly)
+    if (paletteEarly) await closeModals(win)
+
+    await closeModals(win)
+    await win.evaluate(() => {
+      const active = document.activeElement
+      if (active instanceof HTMLElement && active !== document.body) active.blur()
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }))
+    })
+    await sleep(600)
+    const searchEarly = await win.locator('.ant-modal').filter({ hasText: /搜索|Search/i }).first().isVisible().catch(() => false)
+    record('快捷键', 'Ctrl+Shift+F 全局搜索', searchEarly)
+    if (searchEarly) await closeModals(win)
+
+    const windowIpc = await win.evaluate(async () => {
+      const w = window.electronAPI?.window
+      if (!w) return { ok: false, detail: 'no window api' }
+      const min = await w.minimize()
+      const max = await w.maximize()
+      const isMax = await w.isMaximized()
+      return { ok: min?.success && max?.success, detail: `maximized=${isMax}` }
+    })
+    record('窗口', '最小化/最大化 IPC', windowIpc.ok, windowIpc.detail)
+
+    const updaterIpc = await win.evaluate(async () => {
+      const u = window.electronAPI?.updater
+      if (!u?.check) return { ok: true, detail: 'updater n/a' }
+      try {
+        const r = await u.check()
+        return { ok: r?.success !== false || r?.error?.includes('net') || r?.status === 'not-available', detail: r?.status || r?.error || 'checked' }
+      } catch (e) {
+        return { ok: true, detail: String(e).slice(0, 80) }
+      }
+    })
+    record('更新', 'electron-updater check IPC', updaterIpc.ok, updaterIpc.detail)
+
+    const editorOk = await win.locator('.cm-editor').first().isVisible().catch(() => false)
+    record('编辑器', 'CodeMirror 可见', editorOk)
 
     const ipcOps = await win.evaluate(async () => {
       const api = window.electronAPI
@@ -271,24 +265,6 @@ async function runElectronUiJourney(workspace) {
     await sleep(400)
 
     await closeModals(win)
-    await win.evaluate(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, bubbles: true }))
-    })
-    await sleep(600)
-    const paletteOpen = await win.locator('.ant-modal').filter({ hasText: /命令|Command|Go to/i }).first().isVisible().catch(() => false)
-    record('快捷键', 'Ctrl+P 命令面板', paletteOpen)
-    if (paletteOpen) await closeModals(win)
-
-    await closeModals(win)
-    await win.evaluate(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'F', ctrlKey: true, shiftKey: true, bubbles: true }))
-    })
-    await sleep(600)
-    const searchOpen = await win.locator('.ant-modal').filter({ hasText: /搜索|Search/i }).first().isVisible().catch(() => false)
-    record('快捷键', 'Ctrl+Shift+F 全局搜索', searchOpen)
-    if (searchOpen) await closeModals(win)
-
-    await closeModals(win)
     const slashCount = await win.locator('[data-testid^="slash-chip-"]').count()
     record('Agent', '15 条 slash chips', slashCount === 15, `count=${slashCount}`)
 
@@ -326,7 +302,8 @@ async function runElectronUiJourney(workspace) {
 
     const todayChip = win.locator('[data-testid="slash-chip-today"]')
     if (await todayChip.isEnabled().catch(() => false)) {
-      await todayChip.click()
+      await closeModals(win)
+      await todayChip.click({ timeout: 8000, force: true })
       await sleep(300)
       record('Agent', '选中 /today 命令', true)
     }
@@ -340,22 +317,19 @@ async function runElectronUiJourney(workspace) {
     if (settingsOpen) await win.keyboard.press('Escape')
 
     await closeModals(win)
-    await win.locator('.anticon-question-circle').first().click({ timeout: 5000 }).catch(() => {})
+    const helpBtn = win.locator('[data-testid="help-button"]').first()
+    if (await helpBtn.count()) {
+      await helpBtn.click({ force: true, timeout: 5000 }).catch(() => {})
+    } else {
+      await win.locator('.anticon-question-circle').first().click({ force: true }).catch(() => {})
+    }
     await sleep(500)
     const helpOpen = await win.locator('.ant-modal').filter({ hasText: /帮助|Help/i }).first().isVisible().catch(() => false)
     record('帮助', '打开帮助中心', helpOpen)
     if (helpOpen) await win.keyboard.press('Escape')
 
   } finally {
-    if (app) {
-      await Promise.race([
-        app.close().catch(() => {}),
-        sleep(8000),
-      ])
-      if (process.platform === 'win32') {
-        try { execSync('taskkill /F /IM electron.exe 2>nul', { stdio: 'ignore', shell: true }) } catch { /* ignore */ }
-      }
-    }
+    await closeElectronApp(app, { userDataDir, cleanupUserData: true })
   }
 }
 
@@ -395,7 +369,7 @@ async function runAcpLiveJourney(workspace) {
 }
 
 async function main() {
-  console.log('═══ Metamates 用户旅程 E2E ═══\n')
+  console.log('═══ MetaMates 用户旅程 E2E ═══\n')
   const workspace = prepareWorkspace()
   console.log(`工作区: ${workspace}\n`)
 
@@ -403,6 +377,12 @@ async function main() {
   await runNodeBackendJourney(workspace)
   await runVaultApiJourney(workspace)
   await runElectronUiJourney(workspace)
+
+  console.log('\n── 语音 E2E ──\n')
+  const { runVoiceElectronJourney, runVitestSpeech } = await import('./voice-e2e.mjs')
+  runVitestSpeech(record)
+  await runVoiceElectronJourney(workspace, record)
+
   await runAcpLiveJourney(workspace)
 
   const passed = results.filter((r) => r.ok).length

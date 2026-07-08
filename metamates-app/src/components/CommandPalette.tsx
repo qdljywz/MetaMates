@@ -9,6 +9,7 @@ import {
   TagOutlined,
   LinkOutlined,
   CalendarOutlined,
+  FolderOpenOutlined,
   ImportOutlined,
 } from '@ant-design/icons'
 import { useTheme } from '../hooks/useTheme'
@@ -37,6 +38,7 @@ interface CommandPaletteProps {
   onCreateDailyPlan: () => void
   onOpenSettings: () => void
   onImportIntelligence: () => void
+  onSwitchWorkspace: () => void
 }
 
 const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -51,6 +53,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   onCreateDailyPlan,
   onOpenSettings,
   onImportIntelligence,
+  onSwitchWorkspace,
 }) => {
   const { t } = useTranslation('commands')
   const { theme } = useTheme()
@@ -129,6 +132,18 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       keywords: ['graph', 'relation'],
     },
     {
+      id: 'switch-workspace',
+      label: t('commands.switchWorkspace.label'),
+      description: t('commands.switchWorkspace.description'),
+      icon: <FolderOpenOutlined style={{ color: '#fa8c16' }} />,
+      category: 'command',
+      action: () => {
+        onSwitchWorkspace()
+        onClose()
+      },
+      keywords: ['workspace', 'folder', 'vault', 'switch', 'open', '工作区', '切换', '文件夹'],
+    },
+    {
       id: 'settings',
       label: t('commands.settings.label'),
       description: t('commands.settings.description'),
@@ -137,12 +152,13 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       action: onOpenSettings,
       keywords: ['settings', 'config'],
     },
-  ], [onCreateDailyNote, onCreateDailyPlan, onImportIntelligence, onShowTags, onShowGraph, onOpenSettings, onClose, t])
+  ], [onCreateDailyNote, onCreateDailyPlan, onImportIntelligence, onShowTags, onShowGraph, onOpenSettings, onSwitchWorkspace, onClose, t])
 
   const filteredItems = useMemo(() => {
     if (newFileMode) return []
 
     const lowerSearch = search.toLowerCase()
+    const commandSearch = search.startsWith('>') ? search.slice(1).trim().toLowerCase() : lowerSearch
     
     const matchedFiles = files
       .filter(f => f.name.toLowerCase().includes(lowerSearch))
@@ -155,9 +171,15 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         action: () => onFileSelect(f.path),
       }))
     
-    const matchedCommands = commands.filter(cmd => {
+    const matchedCommands = commands.filter((cmd) => {
+      if (search.startsWith('>')) {
+        if (!commandSearch) return true
+        const matchLabel = cmd.label.toLowerCase().includes(commandSearch)
+        const matchKeywords = cmd.keywords?.some((k) => k.includes(commandSearch)) || false
+        return matchLabel || matchKeywords
+      }
       const matchLabel = cmd.label.toLowerCase().includes(lowerSearch)
-      const matchKeywords = cmd.keywords?.some(k => k.includes(lowerSearch)) || false
+      const matchKeywords = cmd.keywords?.some((k) => k.includes(lowerSearch)) || false
       return matchLabel || matchKeywords
     })
     
@@ -185,6 +207,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     }
   }, [visible])
 
+  const runCommand = useCallback((item: CommandItem) => {
+    item.action()
+    if (item.id !== 'new-file') onClose()
+  }, [onClose])
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (newFileMode) {
       if (e.key === 'Escape') {
@@ -210,8 +237,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       case 'Enter':
         e.preventDefault()
         if (filteredItems[selectedIndex]) {
-          filteredItems[selectedIndex].action()
-          onClose()
+          runCommand(filteredItems[selectedIndex])
         }
         break
       case 'Escape':
@@ -219,7 +245,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         onClose()
         break
     }
-  }, [filteredItems, selectedIndex, onClose, newFileMode, handleConfirmNewFile])
+  }, [filteredItems, selectedIndex, onClose, newFileMode, handleConfirmNewFile, runCommand])
 
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
@@ -278,7 +304,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         ) : (
           <>
             <Input
-              prefix={<SearchOutlined style={{ color: isDark ? '#a6adc8' : '#888' }} />}
+              prefix={<SearchOutlined style={{ color: 'var(--text-muted)' }} />}
               placeholder={t('searchPlaceholder')}
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -289,7 +315,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
             
             <div style={{ maxHeight: 400, overflow: 'auto' }}>
               {filteredItems.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '20px', color: isDark ? '#a6adc8' : '#888' }}>
+                <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
                   <SearchOutlined style={{ fontSize: 32, marginBottom: 8 }} />
                   <div>{t('noMatch')}</div>
                 </div>
@@ -298,10 +324,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                   dataSource={filteredItems}
                   renderItem={(item, index) => (
                     <div
-                      onClick={() => {
-                        item.action()
-                        onClose()
-                      }}
+                      onClick={() => runCommand(item)}
                       style={{
                         padding: '8px 12px',
                         cursor: 'pointer',
@@ -319,13 +342,13 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                       {item.icon}
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <Text strong style={{ color: isDark ? '#e6e6e6' : 'inherit' }}>{item.label}</Text>
+                          <Text strong>{item.label}</Text>
                           <Tag color={getCategoryColor(item.category)} style={{ fontSize: 10, padding: '0 4px' }}>
                             {getCategoryLabel(item.category)}
                           </Tag>
                         </div>
                         {item.description && (
-                          <Text type="secondary" style={{ fontSize: 12, color: isDark ? '#a6adc8' : undefined }}>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
                             {item.description}
                           </Text>
                         )}
@@ -336,7 +359,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
               )}
             </div>
             
-            <div style={{ marginTop: 8, display: 'flex', gap: 16, color: isDark ? '#a6adc8' : '#888', fontSize: 11 }}>
+            <div className="command-palette-hints" style={{ marginTop: 8, display: 'flex', gap: 16, fontSize: 11 }}>
               <span>{t('navigation.upDown')}</span>
               <span>{t('navigation.enter')}</span>
               <span>{t('navigation.esc')}</span>

@@ -127,6 +127,10 @@
     "settings": {
       "label": "Open Settings",
       "description": "Open application settings"
+    },
+    "switchWorkspace": {
+      "label": "Switch Workspace",
+      "description": "Choose a different vault folder"
     }
   },
   "keywords": {

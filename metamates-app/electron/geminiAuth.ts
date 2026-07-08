@@ -2,10 +2,22 @@ import { execFileSync, spawn } from 'child_process'
 import { existsSync, readFileSync } from 'fs'
 import * as os from 'os'
 import * as path from 'path'
+import { safeStorage } from 'electron'
 import { readAppSettings, writeAppSettings } from './appSettings'
 import { refreshPathEnv, isCliCommandAvailable } from './cliDetection'
 
 const GEMINI_DIR = path.join(os.homedir(), '.gemini')
+
+/** safeStorage is Electron-only; Node verify scripts must not crash on import/probe. */
+function isSafeStorageAvailable(): boolean {
+  try {
+    return (
+      typeof safeStorage?.isEncryptionAvailable === 'function' && safeStorage.isEncryptionAvailable()
+    )
+  } catch {
+    return false
+  }
+}
 
 /** API keys must be ASCII — non-ASCII breaks fetch Authorization headers (ByteString error). */
 export function isValidGeminiApiKey(key: string | null | undefined): key is string {
@@ -117,14 +129,33 @@ function hasGoogleAccountHint(): boolean {
   }
 }
 
+function readStoredGeminiApiKey(): string | null {
+  const settings = readAppSettings()
+  if (isSafeStorageAvailable()) {
+    const enc = settings.geminiApiKeyEnc
+    if (typeof enc === 'string' && enc.trim()) {
+      try {
+        return safeStorage.decryptString(Buffer.from(enc, 'base64'))
+      } catch {
+        // fall through to plaintext migration
+      }
+    }
+  }
+  const plain = settings.geminiApiKey
+  if (typeof plain === 'string' && isValidGeminiApiKey(plain)) {
+    persistGeminiApiKey(plain.trim())
+    return plain.trim()
+  }
+  return null
+}
+
 function hasEnvApiKey(): boolean {
   if (process.env.GEMINI_API_KEY?.trim()) return true
   if (process.env.GOOGLE_API_KEY?.trim()) return true
   const dotEnv = readGeminiDotEnv()
   if (dotEnv.GEMINI_API_KEY?.trim()) return true
   if (dotEnv.GOOGLE_API_KEY?.trim()) return true
-  const settings = readAppSettings()
-  if (typeof settings.geminiApiKey === 'string' && settings.geminiApiKey.trim()) return true
+  if (readStoredGeminiApiKey()) return true
   return false
 }
 
@@ -152,7 +183,7 @@ export function isGeminiAuthenticated(): boolean {
 }
 
 /**
- * Env vars for Gemini ACP child — only explicit user-provided keys (.env / Metamates settings).
+ * Env vars for Gemini ACP child — only explicit user-provided keys (.env / MetaMates settings).
  * Do NOT inject Windows Credential Manager blobs: Gemini CLI stores OAuth JSON there and reads it
  * natively; re-injecting corrupts auth and causes fetch ByteString errors on prompt.
  */
@@ -162,9 +193,8 @@ export function getGeminiSpawnEnv(): Record<string, string> {
   if (isValidGeminiApiKey(dotEnv.GEMINI_API_KEY)) env.GEMINI_API_KEY = dotEnv.GEMINI_API_KEY.trim()
   if (isValidGeminiApiKey(dotEnv.GOOGLE_API_KEY)) env.GOOGLE_API_KEY = dotEnv.GOOGLE_API_KEY.trim()
 
-  const settings = readAppSettings()
-  const storedKey = settings.geminiApiKey
-  if (typeof storedKey === 'string' && isValidGeminiApiKey(storedKey)) {
+  const storedKey = readStoredGeminiApiKey()
+  if (storedKey && isValidGeminiApiKey(storedKey)) {
     env.GEMINI_API_KEY = storedKey.trim()
   }
   return env
@@ -184,6 +214,11 @@ export function applyGeminiChildEnvOverrides(base: Record<string, string>): Reco
 export function persistGeminiApiKey(apiKey: string): void {
   const trimmed = apiKey.trim()
   if (!trimmed) return
+  if (isSafeStorageAvailable()) {
+    const enc = safeStorage.encryptString(trimmed).toString('base64')
+    writeAppSettings({ geminiApiKeyEnc: enc, geminiApiKey: '' })
+    return
+  }
   writeAppSettings({ geminiApiKey: trimmed })
 }
 
@@ -212,7 +247,7 @@ export function openGeminiInteractiveLogin(): { success: boolean; error?: string
     if (process.platform === 'win32') {
       const psScript = [
         'chcp 65001 > $null',
-        "Write-Host 'Metamates: 首次运行 gemini 会在浏览器打开 Google 登录页。完成登录后可关闭此窗口。' -ForegroundColor Cyan",
+        "Write-Host 'MetaMates: 首次运行 gemini 会在浏览器打开 Google 登录页。完成登录后可关闭此窗口。' -ForegroundColor Cyan",
         geminiCmd,
       ].join('; ')
 

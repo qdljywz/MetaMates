@@ -101,7 +101,7 @@ if (workspace) {
     const lang = fs.existsSync(path.join(workspace, '01_Log_and_Plan')) ? 'en' : 'zh'
     const missing = checkWorkspaceSkills(workspace, lang)
     console.log(missing === 0 ? '  OK   all 15 skills reachable' : `  WARN ${missing} commands missing skill files`)
-    console.log('  TIP  Open Metamates or run reinit-workspace to auto-provision missing skills')
+    console.log('  TIP  Open MetaMates or run reinit-workspace to auto-provision missing skills')
   }
 } else {
   console.log('\n## Workspace')

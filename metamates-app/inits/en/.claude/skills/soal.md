@@ -1,7 +1,7 @@
 # 🧠 Skill: /soal (Evolutionary Sync)
 
 ## 📌 Description
-Permanently solidify user feedback, habits, or new lessons into Metamates' core evolutionary layer, `2M.md`.
+Permanently solidify user feedback, habits, or new lessons into MetaMates' core evolutionary layer, `2M.md`.
 
 ## 🛠️ Usage
 Input: `/soal [Your habit or lesson]`
@@ -20,7 +20,7 @@ When receiving the `/soal` command, please perform the following:
 ---
 **Version**: 1.1 (Encoding Fix)
 
-## Memory & vault boundary (Metamates required)
+## Memory & vault boundary (MetaMates required)
 
 - Mirror user-facing long-term memory to `04_Intelligence/Memory_Index.md` (details under `04_Intelligence/Reference/`)
 - **Never** write only to `~/.codebuddy`, CLI caches, or paths outside the vault

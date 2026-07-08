@@ -40,7 +40,7 @@ const TEST_INPUT = {
   closeday: 'E2E：完成 slash live 测试',
   schedule: 'E2E：本周排期以产品质量为主',
   sync: 'E2E：同步测试备注写入 Master_Control',
-  trace: 'Metamates 产品定位',
+  trace: 'MetaMates 产品定位',
   connect: '日记 项目',
   challenge: 'Agent 会自动写回 Vault 文件',
   ghost: '如何规划高效的一天',

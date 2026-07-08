@@ -26,7 +26,7 @@ export class FileIndexService {
   private index: Map<string, FileIndex> = new Map()
   private lastIndexed: number = 0
   
-  async buildIndex(files: { name: string; path: string; content: string }[]): Promise<IndexStats> {
+  async buildIndex(files: { name: string; path: string; content: string; lastModified?: number }[]): Promise<IndexStats> {
     this.index.clear()
     
     for (const file of files) {
@@ -48,7 +48,7 @@ export class FileIndexService {
     semanticSearchEngine.build(documents)
   }
   
-  private indexFile(file: { name: string; path: string; content: string }): FileIndex {
+  private indexFile(file: { name: string; path: string; content: string; lastModified?: number }): FileIndex {
     const content = file.content
     
     const linkPattern = /\[\[([^\]]+)\]\]/g
@@ -89,7 +89,7 @@ export class FileIndexService {
       path: file.path,
       content,
       wordCount,
-      lastModified: Date.now(),
+      lastModified: file.lastModified ?? Date.now(),
       links: [...new Set(links)],
       tags: [...new Set(tags)],
       headings,
@@ -341,7 +341,7 @@ export class FileIndexService {
   /**
    * 更新或插入单个文件的索引条目
    */
-  upsertFile(file: { name: string; path: string; content: string }): void {
+  upsertFile(file: { name: string; path: string; content: string; lastModified?: number }): void {
     this.index.set(file.path, this.indexFile(file))
     this.lastIndexed = Date.now()
     this.rebuildSemanticIndex()

@@ -30,8 +30,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Open-source hygiene
+        run: npm run check:opensource
+
       - name: Typecheck, unit tests, functional checks
         run: npm run verify:round
+
+      - name: UX guardrails (unit)
+        run: npm run test:ux-guardrails
 
   e2e-smoke:
     runs-on: ubuntu-latest
@@ -52,4 +58,4 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Run smoke e2e
-        run: npm run test:e2e
+        run: npm run test:e2e:smoke

@@ -6,17 +6,25 @@ import { useTranslation } from 'react-i18next'
 import { message } from 'antd'
 import { useTheme } from '../hooks/useTheme'
 import { useAppContext } from '../store/AppContext'
+import type { RunSlashDetail } from '../utils/agentBridge'
 import { storageService } from '../services/storage'
 
 import type { DetectedAgent } from '../types/electron'
 import { getAgentSlashCommands, type AgentSlashCommand } from '../commands/agentSlashCommands'
 import { assembleSlashPrompt } from '../commands/assembleSlashPrompt'
-import { verifySlashWriteback, resolveSlashWriteTargetPaths } from '../commands/slashWritebackVerify'
+import { verifySlashWriteback, resolveSlashWriteTargetPaths, writebackDetailI18nKey } from '../commands/slashWritebackVerify'
 import { SLASH_WRITE_POLICIES } from '../commands/slashWritePolicy'
-import { getWorkspaceLanguage, resolveWorkspaceFilePath, isPathInsideWorkspace } from '../constants/paths'
+import {
+  formatNowInTimezone,
+  getEffectiveTimezone,
+  getTodayDateString,
+  getWorkspaceLanguage,
+  isPathInsideWorkspace,
+  resolveWorkspaceFilePath,
+} from '../constants/paths'
 import { workspaceIndexService } from '../services/workspaceIndex'
 import {
-  captureIntelligenceFromText,
+  captureIntelligenceFromInput,
   buildIntelligenceEnhancePrompt,
 } from '../services/intelligenceImport'
 import { shouldCaptureAsIntelligence } from '../utils/intelligenceCapture'
@@ -32,11 +40,13 @@ import AgentThinkingPlaceholder from './agent/AgentThinkingPlaceholder'
 import AgentSlashBar from './agent/AgentSlashBar'
 import AgentVaultContext from './agent/AgentVaultContext'
 import AgentConnectingSkeleton from './agent/AgentConnectingSkeleton'
+import AgentCliInstallGuide from './agent/AgentCliInstallGuide'
+import CliInstallPanel from './CliInstallPanel'
 import VirtualAgentMessageList, { type VirtualMessageListHandle } from './agent/VirtualAgentMessageList'
 import type { AgentMessage } from './agent/AgentMessageItem'
 import './agent/AgentPanel.css'
 import { mapBackendSnapshotToStatus, DEFAULT_AGENT_MODE, isAutoApproveMode, type AgentConnStatus, type BackendConnectionSnapshot } from '../utils/agentConnectionStatus'
-import { acknowledgeYoloMode, hasYoloAcknowledged } from '../utils/yoloAcknowledgment'
+import { acknowledgeYoloMode, hasYoloAcknowledged, shouldSkipYoloFirstRunPrompt } from '../utils/yoloAcknowledgment'
 import { mergeHistoryWithStreaming } from '../utils/messageMerge'
 import { finalizeInProgressToolCalls, isToolCallInProgress, sanitizeStaleSessionMessages } from '../utils/toolCallStatus'
 import { resolveAcpFailure } from '../utils/acpFailureResolution'
@@ -45,16 +55,30 @@ import { isPlanExpiredError, resolveAgentDisplayName, formatAcpErrorForDisplay }
 import { isGeminiModelDailyQuotaError, isNetworkErrorMessage } from '../../electron/acp/acpErrors'
 import { pickAllowPermissionOption } from '../../electron/shared/acpPermission'
 import { buildAgentToolbarCachePatch, readCachedAgentToolbarSync } from '../utils/agentToolbarCache'
+import { consumeStartupHistoryCache, hasStartupHistoryCache } from '../utils/startupPreload'
+import { archiveGraduatedInboxNotes } from '../services/graduateInboxArchive'
+import { openSlashWritebackInEditor } from '../utils/openSlashWriteback'
 
 function getBootAgentSnapshot() {
   return readCachedAgentToolbarSync()
 }
 
+function isE2ENoAgentsMode(): boolean {
+  return !!(
+    typeof window !== 'undefined' &&
+    (window as Window & { __METAMATES_E2E__?: { noAgents?: boolean } }).__METAMATES_E2E__?.noAgents
+  )
+}
+
 async function fetchAgentsWithRetry(maxAttempts = 30): Promise<AgentInfo[]> {
+  const e2eNoAgents = (window as Window & { __METAMATES_E2E__?: { noAgents?: boolean } }).__METAMATES_E2E__
+    ?.noAgents
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const agents = await window.electronAPI?.acp?.detectAgents?.()
-      if (Array.isArray(agents) && agents.length > 0) return agents as AgentInfo[]
+      if (Array.isArray(agents)) {
+        if (agents.length > 0 || e2eNoAgents) return agents as AgentInfo[]
+      }
     } catch {
       // IPC may not be ready yet on cold start
     }
@@ -127,15 +151,24 @@ const AgentChatPanel: React.FC = () => {
   const messageListRef = useRef<VirtualMessageListHandle>(null)
   const workspacePathRef = useRef<string>('')
   
-  const bootSnapshot = useMemo(() => getBootAgentSnapshot(), [])
+  const bootSnapshot = useMemo(() => (isE2ENoAgentsMode() ? { agents: [], lastBackend: null } : getBootAgentSnapshot()), [])
 
-  const [currentBackend, setCurrentBackend] = useState<string | null>(() => bootSnapshot.lastBackend)
-  const [detectedAgents, setDetectedAgents] = useState<AgentInfo[]>(() => bootSnapshot.agents)
-  const [agentsScanReady, setAgentsScanReady] = useState(false)
+  const [currentBackend, setCurrentBackend] = useState<string | null>(() =>
+    isE2ENoAgentsMode() ? null : bootSnapshot.lastBackend,
+  )
+  const [detectedAgents, setDetectedAgents] = useState<AgentInfo[]>(() =>
+    isE2ENoAgentsMode() ? [] : bootSnapshot.agents,
+  )
+  const [agentsScanReady, setAgentsScanReady] = useState(() => isE2ENoAgentsMode())
+  const [cliInstallOpen, setCliInstallOpen] = useState(false)
+  const [rescanningAgents, setRescanningAgents] = useState(false)
+  const [chatDbUnavailable, setChatDbUnavailable] = useState(false)
   const [messages, setMessages] = useState<Map<string, Message[]>>(new Map())
   const [status, setStatus] = useState<AgentConnStatus>('disconnected')
   const [agentStatus, setAgentStatus] = useState<Map<string, AgentConnStatus>>(() =>
-    new Map(bootSnapshot.agents.map((a) => [a.backend, 'disconnected'])),
+    isE2ENoAgentsMode()
+      ? new Map()
+      : new Map(bootSnapshot.agents.map((a) => [a.backend, 'disconnected'])),
   )
   const [statusText, setStatusText] = useState('')
   const [userScrolled, setUserScrolled] = useState(false)
@@ -304,14 +337,18 @@ const AgentChatPanel: React.FC = () => {
   }, [])
 
   const finalizeStreamingTurn = useCallback((backend?: string) => {
-    const active = backend || currentBackendRef.current || ''
-    if (backend && backend !== currentBackendRef.current) return
+    const target = backend || currentBackendRef.current || ''
+    if (!target) return
 
-    currentMsgIdRef.current = null
-    dispatch({ type: 'SET_ACP_STREAMING', payload: false })
+    const isActiveBackend = target === currentBackendRef.current
+    if (isActiveBackend) {
+      currentMsgIdRef.current = null
+      dispatch({ type: 'SET_ACP_STREAMING', payload: false })
+    }
+
     setMessages(prev => {
       const newMap = new Map(prev)
-      const list = [...(newMap.get(active) || [])]
+      const list = [...(newMap.get(target) || [])]
       let nextList = finalizeInProgressToolCalls(list)
       if (nextList.length > 0) {
         const last = nextList[nextList.length - 1]
@@ -320,7 +357,7 @@ const AgentChatPanel: React.FC = () => {
           nextList[nextList.length - 1] = { ...last, status: 'finish' }
         }
       }
-      newMap.set(active, nextList)
+      newMap.set(target, nextList)
       messagesRef.current = newMap
       return newMap
     })
@@ -331,7 +368,7 @@ const AgentChatPanel: React.FC = () => {
   })
 
   const handleStopStreaming = useCallback(() => {
-    window.electronAPI?.acp.cancelPrompt()
+    window.electronAPI?.acp.cancelPrompt(currentBackendRef.current || undefined)
     finalizeStreamingTurn()
     log('Prompt cancelled', 'info')
   }, [finalizeStreamingTurn, log])
@@ -469,15 +506,24 @@ const AgentChatPanel: React.FC = () => {
     pendingSlashVerifyRef.current = null
     if (!pending || !state.workspacePath) return
 
-    await new Promise((r) => setTimeout(r, 400))
+    await new Promise((r) => setTimeout(r, 800))
 
     const language = getWorkspaceLanguage(i18n.language)
-    const result = await verifySlashWriteback({
+    let result = await verifySlashWriteback({
       cmdId: pending.cmdId,
       workspacePath: state.workspacePath,
       language,
       turnStartedAt: pending.turnStartedAt,
     })
+    if (!result.ok && !result.skipped) {
+      await new Promise((r) => setTimeout(r, 2000))
+      result = await verifySlashWriteback({
+        cmdId: pending.cmdId,
+        workspacePath: state.workspacePath,
+        language,
+        turnStartedAt: pending.turnStartedAt,
+      })
+    }
     if (result.skipped) return
 
     const cmdName = pending.cmdId.replace(/^\//, '')
@@ -485,25 +531,57 @@ const AgentChatPanel: React.FC = () => {
     const activeBackend = backend || currentBackendRef.current || ''
 
     if (result.ok) {
-      message.success(t('writeback.verified', { cmd: cmdName }))
       addMessageToState(activeBackend, {
         type: 'text',
         content: t('writeback.verifiedDetail', { cmd: cmdName, paths: targetPaths }),
       })
       log(t('writeback.verifiedDetail', { cmd: cmdName, paths: targetPaths }), 'success')
+
+      const openedPath = await openSlashWritebackInEditor({
+        cmdId: pending.cmdId,
+        workspacePath: state.workspacePath,
+        language,
+        dispatch,
+      })
+      const openedName = openedPath?.split(/[/\\]/).pop()
+      if (openedName) {
+        message.success(t('writeback.verifiedOpened', { cmd: cmdName, file: openedName }))
+      } else {
+        message.success(t('writeback.verified', { cmd: cmdName }))
+      }
+
+      if (pending.cmdId === '/graduate' && state.workspacePath) {
+        const sourceTexts = (messagesRef.current.get(activeBackend) || [])
+          .slice(-30)
+          .map((msg) => (typeof msg.content === 'string' ? msg.content : ''))
+          .filter((text) => text.trim().length > 0)
+        const archiveResult = await archiveGraduatedInboxNotes({
+          workspacePath: state.workspacePath,
+          language,
+          sourceTexts,
+        })
+        if (archiveResult.moved.length > 0) {
+          window.dispatchEvent(new CustomEvent('metamates:empty-state-updated'))
+          message.success(t('writeback.inboxArchived', { count: archiveResult.moved.length }))
+          log(t('writeback.inboxArchived', { count: archiveResult.moved.length }), 'success')
+        }
+      }
     } else {
-      const detail = result.targets
-        .filter((row) => !row.ok)
-        .map((row) => row.detail)
-        .join('; ') || 'unknown'
-      message.warning(t('writeback.failed', { cmd: cmdName }))
+      const rawDetails = result.targets.filter((row) => !row.ok).map((row) => row.detail)
+      const detail = rawDetails
+        .map((code) => {
+          const key = writebackDetailI18nKey(code)
+          if (key === 'writeback.failedDetail') return code
+          return t(key, { cmd: cmdName, defaultValue: code })
+        })
+        .join('；') || t('writeback.detailNotUpdated')
       addMessageToState(activeBackend, {
         type: 'text',
         content: t('writeback.failedDetail', { cmd: cmdName, paths: targetPaths, detail }),
       })
       log(`${t('writeback.failed', { cmd: cmdName })} — ${detail}`, 'error')
     }
-  }, [state.workspacePath, i18n.language, t, log, addMessageToState])
+  }, [state.workspacePath, i18n.language, t, log, addMessageToState, dispatch])
 
   runSlashWritebackVerifyRef.current = runSlashWritebackVerify
 
@@ -513,11 +591,13 @@ const AgentChatPanel: React.FC = () => {
 
   const scrollToLatestMessages = useCallback((force = false) => {
     if (!force && userScrolled) return
+    const tick = () => scrollToBottom(force)
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        scrollToBottom(force)
-      })
+      requestAnimationFrame(tick)
     })
+    window.setTimeout(tick, 80)
+    window.setTimeout(tick, 200)
+    window.setTimeout(tick, 400)
   }, [userScrolled, scrollToBottom])
 
   const appendUserBubble = useCallback((backend: string, content: string, attachments?: ChatAttachment[]) => {
@@ -547,6 +627,7 @@ const AgentChatPanel: React.FC = () => {
       workspacePath: state.workspacePath || undefined,
       skillContent: skillResult?.success ? skillResult.content : null,
       userInput,
+      timezone: getEffectiveTimezone(),
     })
   }, [i18n.language, log, state.workspacePath])
 
@@ -559,7 +640,6 @@ const AgentChatPanel: React.FC = () => {
     const agentName = resolveAgentDisplayName(backend, detectedAgents)
 
     if (isGeminiModelDailyQuotaError(errorText) && backend === 'gemini') {
-      message.warning(t('status.geminiModelDailyQuota', { agent: agentName }))
       addMessageToState(backend, {
         type: 'text',
         content: `${t('status.geminiModelDailyQuotaDetail', { agent: agentName, error: errorText })}${alternateHint ? `\n\n${alternateHint}` : ''}`,
@@ -568,7 +648,6 @@ const AgentChatPanel: React.FC = () => {
     } else if (isNetworkErrorMessage(errorText)) {
       void window.electronAPI?.acp.invalidateCloudReachability?.(backend)
       void syncAllAgentStatuses([backend])
-      message.error(t('status.networkError', { agent: agentName }))
       addMessageToState(backend, {
         type: 'text',
         content: `${t('status.networkErrorDetail', { agent: agentName, error: errorText })}${alternateHint ? `\n\n${alternateHint}` : ''}`,
@@ -576,7 +655,6 @@ const AgentChatPanel: React.FC = () => {
       setFailureHint({ action: 'reconnect', backend })
     } else if (resolution.kind === 'quota') {
       const planExpired = isPlanExpiredError(errorText)
-      message.error(t(planExpired ? 'status.planExpired' : 'status.quotaExceeded', { agent: agentName }))
       addMessageToState(backend, {
         type: 'text',
         content: `${t(planExpired ? 'status.planExpiredDetail' : 'status.quotaExceededDetail', { agent: agentName, error: errorText })}${alternateHint ? `\n\n${alternateHint}` : ''}`,
@@ -587,20 +665,21 @@ const AgentChatPanel: React.FC = () => {
         const methods = (await window.electronAPI?.acp.getAuthMethods?.(backend)) || []
         markAuthRequired(backend, { authMethods: methods, error: errorText }, { showModal: true })
       })()
-      message.warning(t('status.authRequired'))
+      addMessageToState(backend, {
+        type: 'text',
+        content: t('status.authRequired'),
+      })
       if (alternateHint) {
         addMessageToState(backend, { type: 'text', content: alternateHint })
         setFailureHint({ action: 'switch_agent', backend })
       }
     } else if (resolution.kind === 'disconnected') {
-      message.error(t('status.disconnected'))
       setFailureHint({ action: 'reconnect', backend })
       addMessageToState(backend, {
         type: 'text',
         content: t('status.reconnectHint'),
       })
     } else {
-      message.error(t('status.promptFailed', { error: errorText }))
       addMessageToState(backend, {
         type: 'text',
         content: `${t('status.promptFailed', { error: errorText })}${alternateHint ? `\n\n${alternateHint}` : ''}`,
@@ -916,6 +995,7 @@ const AgentChatPanel: React.FC = () => {
     }
     historyFetchRef.current.add(backend)
     const showLoadingIndicator = !options?.silent
+      && !hasStartupHistoryCache(backend)
       && backend === currentBackendRef.current
       && !(messagesRef.current.get(backend)?.length)
     if (showLoadingIndicator) setHistoryLoading(true)
@@ -943,7 +1023,8 @@ const AgentChatPanel: React.FC = () => {
 
       if (backend === currentBackendRef.current) {
         resetTurnState()
-        requestAnimationFrame(() => scrollToLatestMessages(true))
+        setUserScrolled(false)
+        scrollToLatestMessages(true)
       }
     } finally {
       historyFetchRef.current.delete(backend)
@@ -1198,9 +1279,10 @@ const AgentChatPanel: React.FC = () => {
     })()
 
     if (!(messagesRef.current.get(backend)?.length)) {
-      void loadAgentHistory(backend)
+      void loadAgentHistory(backend, { silent: hasStartupHistoryCache(backend) })
     } else {
-      requestAnimationFrame(() => scrollToLatestMessages(true))
+      setUserScrolled(false)
+      scrollToLatestMessages(true)
     }
   }, [currentBackend, agentStatus, log, syncAcpConnection, t, detectedAgents, scrollToLatestMessages, dismissAuthModal, loadAgentHistory, handleBackendReady, syncAllAgentStatuses, markAuthRequired])
 
@@ -1318,16 +1400,6 @@ const AgentChatPanel: React.FC = () => {
     return connectInBackground(target)
   }, [connectInBackground])
 
-  const scheduleWarmupOnFocus = useCallback(() => {
-    const backend = currentBackendRef.current
-    if (!backend) return
-    if (warmupTimerRef.current) clearTimeout(warmupTimerRef.current)
-    warmupTimerRef.current = setTimeout(() => {
-      warmupTimerRef.current = null
-      void warmupBackend(backend)
-    }, 1000)
-  }, [warmupBackend])
-
   const ensureBackendReady = useCallback(async (): Promise<boolean> => {
     const backend = currentBackendRef.current
     if (!backend) return false
@@ -1335,6 +1407,11 @@ const AgentChatPanel: React.FC = () => {
     const snapshot = await window.electronAPI?.acp.getConnectionStatus?.(backend)
     let mapped = mapBackendSnapshotToStatus(snapshot)
     if (mapped === 'connected') return true
+    if (mapped === 'error') {
+      log(snapshot?.error || t('status.disconnected'), 'error')
+      applyConnectionSnapshot(backend, snapshot || { connected: false, hasSession: false, ready: false, needsAuth: false })
+      return false
+    }
     if (mapped === 'auth_required') {
       const methods = (await window.electronAPI?.acp.getAuthMethods?.(backend)) || []
       markAuthRequired(backend, { authMethods: methods }, { showModal: true })
@@ -1344,13 +1421,18 @@ const AgentChatPanel: React.FC = () => {
     await warmupBackend(backend)
     const after = await window.electronAPI?.acp.getConnectionStatus?.(backend)
     mapped = mapBackendSnapshotToStatus(after)
+    if (mapped === 'error') {
+      log(after?.error || t('status.disconnected'), 'error')
+      if (after) applyConnectionSnapshot(backend, after)
+      return false
+    }
     if (mapped === 'auth_required') {
       const methods = (await window.electronAPI?.acp.getAuthMethods?.(backend)) || []
       markAuthRequired(backend, { authMethods: methods }, { showModal: true })
       return false
     }
     return mapped === 'connected'
-  }, [warmupBackend, markAuthRequired])
+  }, [warmupBackend, markAuthRequired, applyConnectionSnapshot, log, t])
 
   connectInBackgroundRef.current = connectInBackground
 
@@ -1413,7 +1495,7 @@ const AgentChatPanel: React.FC = () => {
       setStatusText(t('status.ready', { name: target.name }))
 
       if (switching) {
-        void loadAgentHistory(target.backend)
+        void loadAgentHistory(target.backend, { silent: hasStartupHistoryCache(target.backend) })
         void window.electronAPI?.acp.selectBackend(target.backend).then((result) => {
           if (result?.sessionId) {
             void handleBackendReady(target.backend, result)
@@ -1424,10 +1506,36 @@ const AgentChatPanel: React.FC = () => {
     [dispatch, t, loadAgentHistory, handleBackendReady, persistAgentToolbarCache],
   )
 
+  const handleRescanAgents = useCallback(async () => {
+    if (!window.electronAPI?.acp?.refreshAgents) return
+    setRescanningAgents(true)
+    try {
+      const refreshed = await window.electronAPI.acp.refreshAgents()
+      if (Array.isArray(refreshed)) {
+        applyDetectedAgents(refreshed as AgentInfo[], {
+          preferBackend: currentBackendRef.current,
+          refreshOnly: true,
+        })
+      }
+      void syncAllAgentStatuses()
+    } catch {
+      // best-effort rescan
+    } finally {
+      setRescanningAgents(false)
+    }
+  }, [applyDetectedAgents, syncAllAgentStatuses])
+
+  const handleCliInstallClose = useCallback(() => {
+    setCliInstallOpen(false)
+    void handleRescanAgents()
+  }, [handleRescanAgents])
+
   const initHooksRef = useRef({
     applyDetectedAgents,
     handleBackendReady,
     loadAgentHistory,
+    applyHistoryBatch,
+    applyHistoryMeta,
     syncAllAgentStatuses,
     log,
     t,
@@ -1437,6 +1545,8 @@ const AgentChatPanel: React.FC = () => {
     applyDetectedAgents,
     handleBackendReady,
     loadAgentHistory,
+    applyHistoryBatch,
+    applyHistoryMeta,
     syncAllAgentStatuses,
     log,
     t,
@@ -1451,14 +1561,32 @@ const AgentChatPanel: React.FC = () => {
         applyDetectedAgents: applyAgents,
         handleBackendReady: onBackendReady,
         loadAgentHistory: loadHistory,
+        applyHistoryBatch,
+        applyHistoryMeta,
         syncAllAgentStatuses: syncStatuses,
         log: writeLog,
         t: translate,
         dispatch: appDispatch,
       } = initHooksRef.current
 
+      const applyStartupHistoryCache = (backend: string | null | undefined): boolean => {
+        if (!backend) return false
+        const cache = consumeStartupHistoryCache(backend)
+        if (!cache) return false
+        applyHistoryMeta(backend, cache.total, cache.hasMore)
+        applyHistoryBatch(backend, cache.messages as Message[], cache.hasMore ?? false)
+        return true
+      }
+
       const hadCachedAgents = bootSnapshot.agents.length > 0
-      if (hadCachedAgents) {
+      const e2eNoAgents = isE2ENoAgentsMode()
+      const startupBackendHint =
+        (window as Window & { __METAMATES_STARTUP_BACKEND__?: string }).__METAMATES_STARTUP_BACKEND__
+        || bootSnapshot.lastBackend
+
+      if (applyStartupHistoryCache(startupBackendHint)) {
+        // History hydrated from splash — no vault loading copy in main UI.
+      } else if (hadCachedAgents) {
         const name =
           bootSnapshot.agents.find((a) => a.backend === bootSnapshot.lastBackend)?.name ||
           bootSnapshot.agents[0]?.name ||
@@ -1472,6 +1600,13 @@ const AgentChatPanel: React.FC = () => {
       }
 
       try {
+        if (e2eNoAgents) {
+          applyAgents([])
+          setStatusText(translate('status.noAgents'))
+          if (!cancelled) setAgentsScanReady(true)
+          return
+        }
+
         let workspacePath = state.workspacePath
 
         if (!workspacePath) {
@@ -1479,15 +1614,20 @@ const AgentChatPanel: React.FC = () => {
           workspacePath = settings.workspacePath || ''
         }
 
-        if (workspacePath && !state.workspacePath) {
-          appDispatch({ type: 'SET_WORKSPACE', payload: workspacePath })
+        if (workspacePath && !state.workspacePath && window.electronAPI) {
+          const exists = await window.electronAPI.fileExists(workspacePath)
+          if (exists.exists) {
+            appDispatch({ type: 'SET_WORKSPACE', payload: workspacePath })
+          }
         }
 
         const settings = await storageService.getSettings()
-        const preferBackend = settings.lastAgentBackend || bootSnapshot.lastBackend
+        const startupBackend = (window as Window & { __METAMATES_STARTUP_BACKEND__?: string })
+          .__METAMATES_STARTUP_BACKEND__
+        const preferBackend = startupBackend || settings.lastAgentBackend || bootSnapshot.lastBackend
 
         let agents = await fetchAgentsWithRetry()
-        if (agents.length === 0) {
+        if (agents.length === 0 && !e2eNoAgents) {
           for (let wave = 0; wave < 8 && !cancelled; wave++) {
             await new Promise((resolve) => setTimeout(resolve, 2000))
             try {
@@ -1512,7 +1652,9 @@ const AgentChatPanel: React.FC = () => {
             ? preferBackend
             : agents[0].backend
 
-          void window.electronAPI?.acp.warmupAllAgents?.()
+          if (!applyStartupHistoryCache(activeBackend)) {
+            void loadHistory(activeBackend, { silent: true })
+          }
 
           const statusSnapshot = await window.electronAPI?.acp.getConnectionStatus?.(activeBackend)
           const mappedStatus = mapBackendSnapshotToStatus(statusSnapshot)
@@ -1543,6 +1685,7 @@ const AgentChatPanel: React.FC = () => {
               void onBackendReady(activeBackend, result)
             }
           })
+          void warmupBackend(activeBackend)
 
           const prefetchOthers = () => {
             for (const agent of agents) {
@@ -1556,14 +1699,14 @@ const AgentChatPanel: React.FC = () => {
           } else {
             setTimeout(prefetchOthers, 2000)
           }
-        } else if (!hadCachedAgents) {
+        } else {
           applyAgents([])
         }
 
         if (!cancelled) setAgentsScanReady(true)
 
         window.setTimeout(async () => {
-          if (cancelled) return
+          if (cancelled || e2eNoAgents) return
           const refresh = window.electronAPI?.acp?.refreshAgents
           if (!refresh) return
           try {
@@ -1645,31 +1788,6 @@ const AgentChatPanel: React.FC = () => {
     return () => clearInterval(interval)
   }, [detectedAgents, syncAllAgentStatuses])
 
-  useEffect(() => {
-    const api = window.electronAPI?.acp
-    if (!api?.onDisconnected) return
-
-    const handler = (data: { backend?: string }) => {
-      const backend = data?.backend
-      if (!backend) return
-      setAgentStatus((prev) => {
-        const next = new Map(prev)
-        next.set(backend, 'disconnected')
-        return next
-      })
-      if (backend === currentBackendRef.current) {
-        setWarmupPhase('idle')
-        setStatus('disconnected')
-      }
-      void syncAllAgentStatuses([backend])
-    }
-
-    const unsub = api.onDisconnected(handler)
-    return () => {
-      if (typeof unsub === 'function') unsub()
-    }
-  }, [syncAllAgentStatuses])
-
   /** Finalize UI when current agent becomes ready via background warmup. */
   useEffect(() => {
     if (!currentBackend) return
@@ -1735,16 +1853,19 @@ const AgentChatPanel: React.FC = () => {
     const newPath = state.workspacePath
     const previousPath = workspacePathRef.current
     workspacePathRef.current = newPath
+    const isFirstBind = !previousPath
 
-    setMessages(new Map())
-    messagesRef.current = new Map()
-    setHistoryHasMore(new Map())
-    historyFetchRef.current.clear()
-    setHistoryTotals(new Map())
-    setMessagesPaneEpoch((n) => n + 1)
+    if (!isFirstBind) {
+      setMessages(new Map())
+      messagesRef.current = new Map()
+      setHistoryHasMore(new Map())
+      historyFetchRef.current.clear()
+      setHistoryTotals(new Map())
+      setMessagesPaneEpoch((n) => n + 1)
 
-    const workspaceLabel = newPath.split(/[/\\]/).pop() || newPath
-    message.info(t('workspace.switched', { path: workspaceLabel }))
+      const workspaceLabel = newPath.split(/[/\\]/).pop() || newPath
+      message.info(t('workspace.switched', { path: workspaceLabel }))
+    }
 
     void (async () => {
       await window.electronAPI?.acp.setWorkspacePath(newPath)
@@ -1752,24 +1873,20 @@ const AgentChatPanel: React.FC = () => {
 
       const activeBackend = currentBackendRef.current
       if (activeBackend) {
-        if (previousPath) {
-          log(`Workspace changed — resetting ${activeBackend} session...`)
-          void window.electronAPI?.acp.clearSession(activeBackend)
-          void window.electronAPI?.acp.disconnect(activeBackend)
-          warmupPromiseRef.current.delete(activeBackend)
-          reconnectAttemptRef.current = 0
-          setWarmupPhase('idle')
-          setAcpDynamicCommands([])
-
-          setTimeout(() => {
-            void connectInBackground(activeBackend, { freshSession: true })
-          }, 500)
-        }
-
-        await loadAgentHistory(activeBackend, { force: true })
+        reconnectAttemptRef.current = 0
+        setWarmupPhase('idle')
+        await loadAgentHistory(activeBackend, { force: !isFirstBind, silent: isFirstBind })
       }
     })()
-  }, [state.workspacePath, log, connectInBackground, loadAgentHistory])
+  }, [state.workspacePath, log, loadAgentHistory, t])
+
+  useEffect(() => {
+    const checkDb = async () => {
+      const status = await window.electronAPI?.getDatabaseStatus?.()
+      setChatDbUnavailable(status?.available === false)
+    }
+    void checkDb()
+  }, [state.workspacePath])
 
   useEffect(() => () => {
     if (warmupTimerRef.current) clearTimeout(warmupTimerRef.current)
@@ -1782,6 +1899,7 @@ const AgentChatPanel: React.FC = () => {
 
       if (message.type === 'error') {
         const errData = message.data as { message?: string }
+        finalizeStreamingTurn(backend)
         if (backend === currentBackendRef.current) {
           handlePromptFailure(backend, { error: errData?.message || 'unknown' })
         }
@@ -1817,9 +1935,10 @@ const AgentChatPanel: React.FC = () => {
       void runSlashWritebackVerifyRef.current(data?.backend)
     }
     
-    const handleDisconnected = (data?: { backend?: string }) => {
+    const handleDisconnected = (data?: { backend?: string; intentional?: boolean }) => {
       const backend = data?.backend || currentBackendRef.current
       if (backend) {
+        finalizeStreamingTurn(backend)
         setAgentStatus(prev => {
           const newMap = new Map(prev)
           newMap.set(backend, 'disconnected')
@@ -1836,6 +1955,15 @@ const AgentChatPanel: React.FC = () => {
         log(`${backend} disconnected (background)`, 'error')
       }
       void syncAllAgentStatuses()
+
+      if (data?.intentional) {
+        reconnectAttemptRef.current = 0
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current)
+          reconnectTimerRef.current = null
+        }
+        return
+      }
 
       const reconnectBackend = backend === currentBackendRef.current ? backend : null
       if (reconnectBackend && !reconnectTimerRef.current) {
@@ -2006,19 +2134,25 @@ const AgentChatPanel: React.FC = () => {
       }
 
       const captureInput = text.trim()
-      if (activeCommand?.localHandler === 'intelligence' && !captureInput) {
+      if (activeCommand?.localHandler === 'intelligence' && !captureInput && attachments.length === 0) {
         message.warning(t('messages.intelNeedInput'))
         setCurrentCommand(activeCommand)
         return
       }
 
       const language = getWorkspaceLanguage(i18n.language)
+      const attachmentLabel = attachments.length > 0
+        ? attachments.map((a) => a.name).join(', ')
+        : ''
       const displayText = activeCommand
-        ? (text.trim() ? `/intel ${text.trim()}` : '/intel')
+        ? [
+            text.trim() ? `/intel ${text.trim()}` : '/intel',
+            attachmentLabel ? `📎 ${attachmentLabel}` : '',
+          ].filter(Boolean).join(' ')
         : text.trim()
       const backend = currentBackend || ''
 
-      appendUserBubble(backend, displayText, undefined)
+      appendUserBubble(backend, displayText, attachments.length > 0 ? attachments : undefined)
 
       const ready = await ensureBackendReady()
       if (!ready) {
@@ -2029,7 +2163,14 @@ const AgentChatPanel: React.FC = () => {
       markSlashWritebackPending(activeCommand?.id || '/intel')
 
       try {
-        const result = await captureIntelligenceFromText(state.workspacePath, captureInput || displayText, language)
+        const result = await captureIntelligenceFromInput(
+          state.workspacePath,
+          {
+            text: captureInput || displayText,
+            attachmentPaths: attachments.map((a) => a.path),
+          },
+          language,
+        )
         if (!result.success) {
           pendingSlashVerifyRef.current = null
           if (result.error !== 'canceled') {
@@ -2065,8 +2206,6 @@ const AgentChatPanel: React.FC = () => {
         }
       } catch (err: any) {
         log(err?.message || t('messages.intelFailed'), 'error')
-      } finally {
-        finalizeStreamingTurn(backend)
       }
       return
     }
@@ -2077,6 +2216,10 @@ const AgentChatPanel: React.FC = () => {
     }
     const attachmentContext = attachmentResult.context
     const contextLines: string[] = []
+    const timezone = getEffectiveTimezone()
+    contextLines.push(`Timezone: ${timezone}`)
+    contextLines.push(`Local time: ${formatNowInTimezone(timezone)}`)
+    contextLines.push(`Today (YYYY-MM-DD): ${getTodayDateString(timezone)}`)
     if (state.workspacePath) {
       contextLines.push(`Workspace: ${state.workspacePath}`)
     }
@@ -2136,10 +2279,8 @@ const AgentChatPanel: React.FC = () => {
       log('Message sent!', 'success')
     } catch (err: any) {
       handlePromptFailure(backend, err)
-    } finally {
-      finalizeStreamingTurn(backend)
     }
-  }, [currentCommand, currentBackend, appendUserBubble, log, dispatch, state.workspacePath, state.currentFile, ensureBackendReady, loadSlashPrompt, handlePromptFailure, finalizeStreamingTurn, i18n.language, t, markSlashWritebackPending])
+  }, [currentCommand, currentBackend, appendUserBubble, log, dispatch, state.workspacePath, state.currentFile, ensureBackendReady, loadSlashPrompt, handlePromptFailure, i18n.language, t, markSlashWritebackPending])
 
   const sendCommandDirectly = useCallback(async (cmd: AgentSlashCommand) => {
     const displayText = `/${cmd.name}`
@@ -2166,10 +2307,8 @@ const AgentChatPanel: React.FC = () => {
       log(`${cmd.name} executed!`, 'success')
     } catch (err: any) {
       handlePromptFailure(backend, err)
-    } finally {
-      finalizeStreamingTurn(backend)
     }
-  }, [currentBackend, appendUserBubble, log, dispatch, ensureBackendReady, loadSlashPrompt, handlePromptFailure, finalizeStreamingTurn, markSlashWritebackPending])
+  }, [currentBackend, appendUserBubble, log, dispatch, ensureBackendReady, loadSlashPrompt, handlePromptFailure, markSlashWritebackPending])
 
   const handleCommandClick = useCallback((cmd: AgentSlashCommand) => {
     if (cmd.inputMode === 'required' || cmd.inputMode === 'optional') {
@@ -2179,6 +2318,37 @@ const AgentChatPanel: React.FC = () => {
       sendCommandDirectly(cmd)
     }
   }, [sendCommandDirectly])
+
+  useEffect(() => {
+    const onFocusAgent = () => {
+      requestAnimationFrame(() => {
+        const input = document.querySelector<HTMLTextAreaElement>('.agent-panel__footer textarea')
+        input?.focus()
+        input?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      })
+    }
+    const onRunSlash = (event: Event) => {
+      const detail = (event as CustomEvent<RunSlashDetail>).detail
+      if (!detail?.name) return
+      const cmd = slashCommands.find((item) => item.name === detail.name)
+      if (!cmd) return
+      if (detail.autoSend) {
+        void sendCommandDirectly(cmd)
+      } else {
+        handleCommandClick(cmd)
+      }
+      onFocusAgent()
+    }
+    window.addEventListener('metamates:focus-agent', onFocusAgent)
+    window.addEventListener('metamates:run-slash', onRunSlash)
+    const onOpenCliInstall = () => setCliInstallOpen(true)
+    window.addEventListener('metamates:open-cli-install', onOpenCliInstall)
+    return () => {
+      window.removeEventListener('metamates:focus-agent', onFocusAgent)
+      window.removeEventListener('metamates:run-slash', onRunSlash)
+      window.removeEventListener('metamates:open-cli-install', onOpenCliInstall)
+    }
+  }, [slashCommands, sendCommandDirectly, handleCommandClick])
 
   const handleModelChange = useCallback(async (modelId: string) => {
     if (!modelId) return
@@ -2266,7 +2436,7 @@ const AgentChatPanel: React.FC = () => {
   useEffect(() => {
     if (connectionStatus !== 'connected') return
     if (!isAutoApproveMode(selectedMode)) return
-    if (hasYoloAcknowledged()) return
+    if (shouldSkipYoloFirstRunPrompt()) return
     if (pendingYoloMode) return
     setYoloFirstRunPrompt(true)
   }, [connectionStatus, selectedMode, pendingYoloMode])
@@ -2351,6 +2521,13 @@ const AgentChatPanel: React.FC = () => {
   
   return (
     <div className="agent-panel" data-testid="agent-panel" style={{ position: 'relative' }}>
+      {showEmptyAgentPanel && (
+        <div className="agent-panel__toolbar agent-panel__toolbar--slim agent-panel__toolbar--empty">
+          <span className="agent-panel__empty-label">{t('empty.panelLabel')}</span>
+          <span className="agent-panel__empty-badge">{t('status.noAgents')}</span>
+        </div>
+      )}
+
       {detectedAgents.length > 0 && (
         <AgentToolbar
           agents={detectedAgents}
@@ -2359,6 +2536,23 @@ const AgentChatPanel: React.FC = () => {
           warmupPhase={warmupPhase}
           onSelectAgent={selectAgent}
         />
+      )}
+
+      {chatDbUnavailable && (
+        <div
+          style={{
+            flexShrink: 0,
+            padding: '8px 12px',
+            margin: '0 12px 8px',
+            borderRadius: 8,
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            fontSize: 12,
+            color: theme.textSecondary,
+          }}
+        >
+          {t('status.chatDbUnavailable')}
+        </div>
       )}
 
       {detectedAgents.length > 0 && failureHint && (
@@ -2435,43 +2629,18 @@ const AgentChatPanel: React.FC = () => {
         <div
           data-testid="message-list"
           className="agent-panel__messages agent-panel__messages--enter"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            padding: 24,
-            textAlign: 'center',
-            color: theme.textSecondary,
-          }}
+          style={{ height: '100%' }}
         >
-          <div style={{ fontWeight: 600, fontSize: 15, color: theme.text, marginBottom: 8 }}>
-            {t('empty.title')}
-          </div>
-          <p style={{ fontSize: 13, maxWidth: 280, marginBottom: 16, lineHeight: 1.5 }}>
-            {t('empty.description')}
-          </p>
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent('metamates:open-settings'))}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              border: 'none',
-              background: theme.primary,
-              color: theme.primaryText || '#fff',
-              cursor: 'pointer',
-              fontSize: 13,
-            }}
-          >
-            {t('empty.openSettings')}
-          </button>
+          <AgentCliInstallGuide
+            onInstall={() => setCliInstallOpen(true)}
+            onRescan={() => void handleRescanAgents()}
+            rescanning={rescanningAgents}
+          />
         </div>
       ) : (
         <VirtualAgentMessageList
           ref={messageListRef}
-          listKey={messagesPaneEpoch}
+          listKey={`${currentBackend || 'none'}-${messagesPaneEpoch}`}
           messages={currentMessages}
           theme={theme}
           isDark={isDark}
@@ -2553,7 +2722,6 @@ const AgentChatPanel: React.FC = () => {
           </div>
           <AgentChatInput
             onSend={sendMessage}
-            onFocus={scheduleWarmupOnFocus}
             disabled={isAgentBusy}
             placeholder={inputPlaceholder}
             workspacePath={state.workspacePath}
@@ -2852,6 +3020,8 @@ const AgentChatPanel: React.FC = () => {
           </div>
         </div>
       )}
+
+      <CliInstallPanel open={cliInstallOpen} onClose={handleCliInstallClose} />
     </div>
   )
 }

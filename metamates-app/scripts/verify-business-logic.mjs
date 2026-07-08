@@ -166,7 +166,7 @@ function printE2eAudit() {
 }
 
 async function main() {
-  console.log('═══ Metamates 业务逻辑核实 ═══\n')
+  console.log('═══ MetaMates 业务逻辑核实 ═══\n')
   console.log(`工作区: ${WORKSPACE}\n`)
 
   if (!fs.existsSync(WORKSPACE)) {

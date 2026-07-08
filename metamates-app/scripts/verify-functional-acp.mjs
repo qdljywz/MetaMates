@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * 功能级 ACP 实测 — 验证「真能对话、真能读写文件」，不是检查代码是否存在。
- * 行为对齐 Metamates AcpConnection：fs 代理、权限自动批准、统一 stream pipeline。
+ * 行为对齐 MetaMates AcpConnection：fs 代理、权限自动批准、统一 stream pipeline。
  *
  * 用法:
  *   node scripts/verify-functional-acp.mjs
- *   METAMATES_WORKSPACE=E:\MyM2 node scripts/verify-functional-acp.mjs
+ *   METAMATES_WORKSPACE=/path/to/vault node scripts/verify-functional-acp.mjs
  *   SKIP_GEMINI=1  (默认已跳过 Gemini)
  */
 import { spawn } from 'child_process'
@@ -13,9 +13,11 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 
+import { resolveDefaultWorkspace } from './lib/default-workspace.mjs'
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
-const WORKSPACE = process.env.METAMATES_WORKSPACE || 'E:\\MyM2'
+const WORKSPACE = resolveDefaultWorkspace()
 const SKIP_GEMINI = process.env.SKIP_GEMINI !== '0'
 const BACKENDS = SKIP_GEMINI ? ['codebuddy'] : ['codebuddy', 'gemini']
 
@@ -30,7 +32,7 @@ function loadCjs(rel) {
   return import(pathToFileURL(path.join(ROOT, 'dist-electron', rel)).href)
 }
 
-/** Minimal ACP client matching Metamates main-process behavior. */
+/** Minimal ACP client matching MetaMates main-process behavior. */
 class FunctionalAcpClient {
   constructor(workspace, backend = 'test') {
     this.workspace = workspace
@@ -257,7 +259,7 @@ async function runBackendTests(backend, agent) {
     client.sessionId = await client.connect(command, args, options)
     record(`${backend} 连接`, true, client.sessionId.slice(0, 12))
 
-    // ── 0. ACP fs 代理写入（Metamates 主进程写盘链路，不依赖 Agent 工具）──
+    // ── 0. ACP fs 代理写入（MetaMates 主进程写盘链路，不依赖 Agent 工具）──
     const fsRel = `_metamates_fs_proxy_${backend}.md`
     const fsAbs = path.join(WORKSPACE, fsRel)
     try { fs.unlinkSync(fsAbs) } catch {}

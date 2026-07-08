@@ -127,6 +127,10 @@
     "settings": {
       "label": "打开设置",
       "description": "打开应用设置"
+    },
+    "switchWorkspace": {
+      "label": "切换工作区",
+      "description": "选择另一个笔记库文件夹"
     }
   },
   "keywords": {

@@ -1,5 +1,5 @@
 /**
- * Metamates 工作区路径规范（与 inits/zh、inits/en 对齐）
+ * MetaMates 工作区路径规范（与 inits/zh、inits/en 对齐）
  * 标准目录见 inits/README.md；LEGACY 路径用于兼容旧工作区。
  */
 
@@ -17,6 +17,16 @@ export {
 } from '../../electron/shared/intelligencePaths'
 
 export type WorkspaceLanguage = 'zh' | 'en'
+
+/**
+ * Bundled seed templates under metamates-app/inits/{zh,en}.
+ * Must never be opened as the user's live workspace — edits would corrupt the ship template.
+ */
+export function isShippedTemplateWorkspace(workspacePath: string | undefined | null): boolean {
+  if (!workspacePath?.trim()) return false
+  const norm = workspacePath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
+  return /\/inits\/(zh|en)$/.test(norm) || /\/metamates-app\/inits\/(zh|en)$/.test(norm)
+}
 
 /** 标准工作区目录（与 inits 模板一致） */
 export const WORKSPACE_LAYOUT = {
@@ -44,6 +54,28 @@ export const LEGACY_PATHS = {
   MASTER_CONTROL_ROOT: 'MasterControl.md',
 } as const
 
+/** 日记/计划目录名（中/英标准 + 旧版），用于侧栏日历匹配 */
+export const DAILY_PLAN_DIR_MARKERS = [
+  WORKSPACE_LAYOUT.zh.LOG_AND_PLAN,
+  WORKSPACE_LAYOUT.en.LOG_AND_PLAN,
+  LEGACY_PATHS.DAILY_PLAN_DIR,
+] as const
+
+export function isDailyPlanDirectoryPath(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/')
+  return DAILY_PLAN_DIR_MARKERS.some((dir) => normalized.includes(`/${dir}/`))
+}
+
+export function parseDailyEntryFileName(
+  name: string,
+): { dateStr: string; kind: 'note' | 'plan' } | null {
+  const noteMatch = name.match(/^(\d{4}-\d{2}-\d{2})\.md$/)
+  if (noteMatch) return { dateStr: noteMatch[1], kind: 'note' }
+  const planMatch = name.match(/^(\d{4}-\d{2}-\d{2}) PLAN\.md$/)
+  if (planMatch) return { dateStr: planMatch[1], kind: 'plan' }
+  return null
+}
+
 /** 工作区内关键文件名 */
 export const WORKSPACE_FILES = {
   MASTER_CONTROL: 'Master_Control.md',
@@ -51,6 +83,15 @@ export const WORKSPACE_FILES = {
   DAILY_PLAN_TEMPLATE: 'Daily_Plan.md',
   DAILY_NOTE_TEMPLATE: 'Daily_Note.md',
 } as const
+
+/** 工作区根目录 Agent 人格 / CLI 指令配置（非用户笔记，不进图谱） */
+export const AGENT_ROOT_CONFIG_FILES = [
+  'GEMINI.md',
+  'CLAUDE.md',
+  'CODEBUDDY.md',
+  'CODEX.md',
+  'AI_Commands_Prompt.md',
+] as const
 
 /**
  * @deprecated 请使用 WORKSPACE_LAYOUT 与 getDailyPlanDir()
@@ -72,11 +113,77 @@ export function getWorkspaceLanguage(locale?: string): WorkspaceLanguage {
   return locale?.startsWith('en') ? 'en' : 'zh'
 }
 
+export const DEFAULT_USER_TIMEZONE = 'Asia/Shanghai'
+
+function isValidTimezone(timezone: string | undefined | null): timezone is string {
+  if (!timezone?.trim()) return false
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone: timezone })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Prefer explicit settings timezone, else localStorage / browser / default. */
+export function resolveUserTimezone(explicit?: string | null): string {
+  if (isValidTimezone(explicit)) return explicit.trim()
+  return getEffectiveTimezone()
+}
+
 /**
- * 获取北京时间日期字符串 YYYY-MM-DD
+ * Resolve effective timezone for date-sensitive features.
+ * Priority: explicit user setting -> browser/system timezone -> default Asia/Shanghai.
  */
-export function getTodayDateString(): string {
-  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
+export function getEffectiveTimezone(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('metamates-storage')
+      if (raw) {
+        const parsed = JSON.parse(raw) as { settings?: { userTimezone?: string } }
+        if (isValidTimezone(parsed.settings?.userTimezone)) {
+          return parsed.settings!.userTimezone!
+        }
+      }
+    } catch {
+      // ignore parse errors and continue fallback chain
+    }
+  }
+
+  const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  if (isValidTimezone(browserZone)) return browserZone
+  return DEFAULT_USER_TIMEZONE
+}
+
+/**
+ * 获取用户配置时区日期字符串 YYYY-MM-DD
+ */
+export function getTodayDateString(timezone: string = getEffectiveTimezone()): string {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: timezone })
+}
+
+/** Current hour (0–23) in given timezone. */
+export function getCurrentHour(timezone: string = getEffectiveTimezone()): number {
+  const hourStr = new Date().toLocaleString('en-US', {
+    timeZone: timezone,
+    hour: 'numeric',
+    hour12: false,
+  })
+  const hour = Number.parseInt(hourStr, 10)
+  return Number.isFinite(hour) ? hour : new Date().getHours()
+}
+
+/** Current hour (0–23) in Asia/Shanghai (legacy helper). */
+export function getBeijingHour(): number {
+  return getCurrentHour(DEFAULT_USER_TIMEZONE)
+}
+
+/** Human-readable current time in effective timezone for agent prompts. */
+export function formatNowInTimezone(timezone: string = getEffectiveTimezone()): string {
+  return new Date().toLocaleString('sv-SE', {
+    timeZone: timezone,
+    hour12: false,
+  })
 }
 
 export function getDailyPlanFileName(date: string): string {
@@ -363,7 +470,7 @@ export function pickBestWorkspaceFileMatch(
 
 /**
  * 将 Agent / 工具返回的路径解析为工作区内的真实文件路径。
- * 仅返回 Vault 内路径；工作区外路径一律拒绝（Metamates 只管理 Vault）。
+ * 仅返回 Vault 内路径；工作区外路径一律拒绝（MetaMates 只管理 Vault）。
  */
 export async function resolveWorkspaceFilePath(
   workspacePath: string,

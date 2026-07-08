@@ -40,10 +40,12 @@ export function shouldCaptureAsIntelligence(text: string, activeCommandId?: stri
 }
 
 /**
- * 解析 /intel 输入：URL 或工作区文件路径
+ * 解析 /intel 输入：URL、工作区文件路径，或纯文本摘录
  * @param text - 去掉命令前缀后的文本
  */
-export function parseIntelCaptureTarget(text: string): { kind: 'url' | 'file'; value: string } | null {
+export function parseIntelCaptureTarget(
+  text: string,
+): { kind: 'url' | 'file' | 'text'; value: string } | null {
   const trimmed = stripIntelCommandPrefix(text).trim()
   if (!trimmed) return null
 
@@ -53,11 +55,19 @@ export function parseIntelCaptureTarget(text: string): { kind: 'url' | 'file'; v
   }
 
   const fileCandidate = trimmed.split(/\s+/)[0]
-  if (fileCandidate) {
+  if (looksLikeFilePath(fileCandidate)) {
     return { kind: 'file', value: fileCandidate }
   }
 
-  return null
+  return { kind: 'text', value: trimmed }
+}
+
+/** 是否像文件路径（含扩展名或路径分隔符），避免把普通句子误判为路径 */
+function looksLikeFilePath(candidate: string): boolean {
+  if (!candidate || /\s/.test(candidate)) return false
+  if (/^https?:\/\//i.test(candidate)) return false
+  if (/[\\/]/.test(candidate)) return true
+  return /\.(pdf|docx?|xlsx?|csv|txt|md|markdown|html?|json|png|jpe?g|gif|webp|bmp)$/i.test(candidate)
 }
 
 /**

@@ -23,6 +23,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@acp-registry': path.resolve(__dirname, 'electron/shared/acpRegistry.ts'),
+      '@agent-logos': path.resolve(__dirname, 'electron/shared/agentLogos.ts'),
     },
   },
   server: {

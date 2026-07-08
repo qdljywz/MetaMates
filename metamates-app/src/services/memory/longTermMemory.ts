@@ -132,9 +132,9 @@ export class LongTermMemoryService {
 
   private generateMemoryFile(): string {
     const lines: string[] = [
-      '# Metamates 长期记忆',
+      '# MetaMates 长期记忆',
       '',
-      '> 此文件由 Metamates Agent 自动维护，存储用户的偏好、项目知识和重要信息。',
+      '> 此文件由 MetaMates Agent 自动维护，存储用户的偏好、项目知识和重要信息。',
       '',
       `最后更新: ${new Date(this.memory.updatedAt).toLocaleString('zh-CN')}`,
       '',

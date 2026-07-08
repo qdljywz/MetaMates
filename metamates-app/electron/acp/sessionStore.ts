@@ -1,9 +1,13 @@
 import * as fs from 'fs'
 import * as path from 'path'
+import { writeFileAtomic } from '../shared/atomicWrite'
 import { DEFAULT_AGENT_MODE } from '../shared/agentMode'
 import { normalizeWorkspacePath } from './sessionDb'
+import { getWritableAppDataDir } from '../shared/appPaths'
 
-const SESSION_FILE = path.join(__dirname, '..', '..', 'session-store.json')
+function resolveSessionStorePath(): string {
+  return process.env.SESSION_STORE_PATH || path.join(getWritableAppDataDir(), 'session-store.json')
+}
 
 interface SessionData {
   sessionId: string
@@ -23,8 +27,9 @@ class SessionStore {
   private sessions: Record<string, SessionData> = {}
 
   async load(): Promise<void> {
+    const sessionFile = resolveSessionStorePath()
     try {
-      const data = await fs.promises.readFile(SESSION_FILE, 'utf-8')
+      const data = await fs.promises.readFile(sessionFile, 'utf-8')
       this.sessions = JSON.parse(data)
       console.log('[SessionStore] Loaded sessions:', Object.keys(this.sessions))
     } catch {
@@ -34,8 +39,9 @@ class SessionStore {
   }
 
   async save(): Promise<void> {
+    const sessionFile = resolveSessionStorePath()
     try {
-      await fs.promises.writeFile(SESSION_FILE, JSON.stringify(this.sessions, null, 2))
+      writeFileAtomic(sessionFile, JSON.stringify(this.sessions, null, 2))
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e)
       console.error('[SessionStore] Save error:', message)

@@ -65,7 +65,7 @@ export const COMMANDS: Command[] = [
     requiresContext: true,
     executeDirectly: true,
     outputFormat: 'analysis',
-    prompt: `Track how a specific idea has evolved over time across my Metamates vault. Take a topic as input, search for all mentions, follow backlinks, and output a timeline.`,
+    prompt: `Track how a specific idea has evolved over time across my MetaMates vault. Take a topic as input, search for all mentions, follow backlinks, and output a timeline.`,
   },
   {
     id: '/connect',
@@ -174,7 +174,7 @@ export const COMMANDS: Command[] = [
     requiresContext: false,
     executeDirectly: false,
     outputFormat: 'file',
-    prompt: `The user provides a web URL or a workspace file path (PDF, image, docx, xlsx, etc.). Metamates has already extracted text and created a draft intelligence note under the intelligence folder. Deepen that note: structured summary, key data, suggested tags, [[wiki links]] to related vault notes, and actionable follow-ups. Preserve source metadata in the note.`,
+    prompt: `The user provides a web URL or a workspace file path (PDF, image, docx, xlsx, etc.). MetaMates has already extracted text and created a draft intelligence note under the intelligence folder. Deepen that note: structured summary, key data, suggested tags, [[wiki links]] to related vault notes, and actionable follow-ups. Preserve source metadata in the note.`,
   },
 ]
 

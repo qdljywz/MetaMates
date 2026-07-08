@@ -1,7 +1,7 @@
 ﻿---
 name: schedule
 description: 时间调度 - 根据优先级和日历，建议本周的时间分配方案，标记潜在冲突
-allowed-tools: Read, Glob, Grep
+allowed-tools: Read, Write, Glob, Grep
 ---
 
 # ⏰ 时间调度 (Schedule)

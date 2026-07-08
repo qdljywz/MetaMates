@@ -8,9 +8,11 @@ import { fileURLToPath, pathToFileURL } from 'url'
 import { spawn } from 'child_process'
 import fs from 'fs'
 
+import { resolveDefaultWorkspace } from './lib/default-workspace.mjs'
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
-const WORKSPACE = process.env.METAMATES_WORKSPACE || 'E:\\MyM2'
+const WORKSPACE = resolveDefaultWorkspace()
 
 const results = []
 function record(name, ok, detail = '') {

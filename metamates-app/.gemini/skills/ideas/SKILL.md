@@ -1,7 +1,7 @@
 ﻿---
 name: ideas
 description: 点子报告 - 扫描库中新兴模式，生成包含工具、人脉和写作主题的报告
-allowed-tools: Read, Glob, Grep
+allowed-tools: Read, Write, Glob, Grep
 ---
 
 # 💡 点子报告 (Ideas)

@@ -2,10 +2,15 @@ import * as fs from 'fs'
 import * as path from 'path'
 import Database from 'better-sqlite3'
 import { composeChatMessages, type ComposeChatMessage } from '../shared/chatCompose'
+import { getWritableAppDataDir } from '../shared/appPaths'
 
-const APP_ROOT = path.join(__dirname, '..', '..')
-const SQLITE_PATH = process.env.SESSION_DB_SQLITE_PATH || path.join(APP_ROOT, 'conversations.sqlite')
-const JSON_LEGACY_PATH = process.env.SESSION_DB_JSON_PATH || path.join(APP_ROOT, 'conversations.db')
+function resolveSqlitePath(): string {
+  return process.env.SESSION_DB_SQLITE_PATH || path.join(getWritableAppDataDir(), 'conversations.sqlite')
+}
+
+function resolveJsonLegacyPath(): string {
+  return process.env.SESSION_DB_JSON_PATH || path.join(getWritableAppDataDir(), 'conversations.db')
+}
 
 export interface Conversation {
   id: string
@@ -41,6 +46,7 @@ interface LegacyDatabase {
 }
 
 let sqlite: Database.Database | null = null
+let sqliteLoadError: string | null = null
 const messageQueues = new Map<string, Message[]>()
 const messageTimers = new Map<string, NodeJS.Timeout>()
 
@@ -70,16 +76,56 @@ const upsertMessageStmt = () => getSqlite().prepare(`
     updated_at = excluded.updated_at
 `)
 
+function markSqliteUnavailable(err: unknown): void {
+  const message = err instanceof Error ? err.message : String(err)
+  if (!sqliteLoadError) {
+    sqliteLoadError = message
+    console.error(
+      '[Database] SQLite unavailable (chat history disabled). Run: npm run rebuild:native —',
+      message,
+    )
+  }
+}
+
+export function isDatabaseAvailable(): boolean {
+  if (sqlite) return true
+  if (sqliteLoadError) return false
+  try {
+    getSqlite()
+    return true
+  } catch {
+    return false
+  }
+}
+
 function getSqlite(): Database.Database {
+  if (sqliteLoadError) {
+    throw new Error(sqliteLoadError)
+  }
   if (!sqlite) {
-    sqlite = new Database(SQLITE_PATH)
-    sqlite.pragma('journal_mode = WAL')
-    sqlite.pragma('foreign_keys = ON')
-    initSchema(sqlite)
-    migrateSchema(sqlite)
-    migrateFromJsonIfNeeded(sqlite)
+    try {
+      const dbPath = resolveSqlitePath()
+      fs.mkdirSync(path.dirname(dbPath), { recursive: true })
+      sqlite = new Database(dbPath)
+      sqlite.pragma('journal_mode = WAL')
+      sqlite.pragma('foreign_keys = ON')
+      initSchema(sqlite)
+      migrateSchema(sqlite)
+      migrateFromJsonIfNeeded(sqlite)
+    } catch (err: unknown) {
+      markSqliteUnavailable(err)
+      throw err
+    }
   }
   return sqlite
+}
+
+function tryGetSqlite(): Database.Database | null {
+  try {
+    return getSqlite()
+  } catch {
+    return null
+  }
 }
 
 function initSchema(db: Database.Database): void {
@@ -193,14 +239,15 @@ function migrateFromJsonIfNeeded(db: Database.Database): void {
     return
   }
 
-  if (!fs.existsSync(JSON_LEGACY_PATH)) {
+  const legacyPath = resolveJsonLegacyPath()
+  if (!fs.existsSync(legacyPath)) {
     setMeta(db, 'json_migrated', '1')
     return
   }
 
   let parsed: LegacyDatabase
   try {
-    parsed = JSON.parse(fs.readFileSync(JSON_LEGACY_PATH, 'utf-8'))
+    parsed = JSON.parse(fs.readFileSync(legacyPath, 'utf-8'))
   } catch (error: any) {
     console.warn('[Database] Legacy JSON unreadable, skipping migration:', error.message)
     setMeta(db, 'json_migrated', '1')
@@ -233,10 +280,10 @@ function migrateFromJsonIfNeeded(db: Database.Database): void {
   importTx()
   setMeta(db, 'json_migrated', '1')
 
-  const backupPath = `${JSON_LEGACY_PATH}.bak`
+  const backupPath = `${legacyPath}.bak`
   try {
     if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath)
-    fs.renameSync(JSON_LEGACY_PATH, backupPath)
+    fs.renameSync(legacyPath, backupPath)
     console.log(`[Database] Migrated legacy JSON to SQLite, backup: ${backupPath}`)
   } catch (error: any) {
     console.warn('[Database] SQLite migration complete, but legacy backup failed:', error.message)
@@ -246,13 +293,19 @@ function migrateFromJsonIfNeeded(db: Database.Database): void {
 export function warmupDatabase(): void {
   try {
     getSqlite()
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
-    console.error('[Database] warmup failed (chat history may be unavailable):', message)
+  } catch {
+    // markSqliteUnavailable already logged
+  }
+}
+
+export function flushAllPendingMessages(): void {
+  for (const convId of [...messageQueues.keys()]) {
+    flushMessageQueue(convId)
   }
 }
 
 export function closeDatabase(): void {
+  flushAllPendingMessages()
   for (const [convId, timer] of messageTimers) {
     clearTimeout(timer)
     flushMessageQueue(convId)
@@ -287,6 +340,10 @@ export function createConversation(
     workspace_path: normalizedWorkspace,
   }
 
+  if (!tryGetSqlite()) {
+    return conversation
+  }
+
   insertConversationStmt().run({
     id,
     backend,
@@ -302,15 +359,19 @@ export function createConversation(
 }
 
 export function getConversation(id: string): Conversation | null {
-  const row = getSqlite()
+  const db = tryGetSqlite()
+  if (!db) return null
+  const row = db
     .prepare('SELECT * FROM conversations WHERE id = ?')
     .get(id) as Record<string, unknown> | undefined
   return row ? rowToConversation(row) : null
 }
 
 export function getConversationByBackend(backend: string, workspacePath = ''): Conversation | null {
+  const db = tryGetSqlite()
+  if (!db) return null
   const normalizedWorkspace = normalizeWorkspacePath(workspacePath)
-  const row = getSqlite()
+  const row = db
     .prepare(`
       SELECT * FROM conversations
       WHERE backend = ? AND workspace_path = ?
@@ -326,6 +387,7 @@ export function getLatestConversationByBackend(backend: string, workspacePath = 
 }
 
 export function updateConversationExtra(id: string, extra: Record<string, any>): void {
+  if (!tryGetSqlite()) return
   const existing = getConversation(id)
   if (!existing) return
 
@@ -389,6 +451,10 @@ function queueMessage(conversationId: string, message: Message): void {
 function flushMessageQueue(conversationId: string): void {
   const queue = messageQueues.get(conversationId)
   if (!queue || queue.length === 0) return
+  if (!tryGetSqlite()) {
+    messageQueues.set(conversationId, [])
+    return
+  }
 
   messageQueues.set(conversationId, [])
 
@@ -416,6 +482,7 @@ export function insertMessage(
     console.error('[Database] insertMessage: missing conversation_id')
     return null
   }
+  if (!tryGetSqlite()) return null
 
   const stored: Message = {
     id,
@@ -432,7 +499,7 @@ export function insertMessage(
   touchConversationStmt().run({ id: conversationId, updated_at: Date.now() })
 
   if (immediate) {
-    getSqlite().pragma('wal_checkpoint(PASSIVE)')
+    tryGetSqlite()?.pragma('wal_checkpoint(PASSIVE)')
   }
 
   console.log(`[Database] Inserted message: ${id} type: ${message.type}`)
@@ -445,6 +512,7 @@ export function accumulateMessage(message: Partial<Message> & { conversation_id:
     console.error('[Database] accumulateMessage: missing conversation_id')
     return
   }
+  if (!tryGetSqlite()) return
 
   if (!message.id) {
     message.id = generateId()
@@ -454,7 +522,9 @@ export function accumulateMessage(message: Partial<Message> & { conversation_id:
 }
 
 export function updateMessage(id: string, content: Record<string, any>): boolean {
-  const row = getSqlite()
+  const db = tryGetSqlite()
+  if (!db) return false
+  const row = db
     .prepare('SELECT * FROM messages WHERE id = ?')
     .get(id) as Record<string, unknown> | undefined
 
@@ -482,7 +552,9 @@ export function getConversationMessagesBefore(
   beforeCreatedAt: number,
   limit = 50,
 ): Message[] {
-  const rows = getSqlite()
+  const db = tryGetSqlite()
+  if (!db) return []
+  const rows = db
     .prepare(`
       SELECT * FROM (
         SELECT * FROM messages
@@ -497,14 +569,18 @@ export function getConversationMessagesBefore(
 }
 
 export function countConversationMessagesBefore(conversationId: string, beforeCreatedAt: number): number {
-  const row = getSqlite()
+  const db = tryGetSqlite()
+  if (!db) return 0
+  const row = db
     .prepare('SELECT COUNT(*) AS count FROM messages WHERE conversation_id = ? AND created_at < ?')
     .get(conversationId, beforeCreatedAt) as { count: number } | undefined
   return row?.count ?? 0
 }
 
 export function getRecentConversationMessages(conversationId: string, limit = 50): Message[] {
-  const rows = getSqlite()
+  const db = tryGetSqlite()
+  if (!db) return []
+  const rows = db
     .prepare(`
       SELECT * FROM (
         SELECT * FROM messages
@@ -519,14 +595,18 @@ export function getRecentConversationMessages(conversationId: string, limit = 50
 }
 
 export function getConversationMessageCount(conversationId: string): number {
-  const row = getSqlite()
+  const db = tryGetSqlite()
+  if (!db) return 0
+  const row = db
     .prepare('SELECT COUNT(*) AS count FROM messages WHERE conversation_id = ?')
     .get(conversationId) as { count: number } | undefined
   return row?.count ?? 0
 }
 
 export function getConversationMessages(conversationId: string, limit = 1000, offset = 0): Message[] {
-  const rows = getSqlite()
+  const db = tryGetSqlite()
+  if (!db) return []
+  const rows = db
     .prepare(`
       SELECT * FROM messages
       WHERE conversation_id = ?
@@ -539,7 +619,9 @@ export function getConversationMessages(conversationId: string, limit = 1000, of
 }
 
 export function getAllMessages(conversationId: string): Message[] {
-  const rows = getSqlite()
+  const db = tryGetSqlite()
+  if (!db) return []
+  const rows = db
     .prepare(`
       SELECT * FROM messages
       WHERE conversation_id = ?
@@ -555,7 +637,9 @@ export function getAllConversationMessages(conversationId: string): Message[] {
 }
 
 export function deleteConversation(id: string): void {
-  getSqlite().prepare('DELETE FROM conversations WHERE id = ?').run(id)
+  const db = tryGetSqlite()
+  if (!db) return
+  db.prepare('DELETE FROM conversations WHERE id = ?').run(id)
   messageQueues.delete(id)
 
   const timer = messageTimers.get(id)
@@ -566,7 +650,9 @@ export function deleteConversation(id: string): void {
 }
 
 export function clearAllConversations(): void {
-  getSqlite().exec('DELETE FROM messages; DELETE FROM conversations;')
+  const db = tryGetSqlite()
+  if (!db) return
+  db.exec('DELETE FROM messages; DELETE FROM conversations;')
   messageQueues.clear()
 
   for (const timer of messageTimers.values()) {

@@ -1,6 +1,6 @@
-# Metamates 桌面应用架构
+# MetaMates 桌面应用架构
 
-> Metamates 是 **本地安装的 Electron 桌面程序**，不是「用浏览器打开的网站」。  
+> MetaMates 是 **本地安装的 Electron 桌面程序**，不是「用浏览器打开的网站」。  
 > 手机上的 `/mobile` 页面只是 **Vault API 辅助入口**（剪藏 / 只读浏览），不是主产品。
 
 ---
@@ -9,7 +9,7 @@
 
 | 方式 | 命令 / 入口 | 说明 |
 |------|-------------|------|
-| **生产（推荐给用户）** | 安装 `Metamates.exe` 或 `electron:build` 产物 | 窗口内加载打包后的 `dist/index.html`，完全离线本地 |
+| **生产（推荐给用户）** | 安装 `MetaMates.exe` 或 `electron:build` 产物 | 窗口内加载打包后的 `dist/index.html`，完全离线本地 |
 | **开发（推荐给开发者）** | `npm run start` 或 `npm run electron:dev` | Electron 壳 + Vite 热更新，仍是桌面窗口 |
 | **仅 Vite（不推荐）** | `npm run dev` | 只在浏览器打开 `http://localhost:3000`，**缺少文件系统 / ACP / 终端**，仅适合调试 UI |
 

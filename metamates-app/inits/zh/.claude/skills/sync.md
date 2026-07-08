@@ -8,7 +8,7 @@ description: 系统同步 - 扫描全库进展，复盘今日并自动更新Mast
 1. **扫描今日活动**：读取今日日记和相关文件，了解今天的进展
 2. **读取Master_Control**：查看 `05_模板与配置/Master_Control.md` 当前状态
 3. **识别核心进展**：总结今天完成的重要工作、产生的想法
-4. **更新Master_Control**：根据Metamates协议，更新Master_Control.md文件
+4. **更新Master_Control**：根据MetaMates协议，更新Master_Control.md文件
 
 更新内容应包括：
 - 📊 核心目标进展
@@ -35,7 +35,7 @@ description: 系统同步 - 扫描全库进展，复盘今日并自动更新Mast
 
 **重要**：更新后必须读取Master_Control.md验证修改正确
 
-## 记忆与 Vault 边界（Metamates 强制）
+## 记忆与 Vault 边界（MetaMates 强制）
 
 - 用户可读的长期记忆须镜像到 `04_情报与连接/记忆索引.md`（详细条目放 `04_情报与连接/参考/`）
 - **禁止**只写入 `~/.codebuddy`、CLI 项目缓存或其它 Vault 外路径

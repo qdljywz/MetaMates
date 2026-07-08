@@ -4,6 +4,7 @@ export interface AppSettings {
   fontSize: number
   autoSave: boolean
   language?: 'zh' | 'en'
+  userTimezone?: string
   workspacePath?: string
   vaultApiEnabled?: boolean
   vaultApiPort?: number
@@ -35,7 +36,7 @@ export interface AppSettings {
     acpArgs?: string[]
     logo?: { type: 'file' | 'initial'; src?: string; initial?: string; bgColor?: string }
   }>
-  /** API key entered in Metamates settings / auth modal (optional; OS keychain preferred). */
+  /** API key entered in MetaMates settings / auth modal (optional; OS keychain preferred). */
   geminiApiKey?: string
   recentFiles: string[]
   lastOpenedFile?: string
@@ -64,6 +65,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
   fontSize: 14,
   autoSave: true,
+  userTimezone: 'Asia/Shanghai',
   recentFiles: [],
 }
 

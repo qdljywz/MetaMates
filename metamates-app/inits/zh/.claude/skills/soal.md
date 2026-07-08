@@ -1,7 +1,7 @@
 ﻿# 🧠 Skill: /soal (Evolutionary Sync)
 
 ## 📌 Description
-将用户的反馈、习惯或新教训永久固化到 Metamates 的核心进化层 `2M.md` 中。
+将用户的反馈、习惯或新教训永久固化到 MetaMates 的核心进化层 `2M.md` 中。
 
 ## 🛠️ Usage
 输入：`/soal [您的习惯或教训]`
@@ -20,7 +20,7 @@
 ---
 **版本**: 1.1 (Encoding Fix)
 
-## 记忆与 Vault 边界（Metamates 强制）
+## 记忆与 Vault 边界（MetaMates 强制）
 
 - 用户可读的长期记忆须镜像到 `04_情报与连接/记忆索引.md`（详细条目放 `04_情报与连接/参考/`）
 - **禁止**只写入 `~/.codebuddy`、CLI 项目缓存或其它 Vault 外路径

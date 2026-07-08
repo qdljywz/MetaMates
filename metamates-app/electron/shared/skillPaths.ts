@@ -57,7 +57,7 @@ export function buildWorkspacePathHints(
   const rootLine = workspacePath ? `Workspace root: ${workspacePath}` : 'Workspace root: (current working directory)'
 
   if (language === 'en') {
-    return `[Metamates path map — use these exact relative paths]
+    return `[MetaMates path map — use these exact relative paths]
 ${rootLine}
 - Daily notes: ${layout.LOG_AND_PLAN}/YYYY-MM-DD.md
 - Daily plans: ${layout.LOG_AND_PLAN}/YYYY-MM-DD PLAN.md
@@ -70,13 +70,13 @@ ${rootLine}
 - **Reference notes**: ${referenceDir}
 
 [CLI layout — workspace .codebuddy/ only]
-- Slash-command skills: .codebuddy/skills/{command}/SKILL.md (Metamates reads these first)
+- Slash-command skills: .codebuddy/skills/{command}/SKILL.md (MetaMates reads these first)
 - CLI internal cache: .codebuddy/memories/ (not user-facing — sync summary to ${memoryIndex})
 - Do NOT write to ~/.codebuddy/projects/... via shell
 - User notes, plans, and memory MUST use vault paths above (Act & Verify)`
   }
 
-  return `[Metamates 路径映射 — 请使用以下相对路径读写文件]
+  return `[MetaMates 路径映射 — 请使用以下相对路径读写文件]
 ${rootLine}
 - 日记：${layout.LOG_AND_PLAN}/YYYY-MM-DD.md
 - 每日计划：${layout.LOG_AND_PLAN}/YYYY-MM-DD PLAN.md
@@ -89,7 +89,7 @@ ${rootLine}
 - **参考条目**：${referenceDir}
 
 [CLI 目录 — 只用工作区内的 .codebuddy/]
-- 斜杠命令技能：.codebuddy/skills/{命令名}/SKILL.md（Metamates 优先读这里）
+- 斜杠命令技能：.codebuddy/skills/{命令名}/SKILL.md（MetaMates 优先读这里）
 - CLI 内部缓存：.codebuddy/memories/（用户不可见 — 摘要同步到 ${memoryIndex}）
 - 禁止用 shell 写到 ~/.codebuddy/projects/...
 - 用户笔记、计划与记忆必须写在上述 Vault 路径（Act & Verify）`

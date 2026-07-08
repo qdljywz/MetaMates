@@ -45,8 +45,6 @@
 [data-color-scheme="forest"] .cm-editor { background: var(--canvas-surface) !important; color: var(--text-primary) !important; }
 [data-color-scheme="forest"] .cm-gutters { background: var(--canvas-elevated) !important; border-right: 1px solid var(--divider) !important; color: var(--text-muted) !important; font-size: 11px !important; opacity: 0.5; }
 [data-color-scheme="forest"] .cm-line { color: var(--text-primary) !important; padding: 0 10px !important; }
-[data-color-scheme="forest"] .cm-selectionBackground { background: rgba(52, 211, 153, 0.14) !important; }
-
 [data-color-scheme="forest"] .status-bar {
   background: var(--canvas-elevated);
   border-top: 1px solid var(--divider);

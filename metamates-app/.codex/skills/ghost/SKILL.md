@@ -34,4 +34,10 @@ allowed-tools: Read, Glob, Grep, Write
 ```
 
 ---
-**协议来源**: Metamates CODEBUDDY.md
+**协议来源**: MetaMates CODEBUDDY.md
+
+## 记忆与 Vault 边界（MetaMates 强制）
+
+- 用户可读的长期记忆须镜像到 `04_情报与连接/记忆索引.md`（详细条目放 `04_情报与连接/参考/`）
+- **禁止**只写入 `~/.codebuddy`、CLI 项目缓存或其它 Vault 外路径
+- 本命令若要求写回：必须使用 Write/编辑工具落盘，并在写后 **Read 验证**（Act & Verify）

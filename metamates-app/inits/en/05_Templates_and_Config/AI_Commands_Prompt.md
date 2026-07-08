@@ -1,6 +1,6 @@
-# 🤖 Metamates + Gemini CLI: 15 Core Automation Commands (Prompt Collection)
+# 🤖 MetaMates + Gemini CLI: 15 Core Automation Commands (Prompt Collection)
 
-This document provides 15 prompts that can be sent directly to an AI assistant (such as Gemini CLI) to build automated workflows within your Metamates vault.
+This document provides 15 prompts that can be sent directly to an AI assistant (such as Gemini CLI) to build automated workflows within your MetaMates vault.
 
 ---
 
@@ -33,7 +33,7 @@ This document provides 15 prompts that can be sent directly to an AI assistant (
 ### /trace (Trace Idea)
 *   **Function**: Track the evolution of a specific idea across the entire vault.
 *   **Prompt**:
-    > "Track how a specific idea has evolved over time across my Metamates vault. Take a topic as input, search for all mentions, follow backlinks, and output a timeline."
+    > "Track how a specific idea has evolved over time across my MetaMates vault. Take a topic as input, search for all mentions, follow backlinks, and output a timeline."
 
 ### /connect (Find Connections)
 *   **Function**: Find unexpected connections between two seemingly unrelated topics.
@@ -60,9 +60,9 @@ This document provides 15 prompts that can be sent directly to an AI assistant (
     > "Scan my vault for emerging patterns. Generate ideas for: tools I should build, people I should reach out to, topics I should investigate, and things I should write."
 
 ### /graduate (Insight Upgrade)
-*   **Function**: Extract insights from fragmented journals and transform them into standalone permanent notes.
+*   **Function**: Extract insights from journals and unprocessed Inbox captures into permanent notes under `03_Insights/`; cite Inbox source paths in the report — MetaMates auto-archives them to `Inbox/processed/` after writeback.
 *   **Prompt**:
-    > "Scan my daily notes from the past 14 days. Find ideas that deserve their own note and create standalone files for them."
+    > "Scan my daily notes and unprocessed Inbox captures from the past 14 days. Upgrade ideas into standalone notes under 03_Insights/. In your report, cite full paths for any Inbox sources so the app can archive them after writeback."
 
 ### /drift (Subconscious Drift)
 *   **Function**: Capture keywords or themes that recur across different notes but haven't yet taken shape.
@@ -77,7 +77,7 @@ This document provides 15 prompts that can be sent directly to an AI assistant (
 ### /intel (Intelligence Import)
 *   **Function**: Fetch web pages or workspace documents (PDF/Word/spreadsheets/images) into `04_Intelligence/` and deepen summaries with wiki links.
 *   **Prompt**:
-    > "Import external intelligence: URL or file path. After Metamates creates a draft note under the intelligence folder, deepen the summary, add tags, [[wiki links]], and action items. Preserve source metadata."
+    > "Import external intelligence: URL or file path. After MetaMates creates a draft note under the intelligence folder, deepen the summary, add tags, [[wiki links]], and action items. Preserve source metadata."
 
 ---
 
@@ -86,7 +86,7 @@ This document provides 15 prompts that can be sent directly to an AI assistant (
 ### /sync (System Sync)
 *   **Function**: Core master control command. Scan the entire vault's progress, review the day, and automatically update Master_Control.md.
 *   **Prompt**:
-    > "Read my vault and summarize today's activities. Then, based on the Metamates protocol in GEMINI.md, update the Master_Control.md file. Ensure it includes core goals, micro-time blocks, and strategic reminders derived from today's progress."
+    > "Read my vault and summarize today's activities. Then, based on the MetaMates protocol in GEMINI.md, update the Master_Control.md file. Ensure it includes core goals, micro-time blocks, and strategic reminders derived from today's progress."
 
 ### /soal (Evolutionary Sync)
 *   **Function**: Explicitly sync user habits, preferences, or lessons to 2M.md for permanent AI evolution.

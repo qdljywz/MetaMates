@@ -1,20 +1,20 @@
 {
   "steps": {
     "welcome": {
-      "title": "欢迎使用 Metamates",
-      "subtitle": "私人灵感仓库 + 思考引擎",
-      "description": "两件事，一个闭环：",
-      "desktopNote": "灵感存在你电脑的文件夹里；引擎在右侧，和 AI 对话即可开工。",
+      "title": "欢迎使用 MetaMates",
+      "subtitle": "给灵感太多、整理太少的人",
+      "description": "你不需要先学会笔记体系。两件事，一个闭环：",
+      "desktopNote": "碎片随手进左侧仓库；**右侧和 AI 对话是日常起点**——成品写回文件，数据留在本机。",
       "features": {
-        "agent": "引擎 — 右侧和 AI 对话，这是主入口",
-        "commands": "一条命令（如 /today）= 引擎帮你读仓库、写成品",
-        "vault": "私人灵感仓库 — 碎片、日记、剪藏都在本地 Markdown 里",
-        "capture": "手机也能把灵感丢进仓库收件箱"
+        "agent": "思考引擎 — 右侧对话是主入口，说一句就能开工",
+        "commands": "方法论命令 — `/today`、`/graduate` 等：读仓库、加工、写回成品",
+        "vault": "灵感仓库 — 日记、收件箱、项目笔记，全是本地 Markdown",
+        "capture": "移动剪藏 — 手机也能把灵感丢进仓库 Inbox"
       }
     },
     "workspace": {
-      "title": "选择笔记文件夹",
-      "description": "AI 会在这个文件夹里读写笔记。第一次使用会自动建好日记、项目、收件箱等目录。",
+      "title": "选择你的灵感仓库",
+      "description": "选一个本机文件夹，专门装碎片、日记和项目笔记。AI 会在这里读写；第一次使用会自动建好收件箱、日记等目录——**允许先乱、后整理**。",
       "selectButton": "选择文件夹",
       "selected": "已选择",
       "required": "请先选择一个文件夹",
@@ -23,19 +23,22 @@
       "desktopOnly": "请在桌面版中使用此功能"
     },
     "agent": {
-      "title": "连接 AI 助手",
-      "description": "这是最重要的步骤。连接后，在右侧面板直接对话，AI 就能帮你整理、总结、写入笔记。",
+      "title": "连接思考引擎",
+      "description": "这是最关键的一步。连接后，**右侧对话就是你的主界面**——不必先写长笔记，直接说你想做什么，AI 会读仓库、写成品。",
       "detecting": "正在查找本机 AI…",
       "found": "找到了 {{count}} 个 AI 助手",
-      "none": "还没找到，可以点下面按钮安装",
+      "none": "尚未检测到 AI 助手。没有 CLI，MetaMates 只能存笔记——无法对话或使用 /today 等命令。请安装后再继续。",
       "installButton": "安装 AI 助手",
       "skipHint": "也可以先跳过，进入后在右侧面板连接",
       "connected": "已连接 {{name}}",
       "connectLater": "进入应用后，在右侧 AI 面板开始对话"
     },
     "complete": {
-      "title": "准备好了",
-      "subtitle": "去右侧选 AI，发第一条消息就可以开始了。",
+      "title": "可以开工了",
+      "subtitle": "去右侧选 AI，用一句话说出你现在想做的事——或点 `/today` 生成今日计划。",
+      "noAgentSubtitle": "尚未检测到 AI 助手。没有 CLI，MetaMates 只能存笔记，无法对话或使用 /today 等命令。建议先完成安装。",
+      "noAgentHint": "点击下方按钮安装 Gemini、Claude 或 CodeBuddy，约 2 分钟即可启用思考引擎。",
+      "installButton": "安装 AI 助手",
       "startButton": "开始对话"
     }
   },

@@ -1,4 +1,4 @@
-# Metamates API 文档
+# MetaMates API 文档
 
 ## 架构概述
 
@@ -110,6 +110,8 @@ interface AppSettings {
   fontSize: number
   autoSave: boolean
   language?: 'zh' | 'en'
+  /** IANA timezone string (e.g. Asia/Shanghai). Used for date-sensitive features and agent prompt context. */
+  userTimezone?: string
   workspacePath?: string
   vaultApiEnabled?: boolean
   recentFiles: string[]

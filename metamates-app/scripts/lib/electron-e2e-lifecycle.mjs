@@ -74,13 +74,61 @@ export async function launchElectronApp(electron, {
 
   const win = await app.firstWindow({ timeout: 120_000 })
   await win.waitForLoadState('domcontentloaded')
+  await win.evaluate(() => {
+    try {
+      localStorage.setItem('metamates-yolo-ack-v1', '1')
+    } catch {
+      // isolated profile — best effort
+    }
+  }).catch(() => {})
   return { app, win, userDataDir: profileDir }
+}
+
+/** Open command palette via shortcut, falling back to activity bar click. */
+export async function openCommandPaletteE2e(win) {
+  await dismissBlockingModals(win)
+  await win.evaluate(() => {
+    const active = document.activeElement
+    if (active instanceof HTMLElement && active !== document.body) {
+      active.blur()
+    }
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', ctrlKey: true, bubbles: true, cancelable: true }))
+  })
+  await sleep(800)
+  let open = await win
+    .locator('.ant-modal-wrap')
+    .filter({ has: win.locator('input[placeholder*="搜索"], input[placeholder*="Search"]') })
+    .first()
+    .isVisible()
+    .catch(() => false)
+  if (!open) {
+    await dismissBlockingModals(win)
+    const btn = win.locator('[data-testid="activity-commandPalette"]')
+    if (await btn.count()) {
+      await btn.click({ force: true, timeout: 8000 }).catch(() => {})
+      await sleep(900)
+      open = await win
+        .locator('.ant-modal-wrap')
+        .filter({ has: win.locator('input[placeholder*="搜索"], input[placeholder*="Search"]') })
+        .first()
+        .isVisible()
+        .catch(() => false)
+    }
+  }
+  return open
 }
 
 /** Close only the Playwright instance — never taskkill unrelated Electron windows. */
 export async function closeElectronApp(app, { userDataDir, cleanupUserData = false } = {}) {
   if (app) {
-    await Promise.race([app.close().catch(() => {}), sleep(8000)])
+    try {
+      for (const w of app.windows()) {
+        await w.close().catch(() => {})
+      }
+    } catch {
+      // windows() unavailable — fall through to app.close()
+    }
+    await Promise.race([app.close().catch(() => {}), sleep(5000)])
   }
   if (cleanupUserData && userDataDir && fs.existsSync(userDataDir)) {
     try {

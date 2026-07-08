@@ -8,7 +8,7 @@
     - [ ] [Key Milestone A]
     - [ ] [Key Milestone B]
 
-## 🏗️ Metamates Construction
+## 🏗️ MetaMates Construction
 ### 🧠 AI Workflow & Automation
 - **Current Focus**: [Optimize Slash Commands / Automation Scripts / Template Vault]
 - **Related Assets**: [[03_Insights/Some_Good_Metaphors|Common Cognitive Tools]]
@@ -27,4 +27,4 @@
 - **Self-Cultivation / Reflection**: [Core self-cultivation goals, e.g., Overcoming arrogance/impatience, Yan Ji (Scrutinizing the subtle)]
 
 ---
-**Last Calibration Time**: YYYY-MM-DD HH:mm (Beijing Time)
+**Last Calibration Time**: YYYY-MM-DD HH:mm (MetaMates Settings / local timezone)

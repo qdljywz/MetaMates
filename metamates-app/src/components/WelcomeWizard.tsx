@@ -5,12 +5,13 @@ import {
   RocketOutlined,
   FolderOpenOutlined,
   RobotOutlined,
-  DesktopOutlined,
 } from '@ant-design/icons'
 import { storageService } from '../services/storage'
 import { useTranslation } from 'react-i18next'
+import { BRAND_I18N } from '../constants/brand'
 import { CliInstallPanel } from './CliInstallPanel'
 import type { DetectedAgent } from '../types/electron'
+import logoPng from '../assets/logo.png'
 
 const { Paragraph, Text } = Typography
 
@@ -28,6 +29,7 @@ const WelcomeWizard: React.FC<WelcomeWizardProps> = ({
   onWorkspaceSelected,
 }) => {
   const { t, i18n } = useTranslation('welcome')
+  const { t: tCommon } = useTranslation('common')
   const [currentStep, setCurrentStep] = useState(0)
   const [localWorkspace, setLocalWorkspace] = useState(workspacePath ?? '')
   const [agents, setAgents] = useState<DetectedAgent[]>([])
@@ -92,6 +94,7 @@ const WelcomeWizard: React.FC<WelcomeWizardProps> = ({
       fontSize: 14,
       autoSave: true,
       language: i18n.language?.startsWith('en') ? 'en' : 'zh',
+      ...(localWorkspace ? { workspacePath: localWorkspace } : {}),
     })
 
     if (localWorkspace && window.electronAPI?.acp) {
@@ -125,9 +128,16 @@ const WelcomeWizard: React.FC<WelcomeWizardProps> = ({
       content: (
         <div style={{ padding: '12px 0' }}>
           <Result
-            icon={<DesktopOutlined style={{ color: '#1890ff' }} />}
+            icon={<img src={logoPng} alt="MetaMates" style={{ width: 64, height: 64, objectFit: 'contain' }} />}
             title={t('steps.welcome.title')}
-            subTitle={t('steps.welcome.subtitle')}
+            subTitle={
+              <>
+                <div style={{ marginBottom: 6, fontSize: 13, fontWeight: 500, letterSpacing: '0.02em' }}>
+                  {tCommon(BRAND_I18N.sloganShort)}
+                </div>
+                <div>{t('steps.welcome.subtitle')}</div>
+              </>
+            }
           />
           <Paragraph style={{ textAlign: 'left', maxWidth: 440, margin: '0 auto' }}>
             {t('steps.welcome.description')}
@@ -209,15 +219,36 @@ const WelcomeWizard: React.FC<WelcomeWizardProps> = ({
       icon: <CheckCircleOutlined />,
       content: (
         <Result
-          status="success"
+          status={agents.length > 0 || detectingAgents ? 'success' : 'warning'}
           title={t('steps.complete.title')}
-          subTitle={t('steps.complete.subtitle')}
-          extra={[
-            <Button type="primary" key="start" onClick={handleComplete}>
-              {t('steps.complete.startButton')}
-            </Button>,
-          ]}
-        />
+          subTitle={
+            agents.length > 0 || detectingAgents
+              ? t('steps.complete.subtitle')
+              : t('steps.complete.noAgentSubtitle')
+          }
+          extra={
+            agents.length > 0 || detectingAgents
+              ? [
+                  <Button type="primary" key="start" onClick={handleComplete}>
+                    {t('steps.complete.startButton')}
+                  </Button>,
+                ]
+              : [
+                  <Button type="primary" key="install" onClick={() => setCliPanelOpen(true)}>
+                    {t('steps.complete.installButton')}
+                  </Button>,
+                  <Button key="skip" onClick={handleComplete}>
+                    {t('steps.complete.startButton')}
+                  </Button>,
+                ]
+          }
+        >
+          {agents.length === 0 && !detectingAgents && (
+            <Paragraph type="secondary" style={{ maxWidth: 420, margin: '0 auto', textAlign: 'left' }}>
+              {t('steps.complete.noAgentHint')}
+            </Paragraph>
+          )}
+        </Result>
       ),
     },
   ]
@@ -226,7 +257,11 @@ const WelcomeWizard: React.FC<WelcomeWizardProps> = ({
 
   const handleNext = () => {
     if (currentStep === 1 && !localWorkspace) {
-      message.warning(t('steps.workspace.required'))
+      message.open({
+        type: 'warning',
+        content: t('steps.workspace.required'),
+        key: 'wizard-workspace-required',
+      })
       return
     }
     if (currentStep < steps.length - 1) {
@@ -240,7 +275,14 @@ const WelcomeWizard: React.FC<WelcomeWizardProps> = ({
 
   return (
     <>
-      <Modal open={visible} closable={false} maskClosable={false} footer={null} width={620}>
+      <Modal
+        open={visible}
+        closable={false}
+        maskClosable={false}
+        footer={null}
+        width={620}
+        data-testid="welcome-wizard"
+      >
         <Steps current={currentStep} items={steps.map((s) => ({ title: s.title, icon: s.icon }))} />
 
         <div style={{ marginTop: 24 }}>{steps[currentStep].content}</div>
@@ -252,7 +294,11 @@ const WelcomeWizard: React.FC<WelcomeWizardProps> = ({
                 {t('buttons.previous')}
               </Button>
             )}
-            <Button type="primary" onClick={handleNext}>
+            <Button
+              type="primary"
+              onClick={handleNext}
+              disabled={currentStep === 1 && !localWorkspace}
+            >
               {t('buttons.next')}
             </Button>
           </div>

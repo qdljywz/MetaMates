@@ -6,6 +6,8 @@ import { cliInstaller } from '../services/agent-bridge/installer'
 import { storageService } from '../services/storage'
 import type { AcpBackend } from '../services/agent-bridge/acpTypes'
 import { ACP_BACKENDS } from '../services/agent-bridge/acpTypes'
+import AgentIcon from './agent/AgentIcon'
+import { getAgentLogoInfo } from '../utils/agentLogo'
 
 interface CliInstallStatus {
   installed: boolean
@@ -223,6 +225,7 @@ export const CliInstallPanel: React.FC<CliInstallPanelProps> = ({ open, onClose 
 
   return (
     <Modal title={t('title')} open={open} onCancel={onClose} footer={null} width={640}>
+      <div data-testid="cli-install-panel">
       <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
         {t('hint')}
       </Typography.Paragraph>
@@ -235,6 +238,16 @@ export const CliInstallPanel: React.FC<CliInstallPanelProps> = ({ open, onClose 
             return (
               <List.Item key={backend} actions={[getUseSwitch(backend), getInstallButton(backend)].filter(Boolean)}>
                 <List.Item.Meta
+                  avatar={
+                    <AgentIcon
+                      agent={{
+                        backend,
+                        name: config.name,
+                        logo: getAgentLogoInfo(backend),
+                      }}
+                      size={28}
+                    />
+                  }
                   title={
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                       <span>{config.name}</span>
@@ -247,7 +260,7 @@ export const CliInstallPanel: React.FC<CliInstallPanelProps> = ({ open, onClose 
                         {config.description}
                       </Typography.Text>
                       {status?.progress && (
-                        <div style={{ marginTop: 4, color: '#1890ff', fontSize: 12 }}>{status.progress}</div>
+                        <div style={{ marginTop: 4, color: 'var(--info)', fontSize: 12 }}>{status.progress}</div>
                       )}
                     </div>
                   }
@@ -257,6 +270,7 @@ export const CliInstallPanel: React.FC<CliInstallPanelProps> = ({ open, onClose 
           }}
         />
       </Spin>
+      </div>
     </Modal>
   )
 }

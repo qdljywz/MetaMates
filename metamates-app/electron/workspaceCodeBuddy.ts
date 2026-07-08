@@ -1,5 +1,5 @@
 /**
- * Anchor CodeBuddy project config inside the Metamates vault (not ~/.codebuddy/projects).
+ * Anchor CodeBuddy project config inside the MetaMates vault (not ~/.codebuddy/projects).
  * User-facing memory mirror: 04_情报与连接/记忆索引.md (see intelligencePaths.ts).
  */
 
@@ -97,8 +97,8 @@ function ensureCodeBuddyProjectMemoryPointer(
   const memoryIndexRel = getUserMemoryIndexRelative(language)
   const pointerPath = path.join(workspacePath, '.codebuddy', 'CODEBUDDY.md')
   const pointerBlock = language === 'en'
-    ? `\n## Metamates user memory\n- Canonical index: \`${memoryIndexRel}\` (write summaries here)\n- Reference notes: \`04_Intelligence/Reference/\`\n- Do NOT use ~/.codebuddy/projects/... for user content\n`
-    : `\n## Metamates 用户记忆\n- 权威索引：\`${memoryIndexRel}\`（用户记忆摘要写这里）\n- 参考条目：\`04_情报与连接/参考/\`\n- 禁止把用户内容写到 ~/.codebuddy/projects/...\n`
+    ? `\n## MetaMates user memory\n- Canonical index: \`${memoryIndexRel}\` (write summaries here)\n- Reference notes: \`04_Intelligence/Reference/\`\n- Do NOT use ~/.codebuddy/projects/... for user content\n`
+    : `\n## MetaMates 用户记忆\n- 权威索引：\`${memoryIndexRel}\`（用户记忆摘要写这里）\n- 参考条目：\`04_情报与连接/参考/\`\n- 禁止把用户内容写到 ~/.codebuddy/projects/...\n`
 
   fs.mkdirSync(path.dirname(pointerPath), { recursive: true })
   if (!fs.existsSync(pointerPath)) {
@@ -111,7 +111,7 @@ function ensureCodeBuddyProjectMemoryPointer(
   }
 
   const existing = fs.readFileSync(pointerPath, 'utf-8')
-  if (!existing.includes('Metamates') && !existing.includes('记忆索引') && !existing.includes('Memory_Index')) {
+  if (!existing.includes('MetaMates') && !existing.includes('记忆索引') && !existing.includes('Memory_Index')) {
     fs.writeFileSync(pointerPath, `${existing.trimEnd()}\n${pointerBlock}`, 'utf-8')
   }
 }

@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
+import { writeFileAtomic } from './shared/atomicWrite'
 
 export function readAppSettings(): Record<string, unknown> {
   let settingsPath: string
@@ -28,6 +29,6 @@ export function writeAppSettings(partial: Record<string, unknown>): Record<strin
   }
   const existing = readAppSettings()
   const merged = { ...existing, ...partial }
-  fs.writeFileSync(settingsPath, JSON.stringify(merged, null, 2), 'utf-8')
+  writeFileAtomic(settingsPath, JSON.stringify(merged, null, 2))
   return merged
 }

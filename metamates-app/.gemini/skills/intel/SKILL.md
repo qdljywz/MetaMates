@@ -8,7 +8,7 @@ allowed-tools: Read, Write, Glob, Grep
 
 ## 流程说明
 
-Metamates 桌面端会先完成**本地抓取**（网页、PDF、Word、Excel、图片 OCR 等），在 `04_情报与连接/` 生成草稿笔记，原件归档于 `sources/`。你的任务是**深化**该笔记：
+MetaMates 桌面端会先完成**本地抓取**（网页、PDF、Word、Excel、图片 OCR 等），在 `04_情报与连接/` 生成草稿笔记，原件归档于 `sources/`。你的任务是**深化**该笔记：
 
 1. **阅读**刚创建的情报 `.md` 及来源信息（URL 或 `sources/` 路径）
 2. **补充**结构化摘要：核心观点、关键数据、待验证假设
@@ -48,6 +48,3 @@ Metamates 桌面端会先完成**本地抓取**（网页、PDF、Word、Excel、
 ✅ 行动建议
 - …
 ```
-
----
-**协议来源**: Metamates CODEBUDDY.md

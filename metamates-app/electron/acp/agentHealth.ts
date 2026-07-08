@@ -193,6 +193,19 @@ export function classifySessionFailure(
     return { authRequired: true, error: 'Codex 需要登录。请在终端运行 codex 并完成认证' }
   }
 
+  if (backendId === 'codebuddy') {
+    if (/disconnect|handshake|initialize failed|econnreset|spawn/i.test(msg)) {
+      return {
+        authRequired: false,
+        error:
+          'CodeBuddy ACP 连接失败。请确认 CodeBuddy 已登录，并在终端运行 codebuddy --version 检查 CLI 是否可用。',
+      }
+    }
+    if (/auth|login|unauthorized|401|403|not authenticated/i.test(msg)) {
+      return { authRequired: true, error: 'CodeBuddy 需要登录。请在 CodeBuddy 中完成账号认证后重试。' }
+    }
+  }
+
   if (/auth|login|api.?key|unauthorized|401|403/.test(msg)) {
     return { authRequired: true, error: errorMessage }
   }

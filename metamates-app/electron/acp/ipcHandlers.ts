@@ -28,10 +28,13 @@ import {
   syncAllWorkspaceSkills,
 } from '../workspaceSkills'
 import { evaluateAgentReadiness } from './agentReadiness'
+import { classifyAcpError } from './acpErrors'
 import { invalidateCloudReachability } from './cloudReachability'
 import { checkAgentHealth, classifySessionFailure } from './agentHealth'
 import { setConnectionStatusWindow, pushConnectionStatus } from './connectionStatus'
 import { DEFAULT_AGENT_MODE } from '../shared/agentMode'
+import { buildAgentLogoInfo } from '../shared/agentLogos'
+import { resolvePublicAssetsPath } from '../shared/appPaths'
 import { setCurrentWorkspacePath, getCurrentWorkspacePath } from '../shared/workspaceState'
 
 let detectedAgents: AgentConfig[] = []
@@ -40,6 +43,7 @@ let currentWorkspacePath = process.cwd()
 let mainWindow: BrowserWindow | null = null
 const connectionPool = new Map<string, BackendConnection>()
 const warmupInFlight = new Map<string, Promise<void>>()
+let warmupGeneration = 0
 let warmupAllScheduled = false
 let startupWarmupStarted = false
 
@@ -138,8 +142,9 @@ export async function startAcpStartupWarmup(): Promise<void> {
   await warmupStartupAgents()
 }
 
-async function runBackendWarmup(backendId: string): Promise<void> {
+async function runBackendWarmup(backendId: string, generation: number): Promise<void> {
   const result = await ensureBackendSession(backendId)
+  if (generation !== warmupGeneration) return
   emitBackendReady(backendId, result)
   const conn = connectionPool.get(backendId)
   void pushConnectionStatus(backendId, conn)
@@ -150,10 +155,17 @@ async function runBackendWarmup(backendId: string): Promise<void> {
   }
 }
 
+function cancelWarmupGeneration(): void {
+  warmupGeneration += 1
+  warmupInFlight.clear()
+}
+
 function startBackendWarmup(backendId: string, options?: { force?: boolean }): void {
+  const generation = warmupGeneration
   const conn = getConnection(backendId)
   if (conn?.child && conn.sessionId) {
     void evaluateAgentReadiness(backendId, conn).then((readiness) => {
+      if (generation !== warmupGeneration) return
       emitBackendReady(backendId, {
         success: readiness.ready,
         sessionId: conn.sessionId || undefined,
@@ -176,12 +188,13 @@ function startBackendWarmup(backendId: string, options?: { force?: boolean }): v
   }
 
   const promise = Promise.race([
-    runBackendWarmup(backendId),
+    runBackendWarmup(backendId, generation),
     new Promise<void>((_, reject) => {
       setTimeout(() => reject(new Error(`Warmup timed out after ${WARMUP_TIMEOUT_MS / 1000}s`)), WARMUP_TIMEOUT_MS)
     }),
   ])
     .catch((error: unknown) => {
+      if (generation !== warmupGeneration) return
       const message = error instanceof Error ? error.message : String(error)
       console.log(`[WARMUP] ${backendId} failed:`, message)
       const stuck = connectionPool.get(backendId)
@@ -192,6 +205,7 @@ function startBackendWarmup(backendId: string, options?: { force?: boolean }): v
       emitBackendReady(backendId, { success: false, error: message })
     })
     .finally(() => {
+      if (generation !== warmupGeneration) return
       warmupInFlight.delete(backendId)
     })
   warmupInFlight.set(backendId, promise)
@@ -210,6 +224,17 @@ function disconnectBackend(backendId: string): void {
   if (currentBackendId === backendId) {
     currentBackendId = null
   }
+}
+
+/** Disconnect every ACP backend and cancel in-flight warmup (app shutdown). */
+export function disconnectAllAcpBackends(): void {
+  cancelWarmupGeneration()
+  for (const [backendId, conn] of connectionPool.entries()) {
+    conn.disconnect()
+    connectionPool.delete(backendId)
+  }
+  warmupInFlight.clear()
+  currentBackendId = null
 }
 
 function notifyCliAgentsChanged(agents: AgentConfig[]): void {
@@ -239,6 +264,24 @@ export function syncCliAgentEnabledPreferences(
   const agents = getEnabledDetectedAgents()
   notifyCliAgentsChanged(agents)
   return agents
+}
+
+function scheduleWarmupPreferredAgent(options?: { force?: boolean }): void {
+  const settings = readAppSettings()
+  const enabled = getEnabledDetectedAgents()
+  if (enabled.length === 0) return
+
+  const preferred =
+    (currentBackendId && enabled.some((a) => a.backend === currentBackendId)
+      ? currentBackendId
+      : null) ||
+    (typeof settings.lastAgentBackend === 'string' &&
+    enabled.some((a) => a.backend === settings.lastAgentBackend)
+      ? settings.lastAgentBackend
+      : enabled[0].backend)
+
+  currentBackendId = preferred
+  startBackendWarmup(preferred, options)
 }
 
 function scheduleWarmupAllAgents(options?: { priorityBackend?: string | null; force?: boolean }): void {
@@ -308,13 +351,8 @@ async function warmupStartupAgents(): Promise<void> {
   currentBackendId = preferred
   console.log(`[WARMUP] Startup priority agent: ${preferred}`)
 
-  await waitForBackendWarmup(preferred, 12_000)
-
-  const others = enabled.filter((a) => a.backend !== preferred)
-  others.forEach((agent, index) => {
-    setTimeout(() => startBackendWarmup(agent.backend), (index + 1) * 400)
-  })
-  warmupAllScheduled = true
+  await waitForBackendWarmup(preferred, 20_000)
+  // Other agents connect lazily when the user switches — avoids N× MCP bridge orphans.
 }
 
 /** @deprecated alias */
@@ -416,28 +454,21 @@ function assignMainWindowFromEvent(event: IpcMainInvokeEvent, backendId: string)
 }
 
 function getAssetsPath(): string {
-  const isDev = !app.isPackaged
-  if (isDev) {
-    return path.join(__dirname, '..', '..', 'public', 'assets')
-  }
-  return path.join(process.resourcesPath, 'assets')
+  return resolvePublicAssetsPath()
 }
 
 function getLogoInfo(backendId: string, name: string): { type: 'file' | 'initial'; src?: string; initial?: string; bgColor?: string } {
   const logoFile = `${backendId}.svg`
   const assetsPath = getAssetsPath()
   const logoPath = path.join(assetsPath, logoFile)
-  
+
   try {
     if (fs.existsSync(logoPath)) {
-      return { type: 'file', src: `assets/${logoFile}` }
+      return buildAgentLogoInfo(backendId, { name, assetFileExists: true })
     }
   } catch {}
-  
-  const initial = name ? name.charAt(0).toUpperCase() : backendId.charAt(0).toUpperCase()
-  const bgColor = LOGO_COLORS[backendId] || '#6b7280'
-  
-  return { type: 'initial', initial, bgColor }
+
+  return buildAgentLogoInfo(backendId, { name, assetFileExists: false })
 }
 
 const GEMINI_AUTH_METHODS = [
@@ -542,7 +573,10 @@ export async function registerAcpIpcHandlers(): Promise<void> {
   detectedAgents = await detectInstalledClis(true)
   console.log(`[DETECT] Found ${detectedAgents.length} installed CLIs`)
 
-  ipcMain.handle('get-detected-agents', async () => getEnabledDetectedAgents())
+  ipcMain.handle('get-detected-agents', async () => {
+    if (process.env.METAMATES_E2E_NO_AGENTS === '1') return []
+    return getEnabledDetectedAgents()
+  })
 
   ipcMain.handle('get-all-installed-agents', async () => detectedAgents)
 
@@ -590,6 +624,7 @@ export async function registerAcpIpcHandlers(): Promise<void> {
 
     console.log('[MAIN] set-workspace-path:', workspacePath)
 
+    cancelWarmupGeneration()
     clearAllConversationCaches()
 
     for (const [backendId, conn] of connectionPool.entries()) {
@@ -610,7 +645,7 @@ export async function registerAcpIpcHandlers(): Promise<void> {
     if (skills.created.length > 0) {
       console.log('[SKILLS] Provisioned on workspace open:', skills.created.join(', '))
     }
-    scheduleWarmupAllAgents({ force: true })
+    scheduleWarmupPreferredAgent({ force: true })
     return { success: true, skillsCreated: skills.created }
   })
 
@@ -694,9 +729,24 @@ export async function registerAcpIpcHandlers(): Promise<void> {
     if (!conn?.sessionId) {
       return { success: false, error: 'No session' }
     }
+
+    const readiness = await evaluateAgentReadiness(backendId, conn)
+    if (!readiness.ready) {
+      return {
+        success: false,
+        error: readiness.error || 'Agent not ready for prompts',
+        authRequired: readiness.needsAuth,
+        authMethods: readiness.needsAuth ? conn.getAuthMethods() : undefined,
+      }
+    }
+
     try {
       return await conn.sendPrompt(text, presetContext || null, attachments || [], displayContent)
     } catch (error: any) {
+      const classified = classifyAcpError(error)
+      if (classified.networkError) {
+        invalidateCloudReachability(backendId)
+      }
       return {
         success: false,
         error: error.message,
@@ -970,11 +1020,12 @@ export async function registerAcpIpcHandlers(): Promise<void> {
     return { ...result, backends: backendIds }
   })
 
-  ipcMain.on('cancel-prompt', () => {
-    const conn = getCurrentConnection()
+  ipcMain.on('cancel-prompt', (_event, data?: { backend?: string }) => {
+    const targetId = data?.backend || currentBackendId
+    const conn = targetId ? connectionPool.get(targetId) : getCurrentConnection()
     if (conn) {
       conn.cancelPrompt()
-      console.log('[MAIN] cancel-prompt')
+      console.log('[MAIN] cancel-prompt:', targetId || 'current')
     }
   })
 
@@ -1044,6 +1095,7 @@ export async function registerAcpIpcHandlers(): Promise<void> {
   })
 
   ipcMain.handle('acp-refresh-agents', async () => {
+    if (process.env.METAMATES_E2E_NO_AGENTS === '1') return []
     const previousBackends = new Set(getEnabledDetectedAgents().map((a) => a.backend))
     detectedAgents = await detectInstalledClis(true)
     const settings = readAppSettings()

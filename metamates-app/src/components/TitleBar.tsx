@@ -14,14 +14,22 @@ import SettingsModal from './SettingsModal'
 import HelpModal from './HelpModal'
 import { useTheme } from '../hooks/useTheme'
 import './TitleBar.css'
+import { GITHUB_REPO, PRODUCT_NAME } from '../constants/brand'
 import logoPng from '../assets/logo.png'
+
+const openExternal = (url: string) => {
+  if (window.electronAPI?.openExternal) {
+    void window.electronAPI.openExternal(url)
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+}
 
 const { Text } = Typography
 
 const TitleBar: React.FC = () => {
   const { t } = useTranslation('common')
   const { theme } = useTheme()
-  const isDark = theme.mode === 'dark'
   const [isMaximized, setIsMaximized] = useState(false)
   const [settingsVisible, setSettingsVisible] = useState(false)
   const [helpVisible, setHelpVisible] = useState(false)
@@ -68,7 +76,7 @@ const TitleBar: React.FC = () => {
         <div className="title-bar-logo">
           <img 
             src={logoPng} 
-            alt="Metamates" 
+            alt={PRODUCT_NAME} 
             style={{ 
               width: '24px', 
               height: '24px', 
@@ -84,7 +92,7 @@ const TitleBar: React.FC = () => {
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text'
           }}>{t('app.name')}</Text>
-          <Text type="secondary" style={{ fontSize: '12px', color: isDark ? '#a6adc8' : '#6b7280' }}>{t('app.subtitle')}</Text>
+          <Text type="secondary" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('app.subtitle')}</Text>
         </Space>
       </div>
       <div className="title-bar-center">
@@ -92,24 +100,22 @@ const TitleBar: React.FC = () => {
           <Tooltip title={t('help')}>
             <QuestionCircleOutlined 
               data-testid="help-button"
-              style={{ color: isDark ? '#a6adc8' : '#6b7280', cursor: 'pointer', fontSize: '14px' }}
+              style={{ color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}
               onClick={() => setHelpVisible(true)}
             />
           </Tooltip>
           <Tooltip title={t('settings.title')}>
             <SettingOutlined 
               data-testid="settings-button"
-              style={{ color: isDark ? '#a6adc8' : '#6b7280', cursor: 'pointer', fontSize: '14px' }}
+              style={{ color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}
               onClick={() => setSettingsVisible(true)}
             />
           </Tooltip>
           <Tooltip title="GitHub">
             <GithubOutlined 
               data-testid="github-button"
-              style={{ color: isDark ? '#a6adc8' : '#6b7280', cursor: 'pointer', fontSize: '14px' }}
-              onClick={() => {
-                window.open('https://github.com/metamates/metamates-app', '_blank')
-              }}
+              style={{ color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}
+              onClick={() => openExternal(GITHUB_REPO)}
             />
           </Tooltip>
         </Space>

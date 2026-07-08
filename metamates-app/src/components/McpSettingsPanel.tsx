@@ -51,7 +51,7 @@ const McpSettingsPanel: React.FC<McpSettingsPanelProps> = ({ open, onClose }) =>
         const port = (merged as any).vaultApiPort || 17333
         list = [{
           id: 'metamates-vault',
-          name: 'Metamates Vault',
+          name: 'MetaMates Vault',
           enabled: true,
           command: 'node',
           args: ['scripts/vault-mcp-bridge.mjs'],
@@ -201,7 +201,7 @@ const McpSettingsPanel: React.FC<McpSettingsPanelProps> = ({ open, onClose }) =>
           </Button>,
         ]}
       >
-        <p style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
           {t('settings.mcpHint') || '启用的 MCP 会在 ACP session/new 时注入。Vault 桥接在 Vault API 开启时自动加入。'}
         </p>
         <Table

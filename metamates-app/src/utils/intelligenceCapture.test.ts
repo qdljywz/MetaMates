@@ -1,32 +1,23 @@
-import { describe, it, expect } from 'vitest'
-import {
-  extractUrlsFromText,
-  shouldCaptureAsIntelligence,
-  parseIntelCaptureTarget,
-  titleFromUrl,
-} from './intelligenceCapture'
+import { describe, expect, it } from 'vitest'
+import { parseIntelCaptureTarget, stripIntelCommandPrefix } from './intelligenceCapture'
 
-describe('intelligenceCapture', () => {
-  it('应提取文本中的 URL', () => {
-    expect(extractUrlsFromText('请看 https://example.com/a 和 http://b.com')).toEqual([
-      'https://example.com/a',
-      'http://b.com',
-    ])
+describe('parseIntelCaptureTarget', () => {
+  it('detects URL', () => {
+    expect(parseIntelCaptureTarget('https://example.com/article')?.kind).toBe('url')
   })
 
-  it('纯链接或 /intel 应触发抓取', () => {
-    expect(shouldCaptureAsIntelligence('https://news.example.com/x')).toBe(true)
-    expect(shouldCaptureAsIntelligence('/intel https://a.com')).toBe(true)
-    expect(shouldCaptureAsIntelligence('帮我总结 https://a.com', '/intel')).toBe(true)
-    expect(shouldCaptureAsIntelligence('普通聊天没有链接')).toBe(false)
+  it('detects file path with extension', () => {
+    expect(parseIntelCaptureTarget('notes/report.pdf')?.kind).toBe('file')
   })
 
-  it('parseIntelCaptureTarget 应区分 URL 与文件', () => {
-    expect(parseIntelCaptureTarget('https://a.com/page')).toEqual({ kind: 'url', value: 'https://a.com/page' })
-    expect(parseIntelCaptureTarget('report.pdf')).toEqual({ kind: 'file', value: 'report.pdf' })
+  it('treats plain prose as text', () => {
+    const target = parseIntelCaptureTarget('今天去了首都博物馆，买了冰箱贴。')
+    expect(target?.kind).toBe('text')
+    expect(target?.value).toContain('首都博物馆')
   })
 
-  it('titleFromUrl 应优先页面标题', () => {
-    expect(titleFromUrl('https://x.com/y', '行业周报')).toBe('行业周报')
+  it('strips /intel prefix before parsing text', () => {
+    const target = parseIntelCaptureTarget(stripIntelCommandPrefix('/intel 一段摘录内容'))
+    expect(target?.kind).toBe('text')
   })
 })

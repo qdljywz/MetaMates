@@ -1,8 +1,12 @@
 {
   "app": {
-    "name": "Metamates",
+    "name": "MetaMates",
     "title": "智能个人助手",
     "subtitle": "本地知识工作台"
+  },
+  "brand": {
+    "sloganShort": "私人灵感仓库 + 思考引擎",
+    "sloganFull": "**私人灵感仓库 + 思考引擎。** 碎片先进仓库，右侧和 AI 说一句就能开工——计划、洞察、升级后的笔记都会写回本地文件，不会消失在聊天里。"
   },
   "actions": {
     "save": "保存",
@@ -67,6 +71,17 @@
     "selectWorkspaceTitle": "选择工作区",
     "selectWorkspaceDesc": "工作区将用于存储您的笔记、日记和知识图谱",
     "selectWorkspaceButton": "选择文件夹",
+    "selectWorkspaceTipsTitle": "小提示",
+    "selectWorkspaceTip1": "选一个空文件夹，或已有 Markdown 笔记的文件夹",
+    "selectWorkspaceTip2": "不要选应用安装目录（inits 模板仅供首次初始化）",
+    "selectWorkspaceTip3": "选定后会自动创建日记、项目、情报等子文件夹结构",
+    "startupLoading": "正在启动…",
+    "startupLoadingWorkspace": "正在加载工作区…",
+    "startupConnectingAgent": "正在连接 {{name}}…",
+    "startupConnectingAgentGeneric": "正在连接思考引擎…",
+    "startupEnteringApp": "即将进入应用…",
+    "startupAgentTimeout": "思考引擎仍在连接，稍后在 Agent 面板查看状态…",
+    "templateWorkspaceForbidden": "不能将应用内置模板（inits/zh 或 inits/en）作为工作区。请选择您自己的文件夹（例如 E:\\MyM2），模板仅用于首次同步初始化。",
     "workspaceSwitching": "正在切换到 {{name}}…",
     "workspaceReady": "已打开工作区 {{name}}",
     "workspaceChatHint": "每个工作区有独立的 Agent 聊天记录；切换文件夹后会加载对应历史。"
@@ -93,6 +108,10 @@
     "fontSize": "字体大小",
     "autoSave": "自动保存",
     "language": "语言",
+    "timezone": "时区",
+    "timezoneRequired": "请填写时区（IANA 格式）",
+    "timezoneInvalid": "时区无效，请使用如 Asia/Shanghai",
+    "timezoneHint": "用于计划/日记日期与 Agent 时间语义，建议填写 IANA 时区。",
     "testConnection": "测试连接",
     "save": "保存",
     "cancel": "取消",
@@ -117,7 +136,7 @@
     "mobileReaderQrCaption": "扫码在手机上打开",
     "mobileReaderLanPending": "请点击「保存」使局域网访问生效",
     "mobileReaderSaveToConnect": "服务未启动时手机无法连接。请开启 Vault API 并点击「保存」，看到绿色「运行中」后再用手机访问。",
-    "mobileReaderFirewallHint": "若手机仍无法打开，请在 Windows 防火墙中允许 Metamates 或 TCP 端口 17333（专用网络）。",
+    "mobileReaderFirewallHint": "若手机仍无法打开，请在 Windows 防火墙中允许 MetaMates 或 TCP 端口 17333（专用网络）。",
     "vaultApiNotRunning": "Vault API 未运行，请点击「保存」启动服务",
     "vaultApiNoWorkspace": "请先打开工作区后再启用 Vault API",
     "vaultApiLanHint": "允许局域网访问（手机同 WiFi 可剪藏，仅可信网络开启）",
@@ -149,7 +168,11 @@
     "actions": "操作",
     "mcpReconnectHint": "已尝试重载 Agent 会话以应用 MCP/Vault 变更",
     "mcpReconnectDone": "Agent 会话已重载",
-    "mcpReconnectPartial": "部分 Agent 重载失败"
+    "mcpReconnectPartial": "部分 Agent 重载失败",
+    "tabGeneral": "常用",
+    "tabAgent": "Agent",
+    "tabAdvanced": "高级",
+    "shortcutHint": "快捷键：Ctrl+Shift+L 循环切换浅色 / 深色 / 跟随系统"
   },
   "search": {
     "placeholder": "搜索笔记（关键词 + 语义）...",
@@ -169,6 +192,11 @@
   },
   "errorBoundary": {
     "title": "出了点问题",
-    "hint": "请尝试刷新页面或重启应用。若问题持续，请查看控制台日志。"
+    "hint": "这个面板暂时无法显示。您可以刷新页面，或重启应用后再试。",
+    "reload": "刷新页面",
+    "showDetails": "查看技术详情",
+    "hideDetails": "隐藏技术详情",
+    "copyDetails": "复制详情",
+    "noDetails": "暂无更多详情"
   }
 }

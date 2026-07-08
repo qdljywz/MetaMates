@@ -41,6 +41,27 @@ interface GraphView3DProps {
 }
 
 const SPHERE_RADIUS = 200
+const IDLE_AUTO_ROTATE_DELAY_MS = 1800
+const AUTO_ROTATE_SPEED_RAD_PER_SEC = 0.08
+const AUTO_ROTATE_AXIS = new THREE.Vector3(0.25, 1, 0.12).normalize()
+
+function measureGraphContainer(container: HTMLElement): { width: number; height: number } {
+  const rect = container.getBoundingClientRect()
+  let width = rect.width
+  let height = rect.height
+  if (width < 2 || height < 2) {
+    const parent = container.parentElement
+    if (parent) {
+      const parentRect = parent.getBoundingClientRect()
+      width = Math.max(width, parentRect.width)
+      height = Math.max(height, parentRect.height)
+    }
+  }
+  return {
+    width: Math.max(width, 320),
+    height: Math.max(height, 480),
+  }
+}
 
 const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fileMap: _fileMap, onFileSelect: _onFileSelect, onClose: _onClose }) => {
   const { t } = useTranslation('graph')
@@ -58,6 +79,8 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
   const selectedNodeIdRef = useRef<string | null>(null)
   const hoveredNodeIdRef = useRef<string | null>(null)
   const clockRef = useRef<THREE.Clock>(new THREE.Clock())
+  const graphRootRef = useRef<THREE.Group | null>(null)
+  const lastInteractionAtRef = useRef<number>(Date.now())
 
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null)
@@ -319,12 +342,15 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
     if (!containerRef.current) return
 
     const container = containerRef.current
-    const width = container.clientWidth
-    const height = container.clientHeight
+    const { width, height } = measureGraphContainer(container)
 
     const scene = new THREE.Scene()
     scene.background = new THREE.Color(isDark ? 0x0f0f1a : 0xf0f0f5)
     sceneRef.current = scene
+
+    const graphRoot = new THREE.Group()
+    scene.add(graphRoot)
+    graphRootRef.current = graphRoot
 
     const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 2000)
     camera.position.set(0, 0, 450)
@@ -344,6 +370,14 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
     controls.minDistance = 150
     controls.maxDistance = 600
     controlsRef.current = controls
+
+    const markInteraction = () => {
+      lastInteractionAtRef.current = Date.now()
+    }
+    controls.addEventListener('start', markInteraction)
+    controls.addEventListener('change', markInteraction)
+    renderer.domElement.addEventListener('pointerdown', markInteraction)
+    renderer.domElement.addEventListener('wheel', markInteraction, { passive: true })
 
     const mainLight = new THREE.DirectionalLight(0xffffff, 1.2)
     mainLight.position.set(100, 100, 100)
@@ -416,9 +450,9 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
       const sprite = createTextSprite(node.name, false)
       sprite.position.set(x, y + nodeSize + 12, z)
 
-      scene.add(mesh)
-      scene.add(sprite)
-      scene.add(glowMesh)
+      graphRoot.add(mesh)
+      graphRoot.add(sprite)
+      graphRoot.add(glowMesh)
 
       nodeObjectsRef.current.set(node.id, { mesh, sprite, glowMesh, node })
     })
@@ -442,7 +476,7 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
           linewidth: 1
         })
         const line = new THREE.Line(geometry, material)
-        scene.add(line)
+        graphRoot.add(line)
         lineObjectsRef.current.push(line)
 
         const direction = new THREE.Vector3().subVectors(targetPos, sourcePos).normalize()
@@ -462,7 +496,7 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
         quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction)
         arrow.setRotationFromQuaternion(quaternion)
         
-        scene.add(arrow)
+        graphRoot.add(arrow)
         arrowObjectsRef.current.push(arrow)
       }
     })
@@ -476,13 +510,13 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
       const material = new THREE.LineDashedMaterial({
         color: 0xa78bfa,
         transparent: true,
-        opacity: 0.35,
-        dashSize: 6,
-        gapSize: 4,
+        opacity: 0.6,
+        dashSize: 8,
+        gapSize: 5,
       })
       const line = new THREE.Line(geometry, material)
       line.computeLineDistances()
-      scene.add(line)
+      graphRoot.add(line)
       lineObjectsRef.current.push(line)
     })
 
@@ -492,8 +526,14 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
       if (!sceneRef.current || !cameraRef.current || !rendererRef.current || !controlsRef.current) return
 
       controlsRef.current.update()
-      
-      const time = clockRef.current.getElapsedTime()
+
+      const delta = clockRef.current.getDelta()
+      const time = clockRef.current.elapsedTime
+      const isIdle = Date.now() - lastInteractionAtRef.current >= IDLE_AUTO_ROTATE_DELAY_MS
+      if (isIdle && graphRootRef.current) {
+        graphRootRef.current.rotateOnAxis(AUTO_ROTATE_AXIS, AUTO_ROTATE_SPEED_RAD_PER_SEC * delta)
+      }
+
       nodeObjectsRef.current.forEach((obj, id) => {
         if (id === selectedNodeIdRef.current && obj.glowMesh) {
           ;(obj.glowMesh.material as THREE.MeshBasicMaterial).opacity = 0.15 + Math.sin(time * 3) * 0.1
@@ -509,24 +549,32 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
 
     const handleResize = () => {
       if (!containerRef.current || !camera || !renderer) return
-      const w = containerRef.current.clientWidth
-      const h = containerRef.current.clientHeight
+      const { width: w, height: h } = measureGraphContainer(containerRef.current)
+      if (w < 2 || h < 2) return
       camera.aspect = w / h
       camera.updateProjectionMatrix()
       renderer.setSize(w, h)
     }
 
     window.addEventListener('resize', handleResize)
+    const resizeObserver = new ResizeObserver(() => handleResize())
+    resizeObserver.observe(container)
+    requestAnimationFrame(() => handleResize())
 
     return () => {
       window.removeEventListener('resize', handleResize)
+      resizeObserver.disconnect()
       if (animationIdRef.current) {
         cancelAnimationFrame(animationIdRef.current)
       }
+      controls.removeEventListener('start', markInteraction)
+      controls.removeEventListener('change', markInteraction)
+      renderer.domElement.removeEventListener('pointerdown', markInteraction)
+      renderer.domElement.removeEventListener('wheel', markInteraction)
       nodeObjectsRef.current.forEach(obj => {
-        scene.remove(obj.mesh)
-        scene.remove(obj.sprite)
-        if (obj.glowMesh) scene.remove(obj.glowMesh)
+        graphRoot.remove(obj.mesh)
+        graphRoot.remove(obj.sprite)
+        if (obj.glowMesh) graphRoot.remove(obj.glowMesh)
         obj.mesh.geometry.dispose()
         ;(obj.mesh.material as THREE.Material).dispose()
         obj.sprite.material.map?.dispose()
@@ -539,18 +587,20 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
       nodeObjectsRef.current.clear()
       
       lineObjectsRef.current.forEach(line => {
-        scene.remove(line)
+        graphRoot.remove(line)
         line.geometry.dispose()
         ;(line.material as THREE.Material).dispose()
       })
       lineObjectsRef.current = []
       
       arrowObjectsRef.current.forEach(arrow => {
-        scene.remove(arrow)
+        graphRoot.remove(arrow)
         arrow.geometry.dispose()
         ;(arrow.material as THREE.Material).dispose()
       })
       arrowObjectsRef.current = []
+      scene.remove(graphRoot)
+      graphRootRef.current = null
       
       controls.dispose()
       renderer.dispose()
@@ -672,9 +722,11 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
   return (
     <div
       ref={containerRef}
+      data-testid="graph-3d-canvas"
       style={{
         width: '100%',
-        height: '100%',
+        flex: 1,
+        minHeight: 480,
         background: isDark ? '#0f0f1a' : '#f0f0f5',
         borderRadius: 8,
         overflow: 'hidden',
@@ -693,7 +745,7 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
         pointerEvents: 'none',
         zIndex: 10
       }}>
-        拖拽旋转 | 滚轮缩放 | 单击选中 | 双击打开
+        拖拽旋转 | 滚轮缩放 | 空闲自动缓转 | 单击选中 | 双击打开
       </div>
 
       {selectedNode && (

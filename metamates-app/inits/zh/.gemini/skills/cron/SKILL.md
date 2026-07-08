@@ -117,7 +117,7 @@ Replace `<actual-job-id>` with the real job ID (e.g., `cron_abc123`).
 - When triggered, the message will be sent to this conversation
 - **CRITICAL**: `[CRON_LIST]` is an async query. You MUST wait for the system response before proceeding with `[CRON_CREATE]` or `[CRON_DELETE]`. Never output multiple commands in one message.
 
-## 记忆与 Vault 边界（Metamates 强制）
+## 记忆与 Vault 边界（MetaMates 强制）
 
 - 用户可读的长期记忆须镜像到 `04_情报与连接/记忆索引.md`（详细条目放 `04_情报与连接/参考/`）
 - **禁止**只写入 `~/.codebuddy`、CLI 项目缓存或其它 Vault 外路径

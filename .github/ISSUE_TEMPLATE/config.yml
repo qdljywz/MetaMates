@@ -1,0 +1,9 @@
+name: config.yml
+blank_issues: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/qdljywz/MetaMates/tree/main/metamates-app/docs
+    about: User guide, packaging, and open-source file list
+  - name: Security report
+    url: https://github.com/qdljywz/MetaMates/security/advisories/new
+    about: Report a vulnerability privately

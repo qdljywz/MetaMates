@@ -4,6 +4,7 @@ import {
   acknowledgeYoloMode,
   clearYoloAcknowledgment,
   hasYoloAcknowledged,
+  shouldSkipYoloFirstRunPrompt,
 } from './yoloAcknowledgment'
 
 function installMemoryLocalStorage() {
@@ -37,5 +38,10 @@ describe('yoloAcknowledgment', () => {
     acknowledgeYoloMode()
     clearYoloAcknowledgment()
     expect(hasYoloAcknowledged()).toBe(false)
+  })
+
+  it('skips YOLO first-run prompt in E2E sessions', () => {
+    vi.stubGlobal('window', { __METAMATES_E2E__: { enabled: true } })
+    expect(shouldSkipYoloFirstRunPrompt()).toBe(true)
   })
 })

@@ -6,7 +6,7 @@ description: Trace Idea - Track the evolution of a specific idea across the enti
 Please perform the following tasks:
 
 1. **Receive Topic**: User inputs a topic or keyword.
-2. **Vault-wide Search**: Search for all mentions of the topic in the Metamates vault.
+2. **Vault-wide Search**: Search for all mentions of the topic in the MetaMates vault.
 3. **Trace Timeline**: Organize the evolution of the idea in chronological order.
 4. **Analyze Evolution**: Identify how the idea developed from one note to another.
 5. **Output Trace Map**
@@ -35,7 +35,7 @@ Output Format:
 - [Observations about the evolution of this idea]
 ```
 
-## Memory & vault boundary (Metamates required)
+## Memory & vault boundary (MetaMates required)
 
 - Mirror user-facing long-term memory to `04_Intelligence/Memory_Index.md` (details under `04_Intelligence/Reference/`)
 - **Never** write only to `~/.codebuddy`, CLI caches, or paths outside the vault

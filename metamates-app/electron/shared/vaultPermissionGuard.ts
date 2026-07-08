@@ -1,5 +1,5 @@
 /**
- * Reject ACP tool permissions that target paths outside the Metamates vault.
+ * Reject ACP tool permissions that target paths outside the MetaMates vault.
  */
 
 import { resolveToolFilePathFromUpdate } from './sessionUpdatePipeline'

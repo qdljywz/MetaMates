@@ -10,19 +10,19 @@
     "shortcuts": "快捷键"
   },
   "welcome": {
-    "title": "欢迎使用 Metamates",
-    "description": "左侧是私人灵感仓库，右侧是思考引擎。和 AI 对话或跑一条命令，引擎读过仓库后把成品写回笔记。"
+    "title": "欢迎使用 MetaMates",
+    "description": "为创作者、知识工作者和自我成长者设计：**右侧引擎是主入口**——对话或一条命令，AI 读过你的私人仓库，把计划与洞察写回笔记，而不是聊完即散。"
   },
   "gettingStarted": {
     "title": "开始使用",
-    "step1": "1. 打开文件夹",
-    "step1Desc": "左侧选一个文件夹，AI 会在这里读写笔记",
-    "step2": "2. 连接 AI",
-    "step2Desc": "右侧面板选一个 AI，发第一条消息",
-    "step3": "3. 看结果",
-    "step3Desc": "AI 写入的文件可在中间编辑器打开，也会自动保存",
-    "step4": "4. 快捷命令",
-    "step4Desc": "试试 /today，或直接描述任务"
+    "step1": "1. 建好灵感仓库",
+    "step1Desc": "左侧选一个本机文件夹；碎片、日记、剪藏都放这里，数据在你名下",
+    "step2": "2. 启动思考引擎",
+    "step2Desc": "右侧面板选 AI，用一句话说出你想做的事——不必先写长笔记",
+    "step3": "3. 看成品落盘",
+    "step3Desc": "计划、复盘、升级后的笔记会写进文件；中间编辑器打开即可改",
+    "step4": "4. 用命令加速",
+    "step4Desc": "试试 `/today` 出今日计划，或 `/graduate` 把收件箱灵感升级成永久笔记"
   },
   "editor": {
     "title": "编辑器功能",
@@ -70,10 +70,27 @@
   "shortcuts": {
     "title": "快捷键",
     "commandPalette": "命令面板",
-    "newNote": "新建笔记",
-    "find": "当前文件搜索",
+    "dailyNote": "打开/创建今日日记",
+    "dailyPlan": "打开/创建今日 PLAN",
     "globalSearch": "全局搜索",
-    "toggleFileTree": "切换文件树",
-    "toggleTheme": "切换主题"
+    "toggleFileTree": "显示/隐藏文件树",
+    "saveFile": "保存当前文件",
+    "closeTab": "关闭当前标签",
+    "nextTab": "下一个标签",
+    "prevTab": "上一个标签",
+    "toggleTheme": "循环切换主题（浅/深/跟随系统）",
+    "editorNote": "编辑器内另支持：Ctrl+B 粗体、Ctrl+I 斜体、Ctrl+K 双向链接"
+  },
+  "update": {
+    "check": "检查更新",
+    "checking": "正在检查更新…",
+    "available": "发现新版本 {{version}}，正在后台下载",
+    "downloading": "正在下载更新 {{percent}}%",
+    "downloaded": "新版本 {{version}} 已就绪",
+    "ready": "新版本 {{version}} 已下载，重启即可安装",
+    "restart": "重启并更新",
+    "upToDate": "当前已是最新版本",
+    "devMode": "开发模式不支持自动更新，请从 GitHub Releases 下载安装包",
+    "errorGeneric": "检查更新失败，请稍后重试或前往 GitHub Releases 手动下载"
   }
 }

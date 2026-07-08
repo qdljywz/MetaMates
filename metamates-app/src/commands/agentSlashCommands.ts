@@ -18,8 +18,15 @@ export interface AgentSlashCommand {
   localHandler?: 'intelligence'
 }
 
-const COMMANDS_REQUIRING_INPUT = new Set(['/trace', '/connect', '/challenge', '/ghost', '/soal', '/intel'])
-const COMMANDS_ACCEPTING_OPTIONAL_INPUT = new Set(['/today', '/closeday', '/schedule', '/sync'])
+const COMMANDS_REQUIRING_INPUT = new Set(['/trace', '/connect', '/challenge', '/ghost', '/soal'])
+const COMMANDS_ACCEPTING_OPTIONAL_INPUT = new Set([
+  '/today',
+  '/closeday',
+  '/schedule',
+  '/sync',
+  '/intel',
+  '/graduate',
+])
 
 const INPUT_PLACEHOLDERS: Record<string, Record<WorkspaceLanguage, string>> = {
   '/today': {
@@ -59,8 +66,12 @@ const INPUT_PLACEHOLDERS: Record<string, Record<WorkspaceLanguage, string>> = {
     en: 'Enter the habit, preference, or lesson to encode permanently…',
   },
   '/intel': {
-    zh: '粘贴网页链接，或工作区内 PDF/图片/文档路径…',
-    en: 'Paste a web URL, or a workspace file path (PDF, image, doc)…',
+    zh: '粘贴链接/路径/摘录文字，或用 @ 附加 PDF、图片、文档…',
+    en: 'Paste a URL, path, or text excerpt — or @-attach PDFs, images, docs…',
+  },
+  '/graduate': {
+    zh: '可选补充：指定要升级的 Inbox 条目、目标文件夹或优先级…',
+    en: 'Optional: which Inbox item to graduate, target folder, or priority…',
   },
 }
 
@@ -76,9 +87,9 @@ function buildSyncPrompt(lang: WorkspaceLanguage): string {
 function buildSoalPrompt(lang: WorkspaceLanguage): string {
   const secondMind = `${getTemplatesDir(lang)}/${WORKSPACE_FILES.SECOND_MIND}`
   if (lang === 'en') {
-    return `Permanently integrate the following user feedback, habit, or lesson into Metamates core evolution layer (${secondMind}). Steps: 1) Read ${secondMind}; 2) If personal preference → "User DNA", if technical habit → "Tactical Protocol", if correction → "Error Memory & Fixes"; 3) Append dated entry to "Active Learning Log"; 4) Confirm completion. User input: {INPUT}`
+    return `Permanently integrate the following user feedback, habit, or lesson into MetaMates core evolution layer (${secondMind}). Steps: 1) Read ${secondMind}; 2) If personal preference → "User DNA", if technical habit → "Tactical Protocol", if correction → "Error Memory & Fixes"; 3) Append dated entry to "Active Learning Log"; 4) Confirm completion. User input: {INPUT}`
   }
-  return `将以下用户反馈、习惯或新教训永久固化到 Metamates 核心进化层（${secondMind}）。请执行：1. 读取 ${secondMind}；2. 个人偏好更新至「用户 DNA」，技术习惯更新至「战术协议」，纠错更新至「错误记忆与修正」；3. 在「主动学习日志」追加当前日期与条目；4. 反馈确认已永久固化。用户输入：{INPUT}`
+  return `将以下用户反馈、习惯或新教训永久固化到 MetaMates 核心进化层（${secondMind}）。请执行：1. 读取 ${secondMind}；2. 个人偏好更新至「用户 DNA」，技术习惯更新至「战术协议」，纠错更新至「错误记忆与修正」；3. 在「主动学习日志」追加当前日期与条目；4. 反馈确认已永久固化。用户输入：{INPUT}`
 }
 
 function buildTracePrompt(): string {

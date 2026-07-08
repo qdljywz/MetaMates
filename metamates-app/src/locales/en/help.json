@@ -10,19 +10,19 @@
     "shortcuts": "Shortcuts"
   },
   "welcome": {
-    "title": "Welcome to Metamates",
-    "description": "The AI panel on the right is the main entry. Say what you want — AI reads and writes notes in the same folder."
+    "title": "Welcome to MetaMates",
+    "description": "Built for creators, knowledge workers, and lifelong learners: **the engine on the right is the main entry**—chat or run a command, AI reads your private vault and writes plans and insights back to notes, not lost in chat."
   },
   "gettingStarted": {
     "title": "Getting Started",
-    "step1": "1. Open a folder",
-    "step1Desc": "Choose a folder on the left — AI reads and writes there",
-    "step2": "2. Connect AI",
-    "step2Desc": "Pick an AI in the right panel and send your first message",
-    "step3": "3. See results",
-    "step3Desc": "Open what AI wrote in the center editor; files save automatically",
-    "step4": "4. Shortcuts",
-    "step4Desc": "Try /today or describe the task in plain language"
+    "step1": "1. Set up your vault",
+    "step1Desc": "Choose a local folder on the left—fragments, diary, clips live here; you own the data",
+    "step2": "2. Start the engine",
+    "step2Desc": "Pick an AI in the right panel and say what you want—no long note required first",
+    "step3": "3. See results on disk",
+    "step3Desc": "Plans, reviews, and upgraded notes land in files; open them in the center editor to tweak",
+    "step4": "4. Use commands to go faster",
+    "step4Desc": "Try `/today` for a daily plan, or `/graduate` to promote an inbox spark to a permanent note"
   },
   "editor": {
     "title": "Editor Features",
@@ -70,10 +70,27 @@
   "shortcuts": {
     "title": "Shortcuts",
     "commandPalette": "Command palette",
-    "newNote": "New note",
-    "find": "Find in file",
+    "dailyNote": "Open/create today's diary",
+    "dailyPlan": "Open/create today's PLAN",
     "globalSearch": "Global search",
     "toggleFileTree": "Toggle file tree",
-    "toggleTheme": "Toggle theme"
+    "saveFile": "Save current file",
+    "closeTab": "Close current tab",
+    "nextTab": "Next tab",
+    "prevTab": "Previous tab",
+    "toggleTheme": "Cycle theme (light / dark / system)",
+    "editorNote": "In the editor: Ctrl+B bold, Ctrl+I italic, Ctrl+K wiki link"
+  },
+  "update": {
+    "check": "Check for updates",
+    "checking": "Checking for updates…",
+    "available": "Update {{version}} found — downloading in background",
+    "downloading": "Downloading update {{percent}}%",
+    "downloaded": "Version {{version}} is ready",
+    "ready": "Version {{version}} downloaded — restart to install",
+    "restart": "Restart & update",
+    "upToDate": "You're on the latest version",
+    "devMode": "Auto-update is disabled in dev mode — download from GitHub Releases",
+    "errorGeneric": "Update check failed — try again or download from GitHub Releases"
   }
 }

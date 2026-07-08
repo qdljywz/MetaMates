@@ -2,7 +2,7 @@
 
 ## Task
 
-The user runs `/intel` with a web URL or workspace document path. Metamates has already extracted content and created a draft intelligence note. Deepen that note:
+The user runs `/intel` with a web URL or workspace document path. MetaMates has already extracted content and created a draft intelligence note. Deepen that note:
 
 1. Read the new `.md` under `04_Intelligence/` and `sources/` metadata
 2. Add structured summary, key data, assumptions to verify
@@ -18,7 +18,7 @@ The user runs `/intel` with a web URL or workspace document path. Metamates has 
 
 `{INPUT}` — URL or file path
 
-## Memory & vault boundary (Metamates required)
+## Memory & vault boundary (MetaMates required)
 
 - Mirror user-facing long-term memory to `04_Intelligence/Memory_Index.md` (details under `04_Intelligence/Reference/`)
 - **Never** write only to `~/.codebuddy`, CLI caches, or paths outside the vault

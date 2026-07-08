@@ -291,7 +291,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ visible, onClose }) => {
           <Empty description={t('messages.noSearchResults')} />
         )
       ) : (
-        <div style={{ textAlign: 'center', color: '#9ca3af', padding: 40 }}>
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
           {t('actions.search')}
         </div>
       )}

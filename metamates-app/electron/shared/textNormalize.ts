@@ -1,5 +1,5 @@
 /**
- * Text normalization for ACP agent chunks (AionUi normalizeTextMessageContent + Metamates sanitizers).
+ * Text normalization for ACP agent chunks (AionUi normalizeTextMessageContent + MetaMates sanitizers).
  */
 
 export function unescapeLiteralEscapes(text: string): string {

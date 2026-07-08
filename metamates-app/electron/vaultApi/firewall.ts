@@ -3,7 +3,7 @@ import { promisify } from 'util'
 
 const execFileAsync = promisify(execFile)
 
-const RULE_NAME = 'Metamates Vault API'
+const RULE_NAME = 'MetaMates Vault API'
 
 async function ruleExists(): Promise<boolean> {
   try {

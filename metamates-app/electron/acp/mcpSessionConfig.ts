@@ -1,6 +1,6 @@
 import * as fs from 'fs'
-import * as path from 'path'
 import { readAppSettings } from '../appSettings'
+import { getNodeLikeRuntime, resolveBundledScript } from '../shared/appPaths'
 
 export interface AcpSessionMcpServerStdio {
   type: 'stdio'
@@ -36,8 +36,25 @@ function userServerToAcp(server: UserMcpServerConfig): AcpSessionMcpServerStdio 
   }
 }
 
+function buildVaultMcpServer(port: number): AcpSessionMcpServerStdio | null {
+  const bridgePath = resolveBundledScript('vault-mcp-bridge.mjs')
+  if (!bridgePath) return null
+
+  const runtime = getNodeLikeRuntime()
+  return {
+    type: 'stdio',
+    name: 'metamates-vault',
+    command: runtime.command,
+    args: [bridgePath],
+    env: [
+      ...runtime.extraEnv,
+      { name: 'VAULT_API_URL', value: `http://127.0.0.1:${port}` },
+    ],
+  }
+}
+
 /** Build MCP servers to inject into ACP session/new (AionUi-compatible stdio shape). */
-export function buildMetamatesMcpServers(): AcpSessionMcpServerStdio[] {
+export function buildMetaMatesMcpServers(): AcpSessionMcpServerStdio[] {
   const settings = readAppSettings()
   const servers: AcpSessionMcpServerStdio[] = []
   const userServers = (settings.mcpServers as UserMcpServerConfig[] | undefined) || []
@@ -49,17 +66,9 @@ export function buildMetamatesMcpServers(): AcpSessionMcpServerStdio[] {
   }
 
   if (settings.vaultApiEnabled) {
-    const bridgePath = path.join(__dirname, '..', '..', 'scripts', 'vault-mcp-bridge.mjs')
-    if (fs.existsSync(bridgePath)) {
-      const port = settings.vaultApiPort || 17333
-      servers.push({
-        type: 'stdio',
-        name: 'metamates-vault',
-        command: 'node',
-        args: [bridgePath],
-        env: [{ name: 'VAULT_API_URL', value: `http://127.0.0.1:${port}` }],
-      })
-    }
+    const port = Number(settings.vaultApiPort) || 17333
+    const vaultServer = buildVaultMcpServer(port)
+    if (vaultServer) servers.push(vaultServer)
   }
 
   return servers
@@ -68,18 +77,22 @@ export function buildMetamatesMcpServers(): AcpSessionMcpServerStdio[] {
 /** MCP list for settings UI (includes builtin vault entry when enabled). */
 export function getMcpServersForSettings(): UserMcpServerConfig[] {
   const settings = readAppSettings()
-  const userServers = ((settings.mcpServers as UserMcpServerConfig[] | undefined) || []).filter(s => !s.builtin)
+  const userServers = ((settings.mcpServers as UserMcpServerConfig[] | undefined) || []).filter((s) => !s.builtin)
   const list = [...userServers]
 
   if (settings.vaultApiEnabled) {
-    const port = settings.vaultApiPort || 17333
+    const port = Number(settings.vaultApiPort) || 17333
+    const runtime = getNodeLikeRuntime()
     list.unshift({
       id: 'metamates-vault',
-      name: 'Metamates Vault',
+      name: 'MetaMates Vault',
       enabled: true,
-      command: 'node',
+      command: runtime.command,
       args: ['scripts/vault-mcp-bridge.mjs'],
-      env: { VAULT_API_URL: `http://127.0.0.1:${port}` },
+      env: {
+        ...Object.fromEntries(runtime.extraEnv.map(({ name, value }) => [name, value])),
+        VAULT_API_URL: `http://127.0.0.1:${port}`,
+      },
       builtin: true,
     })
   }

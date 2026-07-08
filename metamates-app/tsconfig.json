@@ -18,7 +18,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@acp-registry": ["electron/shared/acpRegistry.ts"]
+      "@acp-registry": ["electron/shared/acpRegistry.ts"],
+      "@agent-logos": ["electron/shared/agentLogos.ts"]
     }
   },
   "include": ["src"]

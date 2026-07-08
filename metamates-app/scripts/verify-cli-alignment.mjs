@@ -9,9 +9,11 @@ import http from 'http'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 
+import { resolveDefaultWorkspace } from './lib/default-workspace.mjs'
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
-const WORKSPACE = process.env.METAMATES_WORKSPACE || 'E:\\MyM2'
+const WORKSPACE = resolveDefaultWorkspace()
 const skipCompile = process.argv.includes('--skip-compile')
 const skipAcpLive = process.argv.includes('--skip-acp-live')
 
@@ -37,7 +39,7 @@ function mapStatus(snapshot) {
 
 async function main() {
   console.log('\n══════════════════════════════════════════')
-  console.log('  Metamates CLI 对齐验证（真实测试）')
+  console.log('  MetaMates CLI 对齐验证（真实测试）')
   console.log('══════════════════════════════════════════\n')
   console.log(`工作区: ${WORKSPACE}\n`)
 
@@ -112,7 +114,13 @@ async function main() {
   // ── 3. 真实 ACP 子进程冒烟（每个已检测 CLI）──
   if (!skipAcpLive && detected.length > 0) {
     console.log('\n── 3. 真实 ACP 子进程冒烟（initialize + session/new）──\n')
-    const smokeResults = await runAcpLiveSmoke(detected)
+    const smokeTargets = selectAcpSmokeTargets(detected)
+    if (smokeTargets.length < detected.length) {
+      console.log(
+        `  仅冒烟 ${smokeTargets.map((a) => a.backend).join(', ')}（全 Agent 请设 VERIFY_ALL_AGENTS=1）\n`,
+      )
+    }
+    const smokeResults = await runAcpLiveSmoke(smokeTargets)
     for (const r of smokeResults) {
       record('ACP实连', `${r.backend} initialize`, r.initOk, r.initDetail)
       record('ACP实连', `${r.backend} session/new`, r.sessionOk, r.sessionDetail)
@@ -168,7 +176,10 @@ async function main() {
           out.ensure[a.backend] = { before: status }
         }
         // Try ensureSession on first healthy agent
-        const target = agents.find((a) => a.backend === 'gemini') || agents[0]
+        const target =
+          agents.find((a) => a.backend === 'codebuddy') ||
+          agents.find((a) => a.backend !== 'gemini') ||
+          agents[0]
         if (target) {
           const h = out.health[target.backend]
           if (h?.available) {
@@ -234,6 +245,15 @@ async function main() {
     }
     process.exit(1)
   }
+}
+
+/** One backend by default — spawning every detected CLI burns Agent quota. */
+function selectAcpSmokeTargets(detected) {
+  if (process.env.VERIFY_ALL_AGENTS === '1') return detected
+  const preferred = process.env.VERIFY_AGENT_BACKEND?.trim() || 'codebuddy'
+  const match = detected.filter((a) => a.backend === preferred)
+  if (match.length > 0) return match.slice(0, 1)
+  return detected.slice(0, 1)
 }
 
 function isAuthSessionFailure(message) {

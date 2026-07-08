@@ -8,7 +8,7 @@ allowed-tools: Read, Write, Glob, Grep
 
 ## 流程说明
 
-Metamates 桌面端会先完成**本地抓取**（网页、PDF、Word、Excel、图片 OCR 等），在 `04_情报与连接/` 生成草稿笔记，原件归档于 `sources/`。你的任务是**深化**该笔记：
+MetaMates 桌面端会先完成**本地抓取**（网页、PDF、Word、Excel、图片 OCR 等），在 `04_情报与连接/` 生成草稿笔记，原件归档于 `sources/`。你的任务是**深化**该笔记：
 
 1. **阅读**刚创建的情报 `.md` 及来源信息（URL 或 `sources/` 路径）
 2. **补充**结构化摘要：核心观点、关键数据、待验证假设
@@ -50,4 +50,10 @@ Metamates 桌面端会先完成**本地抓取**（网页、PDF、Word、Excel、
 ```
 
 ---
-**协议来源**: Metamates CODEBUDDY.md
+**协议来源**: MetaMates CODEBUDDY.md
+
+## 记忆与 Vault 边界（MetaMates 强制）
+
+- 用户可读的长期记忆须镜像到 `04_情报与连接/记忆索引.md`（详细条目放 `04_情报与连接/参考/`）
+- **禁止**只写入 `~/.codebuddy`、CLI 项目缓存或其它 Vault 外路径
+- 本命令若要求写回：必须使用 Write/编辑工具落盘，并在写后 **Read 验证**（Act & Verify）

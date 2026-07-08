@@ -1,4 +1,6 @@
 import type { TFunction } from 'i18next'
+import { BRAND_I18N } from '../constants/brand'
+import i18n from '../i18n'
 
 /** Agent readiness hint for the editor welcome screen. */
 export type WelcomeAgentHint =
@@ -11,8 +13,8 @@ export type WelcomeAgentHint =
 /** Detect built-in editor welcome (not a user note). */
 export function isEditorWelcomeContent(content: string): boolean {
   return (
-    content.includes('欢迎使用 Metamates') ||
-    content.includes('Welcome to Metamates')
+    content.includes('欢迎使用 MetaMates') ||
+    content.includes('Welcome to MetaMates')
   )
 }
 
@@ -69,7 +71,7 @@ export function buildEditorWelcomeContent(
 
   return `# ${t('welcome.title')}
 
-${t('welcome.tagline')}
+${i18n.t(BRAND_I18N.sloganFull, { ns: 'common' })}
 
 ${intro}
 ${agentBlock}

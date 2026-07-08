@@ -41,7 +41,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ filePath }) => {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, minHeight: 0 }}>
         <Spin tip="加载 PDF..." />
       </div>
     )
@@ -49,18 +49,20 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ filePath }) => {
 
   if (error) {
     return (
-      <div style={{ padding: 24 }}>
+      <div style={{ flex: 1, minHeight: 0, padding: 24 }}>
         <Empty description={error} />
       </div>
     )
   }
 
   return (
-    <iframe
-      title={filePath}
-      src={dataUrl || undefined}
-      style={{ width: '100%', height: '100%', border: 'none', background: '#1c1c1f' }}
-    />
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <iframe
+        title={filePath}
+        src={dataUrl || undefined}
+        style={{ width: '100%', height: '100%', border: 'none', background: '#1c1c1f' }}
+      />
+    </div>
   )
 }
 

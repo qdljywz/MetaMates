@@ -25,6 +25,7 @@ import http from 'http'
 import os from 'os'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { resolveDefaultWorkspace } from './lib/default-workspace.mjs'
 import { safeElectronCompile } from './lib/safe-electron-compile.mjs'
 import {
   E2E_AGENT_BACKEND,
@@ -125,16 +126,7 @@ function prepareWorkspace() {
   if (process.env.METAMATES_WORKSPACE?.trim()) {
     return path.resolve(process.env.METAMATES_WORKSPACE)
   }
-  const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'mm-ext-'))
-  const inits = path.join(ROOT, 'inits', 'zh')
-  for (const entry of fs.readdirSync(inits, { withFileTypes: true })) {
-    if (entry.name.startsWith('.')) continue
-    const src = path.join(inits, entry.name)
-    const dest = path.join(ws, entry.name)
-    if (entry.isDirectory()) fs.cpSync(src, dest, { recursive: true })
-    else fs.copyFileSync(src, dest)
-  }
-  return ws
+  return resolveDefaultWorkspace()
 }
 
 async function runStaticSlashChecks(workspace) {
@@ -528,7 +520,7 @@ async function runWelcomeWizardCoverage() {
     const wizard = await win.evaluate(() => {
       const steps = document.querySelector('.ant-steps')
       const welcomeText = document.body?.innerText || ''
-      const hasWelcome = /欢迎|Welcome|Metamates/i.test(welcomeText)
+      const hasWelcome = /欢迎|Welcome|MetaMates/i.test(welcomeText)
       const workspaceModal = [...document.querySelectorAll('.ant-modal')].some((m) =>
         /工作区|Workspace/i.test(m.textContent || ''),
       )
@@ -546,7 +538,7 @@ async function runWelcomeWizardCoverage() {
 }
 
 async function main() {
-  console.log('═══ Metamates 扩展覆盖 E2E ═══\n')
+  console.log('═══ MetaMates 扩展覆盖 E2E ═══\n')
   const workspace = prepareWorkspace()
   console.log(`工作区: ${workspace}`)
   console.log(`Agent: ${E2E_AGENT_BACKEND} | 杀全局 Electron: ${E2E_FORCE_KILL ? '是' : '否（默认）'}\n`)

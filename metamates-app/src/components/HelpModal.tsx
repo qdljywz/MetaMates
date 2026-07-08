@@ -1,16 +1,21 @@
-import React from 'react'
-import { Modal, Tabs, Typography, Divider, Space, Tag } from 'antd'
+import React, { useCallback, useEffect, useState } from 'react'
+import { Modal, Tabs, Typography, Divider, Space, Tag, Button, Progress, message } from 'antd'
 import { useTranslation } from 'react-i18next'
+import { GITHUB_ISSUES, GITHUB_REPO } from '../constants/brand'
 import {
   BulbOutlined,
   ThunderboltOutlined,
   RocketOutlined,
   BookOutlined,
   QuestionCircleOutlined,
+  CloudDownloadOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons'
 
 const { Title, Paragraph, Text } = Typography
 const { TabPane } = Tabs
+
+type UpdatePhase = 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'not-available' | 'error' | 'dev'
 
 interface HelpModalProps {
   visible: boolean
@@ -19,6 +24,112 @@ interface HelpModalProps {
 
 const HelpModal: React.FC<HelpModalProps> = ({ visible, onClose }) => {
   const { t } = useTranslation('help')
+  const [appVersion, setAppVersion] = useState('0.1.0')
+  const [updatePhase, setUpdatePhase] = useState<UpdatePhase>('idle')
+  const [remoteVersion, setRemoteVersion] = useState<string | null>(null)
+  const [downloadPercent, setDownloadPercent] = useState(0)
+  const [updateError, setUpdateError] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
+
+  const applyUpdaterStatus = useCallback((payload: { status: string; version?: string; percent?: number; message?: string }) => {
+    switch (payload.status) {
+      case 'checking':
+        setUpdatePhase('checking')
+        setUpdateError(null)
+        break
+      case 'available':
+        setUpdatePhase('available')
+        setRemoteVersion(payload.version ?? null)
+        break
+      case 'downloading':
+        setUpdatePhase('downloading')
+        setDownloadPercent(Math.round(payload.percent ?? 0))
+        break
+      case 'downloaded':
+        setUpdatePhase('downloaded')
+        setRemoteVersion(payload.version ?? null)
+        message.success(t('update.downloaded', { version: payload.version }))
+        break
+      case 'not-available':
+        setUpdatePhase('not-available')
+        setRemoteVersion(payload.version ?? null)
+        break
+      case 'error':
+        setUpdatePhase('error')
+        setUpdateError(payload.message ?? t('update.errorGeneric'))
+        break
+      case 'dev':
+        setUpdatePhase('dev')
+        break
+      default:
+        break
+    }
+  }, [t])
+
+  useEffect(() => {
+    if (!visible) return
+
+    void window.electronAPI?.getAppVersion?.().then((version) => {
+      if (typeof version === 'string' && version) setAppVersion(version)
+    })
+
+    const unsubscribe = window.electronAPI?.updater?.onStatus?.(applyUpdaterStatus)
+    return () => unsubscribe?.()
+  }, [visible, applyUpdaterStatus])
+
+  const handleCheckUpdate = async () => {
+    if (!window.electronAPI?.updater?.check) {
+      setUpdatePhase('dev')
+      return
+    }
+    setChecking(true)
+    setUpdateError(null)
+    setUpdatePhase('checking')
+    try {
+      const result = await window.electronAPI.updater.check()
+      if (result?.dev) {
+        setUpdatePhase('dev')
+        message.info(t('update.devMode'))
+        return
+      }
+      if (result?.ok === false) {
+        setUpdatePhase('error')
+        setUpdateError(result.error ?? t('update.errorGeneric'))
+      }
+    } catch (error: unknown) {
+      setUpdatePhase('error')
+      setUpdateError(error instanceof Error ? error.message : t('update.errorGeneric'))
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  const handleInstallUpdate = async () => {
+    await window.electronAPI?.updater?.quitAndInstall?.()
+  }
+
+  const updateHint = () => {
+    switch (updatePhase) {
+      case 'checking':
+        return t('update.checking')
+      case 'available':
+        return t('update.available', { version: remoteVersion })
+      case 'downloading':
+        return t('update.downloading', { percent: downloadPercent })
+      case 'downloaded':
+        return t('update.ready', { version: remoteVersion })
+      case 'not-available':
+        return t('update.upToDate')
+      case 'error':
+        return updateError ?? t('update.errorGeneric')
+      case 'dev':
+        return t('update.devMode')
+      default:
+        return null
+    }
+  }
+
+  const hint = updateHint()
 
   return (
     <Modal
@@ -104,22 +215,78 @@ const HelpModal: React.FC<HelpModalProps> = ({ visible, onClose }) => {
         >
           <div style={{ lineHeight: 2.5 }}>
             <div><Tag color="orange">Ctrl + P</Tag> {t('shortcuts.commandPalette')}</div>
-            <div><Tag color="orange">Ctrl + N</Tag> {t('shortcuts.newNote')}</div>
-            <div><Tag color="orange">Ctrl + F</Tag> {t('shortcuts.find')}</div>
+            <div><Tag color="orange">Ctrl + N</Tag> {t('shortcuts.dailyNote')}</div>
+            <div><Tag color="orange">Ctrl + Shift + P</Tag> {t('shortcuts.dailyPlan')}</div>
             <div><Tag color="orange">Ctrl + Shift + F</Tag> {t('shortcuts.globalSearch')}</div>
             <div><Tag color="orange">Ctrl + B</Tag> {t('shortcuts.toggleFileTree')}</div>
+            <div><Tag color="orange">Ctrl + S</Tag> {t('shortcuts.saveFile')}</div>
+            <div><Tag color="orange">Ctrl + W</Tag> {t('shortcuts.closeTab')}</div>
+            <div><Tag color="orange">Ctrl + Tab</Tag> {t('shortcuts.nextTab')}</div>
+            <div><Tag color="orange">Ctrl + Shift + Tab</Tag> {t('shortcuts.prevTab')}</div>
             <div><Tag color="orange">Ctrl + Shift + L</Tag> {t('shortcuts.toggleTheme')}</div>
           </div>
+          <Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0, fontSize: 12 }}>
+            {t('shortcuts.editorNote')}
+          </Paragraph>
         </TabPane>
       </Tabs>
 
-      <Divider style={{ margin: '16px 0 8px' }} />
+      <Divider style={{ margin: '16px 0 12px' }} />
+
+      <div style={{ marginBottom: 12 }}>
+        <Space wrap>
+          <Button
+            icon={<ReloadOutlined />}
+            loading={checking || updatePhase === 'checking'}
+            onClick={() => void handleCheckUpdate()}
+          >
+            {t('update.check')}
+          </Button>
+          {updatePhase === 'downloaded' && (
+            <Button type="primary" icon={<CloudDownloadOutlined />} onClick={() => void handleInstallUpdate()}>
+              {t('update.restart')}
+            </Button>
+          )}
+        </Space>
+        {hint && (
+          <Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0, fontSize: 12 }}>
+            {hint}
+          </Paragraph>
+        )}
+        {updatePhase === 'downloading' && (
+          <Progress percent={downloadPercent} size="small" style={{ marginTop: 8, maxWidth: 280 }} />
+        )}
+      </div>
       
-      <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 12 }}>
+      <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
         <Space split={<Divider type="vertical" />}>
-          <span>{t('version')} 0.1.0</span>
-          <a href="https://github.com/metamates/metamates-app" target="_blank" rel="noopener noreferrer">{t('github')}</a>
-          <a href="https://github.com/metamates/metamates-app/issues" target="_blank" rel="noopener noreferrer">{t('feedback')}</a>
+          <span>{t('version')} {appVersion}</span>
+          <button
+            type="button"
+            onClick={() => {
+              if (window.electronAPI?.openExternal) {
+                void window.electronAPI.openExternal(GITHUB_REPO)
+              } else {
+                window.open(GITHUB_REPO, '_blank', 'noopener,noreferrer')
+              }
+            }}
+            style={{ border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 12 }}
+          >
+            {t('github')}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (window.electronAPI?.openExternal) {
+                void window.electronAPI.openExternal(GITHUB_ISSUES)
+              } else {
+                window.open(GITHUB_ISSUES, '_blank', 'noopener,noreferrer')
+              }
+            }}
+            style={{ border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 12 }}
+          >
+            {t('feedback')}
+          </button>
         </Space>
       </div>
     </Modal>

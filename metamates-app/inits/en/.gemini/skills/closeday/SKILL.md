@@ -20,7 +20,7 @@ Please perform the following tasks:
 🌙 Daily Review Completed
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📅 Review Date: [Beijing Time]
+📅 Review Date: [Effective timezone from MetaMates prompt]
 
 ✅ Completed Today
 - [ ] [Task 1]
@@ -43,9 +43,9 @@ Please perform the following tasks:
 **Important**: It is recommended to run `/sync` after the review to update Master_Control.
 
 ---
-**Protocol Source**: Metamates CODEBUDDY.md
+**Protocol Source**: MetaMates CODEBUDDY.md
 
-## Memory & vault boundary (Metamates required)
+## Memory & vault boundary (MetaMates required)
 
 - Mirror user-facing long-term memory to `04_Intelligence/Memory_Index.md` (details under `04_Intelligence/Reference/`)
 - **Never** write only to `~/.codebuddy`, CLI caches, or paths outside the vault

@@ -1,4 +1,4 @@
-# Metamates 个人版 — 范围边界
+# MetaMates 个人版 — 范围边界
 
 > 产品定位见 [POSITIONING.md](./POSITIONING.md)。本文记录**做 / 不做**，避免范围蔓延。
 

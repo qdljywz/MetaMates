@@ -8,11 +8,13 @@ import path from 'path'
 import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 
+import { resolveDefaultWorkspace } from './lib/default-workspace.mjs'
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
 const require = createRequire(import.meta.url)
 
-const WORKSPACE = process.argv[2] || 'E:\\Trae\\Metamates\\Test\\test0407'
+const WORKSPACE = process.argv[2] ? path.resolve(process.argv[2]) : resolveDefaultWorkspace('MM_TEST_WORKSPACE')
 
 const { detectInstalledCliAgents } = require(path.join(ROOT, 'dist-electron', 'cliDetection.cjs'))
 const {

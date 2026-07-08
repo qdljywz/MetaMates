@@ -1,6 +1,6 @@
 # Slash 命令 E2E 检查表（15 条）
 
-> 前置：Metamates 已打开工作区、Agent 已连接、工作区含 `.claude` / `.codebuddy` / `.gemini` skills（首启或 `reinit-workspace` 会自动补齐）。
+> 前置：MetaMates 已打开工作区、Agent 已连接、工作区含 `.claude` / `.codebuddy` / `.gemini` skills（首启或 `reinit-workspace` 会自动补齐）。
 
 ## 自动化（无需 GUI）
 
@@ -36,10 +36,10 @@ npm run slash:e2e:ready     # 检查本机 CLI、工作区 skills 是否就绪
 
 | 命令 | 建议输入 |
 |------|----------|
-| `/trace` | `Metamates 产品定位` |
+| `/trace` | `MetaMates 产品定位` |
 | `/connect` | `AI 对话` 与 `Obsidian 笔记` |
 | `/challenge` | `应该把所有功能都做成聊天入口` |
-| `/ghost` | `明天和产品经理由 Metamates 演示` |
+| `/ghost` | `明天和产品经理由 MetaMates 演示` |
 | `/intel` | `https://example.com/article` 或 `04_情报与连接/sources/report.pdf` |
 | `/soal` | `回复用户时使用中文，代码注释用 JSDoc` |
 
@@ -65,7 +65,7 @@ npm run slash:e2e:ready     # 检查本机 CLI、工作区 skills 是否就绪
 
 `read-skill-file` 查找顺序：后端专用路径 → `.metamates/skills/` →（Codex 额外 `.agents/skills/`）→ `.claude/skills/` 兼容旧工作区。
 
-终端内原生 `/skills` 或 `$skill-name` 需该 CLI 已启用 skills 功能；Metamates 面板 Slash 始终通过读盘 + 注入 prompt 生效。
+终端内原生 `/skills` 或 `$skill-name` 需该 CLI 已启用 skills 功能；MetaMates 面板 Slash 始终通过读盘 + 注入 prompt 生效。
 
 ---
 

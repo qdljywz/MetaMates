@@ -40,7 +40,7 @@ The following topics recur across seemingly unrelated notes:
 - Suggestions: [Suggestions for exploration]
 ```
 
-## Memory & vault boundary (Metamates required)
+## Memory & vault boundary (MetaMates required)
 
 - Mirror user-facing long-term memory to `04_Intelligence/Memory_Index.md` (details under `04_Intelligence/Reference/`)
 - **Never** write only to `~/.codebuddy`, CLI caches, or paths outside the vault

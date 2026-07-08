@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Verify Metamates desktop shell (not browser): electronAPI + real UI.
+ * Verify MetaMates desktop shell (not browser): electronAPI + real UI.
  */
 import { _electron as electron } from '@playwright/test'
 import path from 'path'
@@ -43,8 +43,8 @@ async function main() {
       hasElectronAPI: typeof window.electronAPI !== 'undefined',
       userAgent: navigator.userAgent,
       title: document.title,
-      desktopGate: !!document.body?.innerText?.includes('请使用 Metamates 桌面版')
-        || !!document.body?.innerText?.includes('Use the Metamates desktop app'),
+      desktopGate: !!document.body?.innerText?.includes('请使用 MetaMates 桌面版')
+        || !!document.body?.innerText?.includes('Use the MetaMates desktop app'),
       preloadFail: !!document.body?.innerText?.includes('桌面壳加载失败'),
       hasTitleBar: !!document.querySelector('[class*="title"]'),
       hasAgentToolbar: !!document.querySelector('[data-testid="agent-toolbar"]'),

@@ -79,6 +79,13 @@ export interface FileInfo {
   modified?: number
 }
 
+export interface UpdaterStatusPayload {
+  status: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error' | 'dev'
+  version?: string
+  percent?: number
+  message?: string
+}
+
 export interface ElectronAPI {
   getSettings: () => Promise<any>
   saveSettings: (settings: any) => Promise<{ success: boolean; error?: string }>
@@ -88,12 +95,19 @@ export interface ElectronAPI {
   readTextFile: (filePath: string) => Promise<string>
   writeTextFile: (filePath: string, content: string) => Promise<void>
   listFiles: (dirPath: string, recursive?: boolean) => Promise<{ success: boolean; files?: FileInfo[]; error?: string }>
-  deleteFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
+  deleteFile: (filePath: string) => Promise<{ success: boolean; error?: string; alreadyGone?: boolean }>
   selectDirectory: () => Promise<{ canceled: boolean; filePaths: string[] }>
   selectFile: (filters?: { name: string; extensions: string[] }[]) => Promise<{ canceled: boolean; filePath?: string }>
   saveFileDialog: () => Promise<{ canceled: boolean; filePath?: string }>
   fileExists: (filePath: string) => Promise<{ exists: boolean }>
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>
+  writeClipboardText: (text: string) => boolean
+  getAppVersion: () => Promise<string>
+  updater?: {
+    check: () => Promise<{ ok?: boolean; dev?: boolean; error?: string; updateInfo?: { version?: string } | null }>
+    quitAndInstall: () => Promise<{ ok: boolean; error?: string }>
+    onStatus: (callback: (payload: UpdaterStatusPayload) => void) => () => void
+  }
   createDirectory: (dirPath: string) => Promise<{ success: boolean; error?: string }>
   getFileStats: (filePath: string) => Promise<{ success: boolean; stats?: { size: number; modified: number }; error?: string }>
   renameFile: (oldPath: string, newPath: string) => Promise<{ success: boolean; error?: string }>
@@ -158,11 +172,15 @@ export interface ElectronAPI {
       port?: number,
       calendarIcsPath?: string,
       bindLan?: boolean
-    ) => Promise<{ success: boolean; port: number; error?: string }>
+    ) => Promise<{ success: boolean; port: number; error?: string; lanToken?: string }>
     stop: () => Promise<{ success: boolean }>
-    getStatus: () => Promise<{ running: boolean; port: number; workspacePath: string }>
+    getStatus: () => Promise<{ running: boolean; port: number; workspacePath: string; lanToken?: string }>
     getLanAddresses: () => Promise<{ addresses: string[] }>
   }
+
+  getDatabaseStatus: () => Promise<{ available: boolean }>
+  waitDesktopReady: () => Promise<{ ready: boolean }>
+  onDesktopReady: (callback: () => void) => () => void
 
   calendar: {
     pickFile: () => Promise<{ canceled: boolean; filePath?: string }>
@@ -219,6 +237,8 @@ export interface ElectronAPI {
     isAvailable: () => Promise<{ available: boolean; running?: boolean }>
     start: (language?: string) => Promise<{ success: boolean; error?: string }>
     stop: () => Promise<{ success: boolean }>
+    /** E2E only — push transcript through the same IPC channel as native System.Speech */
+    e2eInject?: (update: { final?: string; interim?: string }) => Promise<{ success: boolean; error?: string }>
     onTranscript: (callback: (data: { final: string; interim: string }) => void) => () => void
     onError: (callback: (data: { code: string; message?: string }) => void) => () => void
   }
@@ -289,7 +309,7 @@ export interface ElectronAPI {
       mode?: string
       modelId?: string
     }>>
-    cancelPrompt: () => void
+    cancelPrompt: (backendId?: string) => void
     respondToPermission: (backend: string, requestId: number, optionId: string) => void
     rejectPermission: (backend: string, requestId: number) => void
     getAvailableCommands: (backendId?: string) => Promise<Array<{ name: string; description?: string }>>

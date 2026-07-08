@@ -9,7 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import {
   APP_ROOT,
-  launchMetamatesApp,
+  launchMetaMatesApp,
   prepareE2EWorkspace,
   stopVite,
   waitForAgentConnected,
@@ -48,7 +48,7 @@ test.describe('Agent Write (Electron UI)', () => {
     let page
     let viteProc = null
     try {
-      ;({ app, page, viteProc } = await launchMetamatesApp(electron, WORKSPACE))
+      ;({ app, page, viteProc } = await launchMetaMatesApp(electron, WORKSPACE))
 
       await page.click(`[data-testid="agent-sidebar-${BACKEND}"]`)
       await waitForAgentConnected(page, BACKEND, 240_000)

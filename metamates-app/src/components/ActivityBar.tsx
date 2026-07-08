@@ -67,7 +67,7 @@ const ActivityBar: React.FC<ActivityBarProps> = ({
     {
       key: 'workspace',
       icon: <FolderOpenOutlined style={{ color: orange }} />,
-      label: workspacePath ? t('sidebar:openWorkspace') : t('sidebar:openWorkspace'),
+      label: workspacePath ? t('sidebar:switchWorkspace') : t('sidebar:openWorkspace'),
       onClick: onOpenWorkspace,
     },
   ]

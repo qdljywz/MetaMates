@@ -2,6 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { useTranslation } from 'react-i18next'
 import { workspaceIndexService } from '../../services/workspaceIndex'
 import { useSpeechRecognition, isElectronEnvironment } from '../../hooks/useSpeechRecognition'
+import { mergeVoiceTranscript } from '../../utils/voiceTranscript'
 import './AgentPanel.css'
 export interface ChatAttachment {
   path: string
@@ -41,12 +42,31 @@ const AgentChatInput = memo(({
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const voicePrefixRef = useRef('')
   const voiceFinalRef = useRef('')
+  const inputValueRef = useRef(inputValue)
+  inputValueRef.current = inputValue
+
+  useEffect(() => {
+    const onPrefill = (event: Event) => {
+      const detail = (event as CustomEvent<{ text: string; focus?: boolean }>).detail
+      if (!detail?.text) return
+      setInputValue(detail.text)
+      voicePrefixRef.current = detail.text
+      if (detail.focus !== false) {
+        requestAnimationFrame(() => {
+          inputRef.current?.focus()
+          const len = detail.text.length
+          inputRef.current?.setSelectionRange(len, len)
+        })
+      }
+    }
+    window.addEventListener('metamates:prefill-agent', onPrefill)
+    return () => window.removeEventListener('metamates:prefill-agent', onPrefill)
+  }, [])
 
   const applyVoiceTranscript = useCallback((update: { final: string; interim: string }) => {
-    if (update.final) {
-      voiceFinalRef.current += update.final
-    }
-    setInputValue(`${voicePrefixRef.current}${voiceFinalRef.current}${update.interim}`)
+    const merged = mergeVoiceTranscript(voicePrefixRef.current, voiceFinalRef.current, update)
+    voiceFinalRef.current = merged.accumulatedFinal
+    setInputValue(merged.display)
   }, [])
 
   const resolveVoiceErrorKey = useCallback((code: string): string => {
@@ -105,13 +125,20 @@ const AgentChatInput = memo(({
   }, [workspacePath])
 
   useEffect(() => {
-    const e2e = (window as Window & { __METAMATES_E2E__?: { enabled?: boolean; simulateVoiceTranscript?: (text: string) => void } }).__METAMATES_E2E__
-    if (!e2e?.enabled) return
-    e2e.simulateVoiceTranscript = (text: string) => {
+    const e2e = (window as Window & {
+      __METAMATES_E2E__?: {
+        enabled?: boolean
+        registerSimulateVoiceTranscript?: (fn: ((text: string) => void) | null) => void
+      }
+    }).__METAMATES_E2E__
+    if (!e2e?.enabled || !e2e.registerSimulateVoiceTranscript) return
+    e2e.registerSimulateVoiceTranscript((text: string) => {
+      voicePrefixRef.current = inputValueRef.current
+      voiceFinalRef.current = ''
       applyVoiceTranscript({ final: text, interim: '' })
-    }
+    })
     return () => {
-      delete e2e.simulateVoiceTranscript
+      e2e.registerSimulateVoiceTranscript?.(null)
     }
   }, [applyVoiceTranscript])
 
@@ -137,6 +164,10 @@ const AgentChatInput = memo(({
   const handleChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = event.target.value
     setInputValue(value)
+    if (isListening) {
+      voicePrefixRef.current = value
+      voiceFinalRef.current = ''
+    }
 
     const cursor = event.target.selectionStart ?? value.length
     const beforeCursor = value.slice(0, cursor)
@@ -147,7 +178,7 @@ const AgentChatInput = memo(({
     } else {
       setMentionQuery(null)
     }
-  }, [])
+  }, [isListening])
 
   const pickMention = useCallback((file: { name: string; path: string }) => {
     const textarea = inputRef.current

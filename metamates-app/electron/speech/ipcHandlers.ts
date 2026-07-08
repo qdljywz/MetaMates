@@ -25,9 +25,9 @@ export function registerSpeechHandlers(getMainWindow: () => BrowserWindow | null
 
     const ok = startWindowsSpeech(
       language,
-      (text) => {
+      (update) => {
         if (!win.isDestroyed()) {
-          win.webContents.send('speech-transcript', { final: text, interim: '' })
+          win.webContents.send('speech-transcript', update)
         }
       },
       (err) => {
@@ -44,4 +44,19 @@ export function registerSpeechHandlers(getMainWindow: () => BrowserWindow | null
     stopWindowsSpeech()
     return { success: true }
   })
+
+  if (process.env.METAMATES_E2E === '1') {
+    ipcMain.handle(
+      'speech-e2e-inject',
+      (_event, update: { final?: string; interim?: string } = {}) => {
+        const win = getMainWindow()
+        if (!win || win.isDestroyed()) return { success: false, error: 'no-window' }
+        win.webContents.send('speech-transcript', {
+          final: update.final ?? '',
+          interim: update.interim ?? '',
+        })
+        return { success: true }
+      },
+    )
+  }
 }

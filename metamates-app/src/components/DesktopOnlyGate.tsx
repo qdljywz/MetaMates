@@ -7,7 +7,7 @@ const { Paragraph, Text } = Typography
 
 /**
  * Shown when the renderer runs outside Electron (e.g. `npm run dev` in a browser).
- * Metamates is a desktop app; browser-only mode cannot access the filesystem or ACP.
+ * MetaMates is a desktop app; browser-only mode cannot access the filesystem or ACP.
  */
 const DesktopOnlyGate: React.FC = () => {
   const { t } = useTranslation('desktop')

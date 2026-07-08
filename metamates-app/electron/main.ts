@@ -5,6 +5,7 @@ import type { FSWatcher } from 'fs'
 import type { NativeImage } from 'electron'
 import { registerAcpIpcHandlers, setAcpMainWindow, startAcpStartupWarmup, syncCliAgentEnabledPreferences } from './acp/ipcHandlers'
 import { sessionStore } from './acp/sessionStore'
+import * as sessionDb from './acp/sessionDb'
 import { closeDatabase, warmupDatabase } from './acp/sessionDb'
 import { migrateWorkspace, detectLegacyPaths } from './workspaceMigrate'
 import { vaultApiServer } from './vaultApi/server'
@@ -12,27 +13,117 @@ import { getCalendarSummary } from './calendar/index'
 import { readAppSettings } from './appSettings'
 import { getOllamaStatus } from './ollama/client'
 import { detectWorkspaceLanguage } from './workspaceLayout'
-import { assertWithinWorkspace, pathAssertError, pathAssertResolved } from './shared/pathSafety'
+import { assertWithinWorkspace, pathAssertError, pathAssertResolved, type PathAssertResult } from './shared/pathSafety'
 import { getCurrentWorkspacePath, setCurrentWorkspacePath } from './shared/workspaceState'
 import { registerDocumentExtractHandlers } from './documentExtract/ipcHandlers'
 import { registerSpeechHandlers } from './speech/ipcHandlers'
+import { stopWindowsSpeech } from './speech/windowsSpeech'
 import { getMimeTypeFromPath } from './documentExtract/mimeType'
 import { getLanIPv4Addresses } from './shared/lanAddresses'
 import { ensureWindowsFirewallRule } from './vaultApi/firewall'
 import { ensureIntelligenceMemoryLayout, type WorkspaceLanguage as IntelLanguage } from './shared/intelligencePaths'
-
-const pty = require('node-pty')
-
-type IPty = ReturnType<typeof pty.spawn>
+import { isImmediateQuitAllowed, registerShutdownTask, runAppShutdown } from './processLifecycle'
+import { registerUpdaterHandlers } from './updater'
+import { disconnectAllAcpBackends } from './acp/ipcHandlers'
+import {
+  killOrphanMetaMatesHelpers,
+  killSiblingDevProcesses,
+  killStaleMetaMatesProcesses,
+} from './shared/processTreeKill'
+import { getResourcesRoot, resolveBuildIconPath, resolveInitsRoot } from './shared/appPaths'
 
 let mainWindow: BrowserWindow | null = null
+
+let resolveDesktopReady: (() => void) | null = null
+const desktopReadyPromise = new Promise<void>((resolve) => {
+  resolveDesktopReady = resolve
+})
+
+function markDesktopReady(): void {
+  resolveDesktopReady?.()
+  resolveDesktopReady = null
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('desktop-ready')
+  }
+}
 let currentWatcher: FSWatcher | null = null
-let activeTerminals: Map<number, IPty> = new Map()
+const appRoot = getResourcesRoot()
+let shutdownHooksRegistered = false
+let quitAfterShutdown = false
 
 const skipSingleInstanceLock = process.env.METAMATES_E2E === '1'
+
+// Some Windows environments crash the GPU process on startup, preventing any window from
+// showing (even though electron.exe is running). Prefer a stable UI over acceleration.
+if (process.platform === 'win32' && process.env.METAMATES_DISABLE_GPU !== '0') {
+  app.disableHardwareAcceleration()
+  app.commandLine.appendSwitch('disable-gpu')
+  app.commandLine.appendSwitch('disable-gpu-compositing')
+  // Force software rendering paths to avoid immediate GPU process crashes on some hosts.
+  app.commandLine.appendSwitch('use-gl', 'swiftshader')
+  app.commandLine.appendSwitch('use-angle', 'swiftshader')
+}
+
 const gotSingleInstanceLock = skipSingleInstanceLock || app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
   app.quit()
+  process.exit(0)
+}
+
+function getDialogParentWindow(): BrowserWindow | undefined {
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow
+  return BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
+}
+
+function resolveWorkspacePath(filePath: string): PathAssertResult {
+  const workspace = getCurrentWorkspacePath()
+  if (!workspace) return { ok: false, error: 'No workspace selected' }
+  return assertWithinWorkspace(workspace, filePath)
+}
+
+/** Prevent uncaught EPIPE when stdout/stderr have no reader (GUI launch, closed terminal). */
+function installBrokenPipeGuard(): void {
+  for (const stream of [process.stdout, process.stderr]) {
+    stream.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EPIPE' || err.code === 'ERR_STREAM_DESTROYED') return
+    })
+  }
+}
+installBrokenPipeGuard()
+
+function closeFileWatcher(): void {
+  if (!currentWatcher) return
+  currentWatcher.close()
+  currentWatcher = null
+}
+
+function registerAppShutdownHooks(): void {
+  if (shutdownHooksRegistered) return
+  shutdownHooksRegistered = true
+
+  registerShutdownTask(() => {
+    disconnectAllAcpBackends()
+  })
+  registerShutdownTask(() => {
+    stopWindowsSpeech()
+  })
+  registerShutdownTask(async () => {
+    await vaultApiServer.stop()
+  })
+  registerShutdownTask(() => {
+    closeFileWatcher()
+  })
+  registerShutdownTask(() => {
+    if (!app.isPackaged) {
+      killSiblingDevProcesses(appRoot, process.pid)
+    }
+  })
+  registerShutdownTask(() => {
+    killOrphanMetaMatesHelpers(appRoot)
+  })
+  registerShutdownTask(() => {
+    closeDatabase()
+  })
 }
 
 function focusMainWindow(): void {
@@ -83,7 +174,7 @@ function loadRenderer(win: BrowserWindow, isDev: boolean): void {
           encodeURIComponent(
             buildLoadErrorHtml(
               '界面加载失败',
-              '无法连接开发服务器 http://127.0.0.1:3000 。请完全退出 Metamates 后，在 metamates-app 目录运行 npm run start。',
+              '无法连接开发服务器 http://127.0.0.1:3000 。请完全退出 MetaMates 后，在 metamates-app 目录运行 npm run start。',
               '不要单独运行 electron . — 需要 Vite 与 Electron 同时启动。',
             ),
           ),
@@ -110,25 +201,35 @@ function loadRenderer(win: BrowserWindow, isDev: boolean): void {
 
   win.loadFile(indexPath).catch((err: Error) => {
     console.error('[MAIN] Production renderer load failed:', err.message)
+    void win.loadURL(
+      'data:text/html;charset=utf-8,' +
+        encodeURIComponent(
+          buildLoadErrorHtml(
+            '界面加载失败',
+            err.message,
+            '请重新安装 MetaMates，或在 metamates-app 目录执行 npm run build 后重试。',
+          ),
+        ),
+    )
   })
 }
 
 function createWindow() {
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
-  let iconPath: string
-  
-  if (isDev) {
-    iconPath = path.join(__dirname, '../build/icon.ico')
-  } else {
-    iconPath = path.join(process.resourcesPath, 'build/icon.ico')
-  }
-  
-  console.log('[MAIN] Icon path:', iconPath, 'exists:', fs.existsSync(iconPath))
-  
+  const preferredIcon = isDev
+    ? path.join(__dirname, '../build/icon.ico')
+    : resolveBuildIconPath(process.platform === 'darwin' ? 'icon.icns' : 'icon.ico')
+  const fallbackIcon = isDev
+    ? path.join(__dirname, '../build/icon.ico')
+    : resolveBuildIconPath('icon.ico')
+  const resolvedIconPath = fs.existsSync(preferredIcon) ? preferredIcon : fallbackIcon
+
+  console.log('[MAIN] Icon path:', resolvedIconPath, 'exists:', fs.existsSync(resolvedIconPath))
+
   let icon: NativeImage | undefined
   try {
-    if (fs.existsSync(iconPath)) {
-      icon = nativeImage.createFromPath(iconPath)
+    if (fs.existsSync(resolvedIconPath)) {
+      icon = nativeImage.createFromPath(resolvedIconPath)
       console.log('[MAIN] Icon loaded, size:', icon.getSize())
     }
   } catch (err) {
@@ -146,7 +247,9 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
     },
-    show: false,
+    // In dev, show immediately so startup issues are visible (instead of a hidden window
+    // waiting forever for `ready-to-show` when Vite fails to load).
+    show: isDev,
   })
 
   setAcpMainWindow(mainWindow)
@@ -164,7 +267,7 @@ function createWindow() {
       'data:text/html;charset=utf-8,' +
         encodeURIComponent(
           buildLoadErrorHtml(
-            'Metamates 界面未能加载',
+            'MetaMates 界面未能加载',
             `${errorDescription} (${errorCode}) — ${validatedURL}`,
             hint,
           ),
@@ -179,7 +282,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     focusMainWindow()
-    console.log('[MAIN] Metamates desktop window visible — use this window, not a browser tab')
+    console.log('[MAIN] MetaMates desktop window visible — use this window, not a browser tab')
   })
 
   mainWindow.on('closed', () => {
@@ -188,6 +291,14 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  registerAppShutdownHooks()
+  // In dev, killing "stale" processes is too aggressive because Vite/Electron can be launched
+  // from different shells/parents (making a healthy Vite look "stale"). Keep cleanup for
+  // packaged builds where orphaned helpers are the bigger problem.
+  if (app.isPackaged) {
+    killStaleMetaMatesProcesses(appRoot, process.pid)
+  }
+
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(permission === 'media' || (permission as string) === 'audioCapture')
   })
@@ -200,10 +311,19 @@ app.whenReady().then(async () => {
   warmupDatabase()
   registerDocumentExtractHandlers()
 
-  await sessionStore.load()
-  await registerAcpIpcHandlers()
-
+  // Create the window early so startup can't be blocked by slow ACP init,
+  // CLI detection, network checks, or native module probes.
   createWindow()
+
+  void (async () => {
+    await sessionStore.load()
+    await registerAcpIpcHandlers()
+    registerUpdaterHandlers(() => mainWindow)
+    markDesktopReady()
+  })().catch((err) => {
+    console.error('[MAIN] Post-window init failed:', err)
+    markDesktopReady()
+  })
 
   app.on('second-instance', () => {
     focusMainWindow()
@@ -218,15 +338,29 @@ app.whenReady().then(async () => {
   })
 })
 
-app.on('window-all-closed', () => {
-  for (const [, term] of activeTerminals) {
-    term.kill()
-  }
-  activeTerminals.clear()
-  closeDatabase()
-  if (process.platform !== 'darwin') {
+app.on('before-quit', (event) => {
+  if (quitAfterShutdown || isImmediateQuitAllowed()) return
+  event.preventDefault()
+  registerAppShutdownHooks()
+  const forceQuitTimer = setTimeout(() => {
+    console.warn('[MAIN] Shutdown timed out; forcing quit')
+    quitAfterShutdown = true
     app.quit()
-  }
+  }, 15_000)
+  void runAppShutdown().finally(() => {
+    clearTimeout(forceQuitTimer)
+    quitAfterShutdown = true
+    app.quit()
+  })
+})
+
+app.on('window-all-closed', () => {
+  app.quit()
+})
+
+ipcMain.handle('wait-desktop-ready', async () => {
+  await desktopReadyPromise
+  return { ready: true }
 })
 
 /** 同步主进程工作区根路径（文件 IPC 沙箱依赖；不触发 Agent 重连） */
@@ -245,6 +379,9 @@ ipcMain.handle('read-file', async (event, filePath: string) => {
     const pathError = pathAssertError(guard)
     if (pathError) return { success: false, error: pathError }
     const resolved = pathAssertResolved(guard)!
+    if (fs.statSync(resolved).isDirectory()) {
+      return { success: false, error: 'EISDIR: illegal operation on a directory, read' }
+    }
     const content = fs.readFileSync(resolved, 'utf-8')
     return { success: true, content }
   } catch (error: any) {
@@ -284,20 +421,40 @@ ipcMain.handle('write-file', async (event, filePath: string, content: string) =>
 
 ipcMain.handle('list-files', async (event, dirPath: string, recursive: boolean = false) => {
   try {
+    const scoped = resolveWorkspacePath(dirPath)
+    const listError = pathAssertError(scoped)
+    if (listError) return { success: false, error: listError }
+    dirPath = pathAssertResolved(scoped)!
+
     const files: any[] = []
     
     const scanDir = (dir: string) => {
       const items = fs.readdirSync(dir, { withFileTypes: true })
       for (const item of items) {
         const fullPath = path.join(dir, item.name)
+        if (item.isDirectory()) {
+          files.push({
+            name: item.name,
+            isDirectory: true,
+            path: fullPath,
+          })
+          if (recursive) {
+            scanDir(fullPath)
+          }
+          continue
+        }
+        let modified: number | undefined
+        try {
+          modified = fs.statSync(fullPath).mtime.getTime()
+        } catch {
+          /* ignore stat errors */
+        }
         files.push({
           name: item.name,
-          isDirectory: item.isDirectory(),
+          isDirectory: false,
           path: fullPath,
+          modified,
         })
-        if (item.isDirectory() && recursive) {
-          scanDir(fullPath)
-        }
       }
     }
     
@@ -314,6 +471,9 @@ ipcMain.handle('delete-file', async (event, filePath: string) => {
     const pathError = pathAssertError(guard)
     if (pathError) return { success: false, error: pathError }
     const resolved = pathAssertResolved(guard)!
+    if (!fs.existsSync(resolved)) {
+      return { success: true, alreadyGone: true }
+    }
     if (fs.statSync(resolved).isDirectory()) {
       fs.rmSync(resolved, { recursive: true })
     } else {
@@ -321,12 +481,16 @@ ipcMain.handle('delete-file', async (event, filePath: string) => {
     }
     return { success: true }
   } catch (error: any) {
+    if (error?.code === 'ENOENT') {
+      return { success: true, alreadyGone: true }
+    }
     return { success: false, error: error.message }
   }
 })
 
 ipcMain.handle('select-directory', async () => {
-  const result = await dialog.showOpenDialog(mainWindow!, {
+  const parent = getDialogParentWindow()
+  const result = await dialog.showOpenDialog(parent ?? undefined, {
     properties: ['openDirectory'],
   })
   return { canceled: result.canceled, filePaths: result.filePaths }
@@ -376,7 +540,8 @@ ipcMain.handle('save-settings', async (_event, settings: any) => {
 })
 
 ipcMain.handle('select-file', async (_event, filters?: { name: string; extensions: string[] }[]) => {
-  const result = await dialog.showOpenDialog(mainWindow!, {
+  const parent = getDialogParentWindow()
+  const result = await dialog.showOpenDialog(parent ?? undefined, {
     properties: ['openFile'],
     filters: filters || [
       { name: 'Markdown', extensions: ['md', 'markdown'] },
@@ -387,7 +552,8 @@ ipcMain.handle('select-file', async (_event, filters?: { name: string; extension
 })
 
 ipcMain.handle('save-file-dialog', async () => {
-  const result = await dialog.showSaveDialog(mainWindow!, {
+  const parent = getDialogParentWindow()
+  const result = await dialog.showSaveDialog(parent ?? undefined, {
     filters: [
       { name: 'Markdown', extensions: ['md'] },
       { name: 'All Files', extensions: ['*'] },
@@ -397,7 +563,18 @@ ipcMain.handle('save-file-dialog', async () => {
 })
 
 ipcMain.handle('file-exists', async (event, filePath: string) => {
-  return { exists: fs.existsSync(filePath) }
+  const workspace = getCurrentWorkspacePath()
+  if (!workspace) {
+    // Startup restore path check runs before workspace is bound.
+    if (typeof filePath !== 'string' || !path.isAbsolute(filePath)) {
+      return { exists: false, error: 'No workspace selected' }
+    }
+    return { exists: fs.existsSync(filePath) }
+  }
+  const scoped = resolveWorkspacePath(filePath)
+  const existsError = pathAssertError(scoped)
+  if (existsError) return { exists: false, error: existsError }
+  return { exists: fs.existsSync(pathAssertResolved(scoped)!) }
 })
 
 ipcMain.handle('open-external', async (_event, url: string) => {
@@ -410,7 +587,10 @@ ipcMain.handle('open-external', async (_event, url: string) => {
 
 ipcMain.handle('create-directory', async (event, dirPath: string) => {
   try {
-    fs.mkdirSync(dirPath, { recursive: true })
+    const scoped = resolveWorkspacePath(dirPath)
+    const dirError = pathAssertError(scoped)
+    if (dirError) return { success: false, error: dirError }
+    fs.mkdirSync(pathAssertResolved(scoped)!, { recursive: true })
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }
@@ -419,7 +599,10 @@ ipcMain.handle('create-directory', async (event, dirPath: string) => {
 
 ipcMain.handle('get-file-stats', async (event, filePath: string) => {
   try {
-    const stats = fs.statSync(filePath)
+    const scoped = resolveWorkspacePath(filePath)
+    const statsError = pathAssertError(scoped)
+    if (statsError) return { success: false, error: statsError }
+    const stats = fs.statSync(pathAssertResolved(scoped)!)
     return { success: true, stats: { size: stats.size, modified: stats.mtime.getTime() } }
   } catch (error: any) {
     return { success: false, error: error.message }
@@ -428,7 +611,13 @@ ipcMain.handle('get-file-stats', async (event, filePath: string) => {
 
 ipcMain.handle('rename-file', async (event, oldPath: string, newPath: string) => {
   try {
-    fs.renameSync(oldPath, newPath)
+    const oldScoped = resolveWorkspacePath(oldPath)
+    const oldError = pathAssertError(oldScoped)
+    if (oldError) return { success: false, error: oldError }
+    const newScoped = resolveWorkspacePath(newPath)
+    const newError = pathAssertError(newScoped)
+    if (newError) return { success: false, error: newError }
+    fs.renameSync(pathAssertResolved(oldScoped)!, pathAssertResolved(newScoped)!)
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }
@@ -439,10 +628,15 @@ ipcMain.handle('watch-directory', async (event, dirPath: string) => {
   if (currentWatcher) {
     currentWatcher.close()
   }
+
+  const scoped = resolveWorkspacePath(dirPath)
+  const watchError = pathAssertError(scoped)
+  if (watchError) return { success: false, error: watchError }
+  dirPath = pathAssertResolved(scoped)!
   
   try {
     currentWatcher = fs.watch(dirPath, { recursive: true }, (eventType, filename) => {
-      if (mainWindow && filename) {
+      if (mainWindow && !mainWindow.isDestroyed() && filename) {
         mainWindow.webContents.send('file-changed', {
           type: eventType,
           filename,
@@ -465,7 +659,11 @@ ipcMain.handle('unwatch-directory', async () => {
 })
 
 ipcMain.handle('open-in-explorer', async (event, filePath: string) => {
-  shell.showItemInFolder(filePath)
+  const scoped = resolveWorkspacePath(filePath)
+  const explorerError = pathAssertError(scoped)
+  if (explorerError) return { success: false, error: explorerError }
+  shell.showItemInFolder(pathAssertResolved(scoped)!)
+  return { success: true }
 })
 
 ipcMain.handle('window-minimize', async () => {
@@ -512,116 +710,25 @@ ipcMain.handle('path-relative', async (_event, from: string, to: string) => {
 })
 
 ipcMain.handle('read-text-file', async (_event, filePath: string) => {
-  return fs.readFileSync(filePath, 'utf-8')
+  try {
+    const scoped = resolveWorkspacePath(filePath)
+    const readError = pathAssertError(scoped)
+    if (readError) throw new Error(readError)
+    return fs.readFileSync(pathAssertResolved(scoped)!, 'utf-8')
+  } catch (error: any) {
+    throw new Error(error?.message || 'read-text-file failed')
+  }
 })
 
 ipcMain.handle('write-text-file', async (_event, filePath: string, content: string) => {
-  fs.writeFileSync(filePath, content, 'utf-8')
-})
-
-ipcMain.handle('terminal-start', async (event, cwd?: string) => {
-  console.log('[Terminal] Starting terminal with cwd:', cwd)
-  
   try {
-    const isWindows = process.platform === 'win32'
-    const shell = 'cmd.exe'
-    const args = ['/c', 'chcp 65001 >nul 2>&1 && powershell.exe -NoLogo']
-    const workingDir = cwd || process.cwd()
-    
-    const env = {
-      ...process.env,
-      TERM: 'xterm-256color',
-      COLORTERM: 'truecolor',
-      LANG: 'en_US.UTF-8',
-      WT_SESSION: '1',
-    }
-    
-    const term = pty.spawn(shell, args, {
-      name: 'xterm-256color',
-      cols: 80,
-      rows: 24,
-      cwd: workingDir,
-      env: env,
-      useConpty: true,
-      useConptyDll: true,
-    })
-
-    console.log('[Terminal] Spawned terminal with pid:', term.pid)
-
-    activeTerminals.set(term.pid, term)
-
-    term.onData((data: string) => {
-      console.log('[Terminal] onData:', data.length, 'bytes')
-      mainWindow?.webContents.send('terminal-output', {
-        type: 'data',
-        data,
-        pid: term.pid,
-      })
-    })
-
-    term.onExit(({ exitCode }) => {
-      console.log('[Terminal] onExit:', exitCode)
-      mainWindow?.webContents.send('terminal-output', {
-        type: 'exit',
-        data: `\r\n[Exit code: ${exitCode}]\r\n`,
-        pid: term.pid,
-      })
-      activeTerminals.delete(term.pid)
-    })
-
-    return { success: true, pid: term.pid }
+    const scoped = resolveWorkspacePath(filePath)
+    const writeError = pathAssertError(scoped)
+    if (writeError) throw new Error(writeError)
+    fs.writeFileSync(pathAssertResolved(scoped)!, content, 'utf-8')
   } catch (error: any) {
-    console.error('[Terminal] Error:', error)
-    return { 
-      success: false, 
-      error: error.message,
-      errorType: error.code || 'UNKNOWN',
-      errorName: error.name || 'TerminalError'
-    }
+    throw new Error(error?.message || 'write-text-file failed')
   }
-})
-
-ipcMain.handle('terminal-input', async (event, pid: number, data: string) => {
-  const term = activeTerminals.get(pid)
-  if (!term) {
-    return { success: false, error: 'Terminal not found' }
-  }
-  
-  try {
-    term.write(data)
-    return { success: true }
-  } catch (error: any) {
-    return { success: false, error: error.message }
-  }
-})
-
-ipcMain.handle('terminal-resize', async (event, pid: number, cols: number, rows: number) => {
-  const term = activeTerminals.get(pid)
-  if (!term) {
-    return { success: false, error: 'Terminal not found' }
-  }
-  
-  try {
-    term.resize(cols, rows)
-    return { success: true }
-  } catch (error: any) {
-    return { success: false, error: error.message }
-  }
-})
-
-ipcMain.handle('terminal-kill', async (event, pid: number) => {
-  const term = activeTerminals.get(pid)
-  if (term) {
-    try {
-      term.kill()
-      activeTerminals.delete(pid)
-      return { success: true }
-    } catch (error: any) {
-      console.error('[Terminal] Error killing terminal:', error)
-      return { success: false, error: error.message }
-    }
-  }
-  return { success: false, error: 'Terminal not found' }
 })
 
 ipcMain.handle('init-workspace', async (event, workspacePath: string, language: string = 'zh') => {
@@ -644,14 +751,7 @@ ipcMain.handle('init-workspace', async (event, workspacePath: string, language: 
       return { success: true, initialized: false, reason: 'Workspace already has MetaMates structure' }
     }
     
-    const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
-    let baseInitsPath: string
-    
-    if (isDev) {
-      baseInitsPath = path.join(__dirname, '..', 'inits')
-    } else {
-      baseInitsPath = path.join(process.resourcesPath, 'inits')
-    }
+    const baseInitsPath = resolveInitsRoot()
     
     const langDir = language === 'en' ? 'en' : 'zh'
     const initsPath = path.join(baseInitsPath, langDir)
@@ -702,14 +802,7 @@ ipcMain.handle('init-workspace', async (event, workspacePath: string, language: 
 
 ipcMain.handle('reinit-workspace', async (event, workspacePath: string, language: string = 'zh') => {
   try {
-    const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
-    let baseInitsPath: string
-    
-    if (isDev) {
-      baseInitsPath = path.join(__dirname, '..', 'inits')
-    } else {
-      baseInitsPath = path.join(process.resourcesPath, 'inits')
-    }
+    const baseInitsPath = resolveInitsRoot()
     
     const langDir = language === 'en' ? 'en' : 'zh'
     const initsPath = path.join(baseInitsPath, langDir)
@@ -849,7 +942,8 @@ ipcMain.handle('get-calendar-events', async (_event, workspacePath: string, icsP
 })
 
 ipcMain.handle('pick-calendar-file', async () => {
-  const result = await dialog.showOpenDialog(mainWindow!, {
+  const parent = getDialogParentWindow()
+  const result = await dialog.showOpenDialog(parent ?? undefined, {
     properties: ['openFile'],
     filters: [
       { name: 'iCalendar', extensions: ['ics'] },
@@ -872,6 +966,10 @@ ipcMain.handle('vault-api-stop', async () => {
 
 ipcMain.handle('vault-api-status', async () => {
   return vaultApiServer.getStatus()
+})
+
+ipcMain.handle('get-database-status', async () => {
+  return { available: sessionDb.isDatabaseAvailable() }
 })
 
 ipcMain.handle('get-lan-addresses', async () => {

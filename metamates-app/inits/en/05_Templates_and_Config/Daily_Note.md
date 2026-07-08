@@ -13,8 +13,8 @@
 ### 🧩 [Project A]
 ![[Master_Control#Project A Progress Summary]]
 
-### 🧠 Metamates Construction (AI & Tools)
-![[Master_Control#Metamates Construction Progress Summary]]
+### 🧠 MetaMates Construction (AI & Tools)
+![[Master_Control#MetaMates Construction Progress Summary]]
 
 ---
 

@@ -21,7 +21,12 @@
   "tabs": {
     "close": "关闭",
     "closeOthers": "关闭其他",
-    "closeAll": "关闭全部"
+    "closeAll": "关闭全部",
+    "emptyPlaceholder": "无打开的标签 — 从下方选择下一步，或右侧与 AI 对话",
+    "listLabel": "已打开的标签",
+    "unsavedCloseTitle": "未保存的更改",
+    "unsavedCloseBody": "此文件有未保存的修改。关闭标签将丢弃这些更改。",
+    "unsavedCloseConfirm": "关闭不保存"
   },
   "wikiLink": {
     "title": "Wiki 链接",
@@ -96,38 +101,149 @@
     "horizontalRule": "分隔线"
   },
   "welcome": {
-    "title": "欢迎使用 Metamates",
-    "tagline": "笔记保存在您的电脑，AI 协助整理与推进——成果写回文件，而不是留在对话里。",
-    "introNoWorkspace": "Metamates 是本地知识工作台：左侧管理笔记，中间编辑，右侧与 AI 协作。请先选择工作区文件夹。",
-    "introReady": "工作区已就绪。右侧 AI 会读取并写入本文件夹中的 Markdown 笔记。",
+    "title": "欢迎使用 MetaMates",
+    "introNoWorkspace": "面向**创作者、知识工作者和自我成长者**：你总有冒出来的想法，却懒得先整理成体系。MetaMates 让你**先捕获、后加工**——左侧管仓库，中间看成品，**右侧引擎才是日常起点**。选好工作区文件夹即可开始。",
+    "introReady": "你的灵感仓库已就绪。**日常打开 App，先在右侧选 AI、发消息或点一条命令**——引擎会读取本文件夹里的 Markdown，把成品写回来。中间编辑器用来查看和微调，不是唯一起点。",
     "nextTitle": "接下来",
-    "stepSetup1": "点击左侧 **打开工作区**，选择或新建笔记文件夹",
-    "stepSetup2": "在右侧 **连接 AI 助手**（若提示需登录，请按指引完成认证）",
-    "stepSetup3": "发送第一条消息，或点击 **`/today`** 生成今日计划",
-    "stepReady1": "在右侧 **选择 AI 并发送消息**",
-    "stepReady2": "试试 **`/today`** 生成今日计划，或 **`/intel`** 导入网页与文档",
-    "stepReady3": "在左侧 **日历** 打开今日日记，或用 **`Ctrl+N`** 快速创建",
+    "stepSetup1": "点击左侧 **打开工作区**，选一个专门放灵感的文件夹（首次会自动建好日记、收件箱等目录）",
+    "stepSetup2": "在右侧 **连接 AI 助手**——这是主入口；不必先写长笔记",
+    "stepSetup3": "直接说「帮我规划今天」或点 **`/today`**，看引擎把计划写进文件",
+    "stepReady1": "右侧 **选 AI，用一句话描述你现在想做的事**（整理收件箱、写今日计划、升级某个灵感…）",
+    "stepReady2": "试试 **`/today`** 出今日计划，**`/graduate`** 把碎片升级成永久笔记，或 **`/intel`** 剪藏链接",
+    "stepReady3": "成果在中间编辑器打开；左侧 **日历** 看今日日记，**`Ctrl+P`** 快速新建或导入",
     "stepAuth1": "右侧显示 **需要登录** 时，点击提示完成 Gemini / Claude 等助手的认证",
-    "stepAuth2": "认证完成后，发送 **`/today`** 或任意消息验证是否可用",
+    "stepAuth2": "认证完成后，发 **`/today`** 或任意消息——验证引擎能否读写你的仓库",
     "stepAuth3": "也可在右上角 **设置 → AI** 中切换或安装其他助手",
-    "stepNoAgent1": "尚未检测到可用的 AI 助手",
-    "stepNoAgent2": "打开右上角 **设置 → AI**，安装或启用 Gemini、Claude 或 CodeBuddy",
+    "stepNoAgent1": "尚未检测到可用的 AI 助手——**没有 CLI，MetaMates 只能存、不能化**",
+    "stepNoAgent2": "在右侧 Agent 面板点击 **安装 AI 助手**，或打开 **设置 → AI** 安装 Gemini、Claude 或 CodeBuddy",
     "stepNoAgent3": "连接成功后，在右侧输入框发消息或使用 slash 命令",
-    "stepConnecting1": "AI 助手正在连接，请稍候（通常数秒到十几秒）",
+    "stepConnecting1": "思考引擎正在连接，请稍候（通常数秒到十几秒）",
     "stepConnecting2": "连接完成后，试试 **`/today`** 或 **`/context`**",
     "stepConnecting3": "右侧输入框旁的 **麦克风** 可语音输入（需麦克风权限，Windows 版通常需联网）",
-    "agentTitle": "AI 助手状态",
-    "agentNeedsAuth": "当前助手 **需要登录认证**。请先在右侧面板按提示完成登录，再发送消息或 slash 命令。",
-    "agentReady": "**AI 已就绪。** 可以直接对话，或使用 `/today`、`/intel` 等命令。",
-    "agentConnecting": "正在连接 AI 助手，请稍候…",
-    "agentNoAgent": "尚未检测到已启用的 AI 助手。请在 **设置 → AI** 中安装或启用。",
-    "commandsTitle": "常用命令",
-    "commandsBody": "| 命令 | 用途 |\n|------|------|\n| `/today` | 生成今日计划 |\n| `/closeday` | 每日复盘 |\n| `/intel` | 导入链接或文档为情报笔记 |\n| `/context` | 加载当前项目上下文 |\n\n完整列表见右上角 **?** 帮助。",
+    "agentTitle": "引擎状态",
+    "agentNeedsAuth": "当前助手 **需要登录认证**。请先在右侧面板按提示完成登录，再让引擎读写你的仓库。",
+    "agentReady": "**引擎已就绪。** 直接对话，或用 `/today`、`/graduate`、`/intel` 等命令——成品会写回笔记。",
+    "agentConnecting": "正在连接思考引擎，请稍候…",
+    "agentNoAgent": "尚未检测到已启用的 AI 助手。**没有 CLI，MetaMates 只能当笔记仓库**——请在右侧点击「安装 AI 助手」，或打开 **设置 → AI** 完成安装。",
+    "commandsTitle": "常用命令（读仓库 → 加工 → 写回）",
+    "commandsBody": "| 命令 | 适合你什么时候用 |\n|------|------------------|\n| `/today` | 晨起或开工前：从仓库拉上下文，生成今日计划 |\n| `/closeday` | 收工前：复盘今天，埋下明日伏笔 |\n| `/graduate` | 收件箱里某条灵感值得长期保留时 |\n| `/intel` | 看到好文章/资料，剪进仓库做情报笔记 |\n| `/context` | 开工某项目前，让 AI 先读完相关笔记 |\n\n完整列表见右上角 **?** 帮助。",
     "tipsTitle": "快捷操作",
-    "tipsBody": "- **`Ctrl+P`** 命令面板（新建笔记、导入情报等）\n- **`Ctrl+Shift+F`** 全局搜索\n- **`@`** 在对话中引用某个文件\n- **`[[笔记名]]`** 在笔记间建立双向链接\n- 右侧 **麦克风** 语音输入（需允许麦克风；Windows 桌面版通常需联网）"
+    "tipsBody": "- **`Ctrl+P`** 命令面板（新建笔记、导入情报等）\n- **`Ctrl+Shift+F`** 全局搜索仓库里的碎片\n- **`@`** 在对话中引用某个文件，让引擎带着上下文回答\n- **`[[笔记名]]`** 在笔记间建立双向链接\n- 右侧 **麦克风** 语音输入（需允许麦克风；Windows 桌面版通常需联网）"
   },
   "table": {
     "column": "列",
     "content": "内容"
+  },
+  "emptyState": {
+    "eyebrow": "思考引擎",
+    "askAgent": "和 AI 聊这个",
+    "refreshQuestion": "换一个问题",
+    "footerHint": "成品会写回左侧仓库，并在此编辑器中打开供你查看与微调。",
+    "contextLine": {
+      "inbox": "收件箱 {{count}} 条待整理",
+      "planOpen": "PLAN 还有 {{count}} 项未勾 · 下一项：{{task}}",
+      "schedule": "今日 {{count}} 项日程 · 最近：{{time}} {{event}}",
+      "ideas": "最近点子报告：{{report}}"
+    },
+    "questions": {
+      "noWorkspace": "要把灵感放在哪个文件夹？",
+      "noAgent": "仓库已就绪——要不要先连接一个 AI 助手来加工这些笔记？",
+      "authRequired": "助手还没登录——现在完成认证，让引擎读写你的仓库？",
+      "newUser": "打算先从哪件事开始：今日计划、整理收件箱，还是升级一条灵感？",
+      "morningNoPlan": "早上好——今天还没有 PLAN，要从仓库里拉一份今日计划吗？",
+      "morningNoPlanGentle": "你已经准备开工了，但今天的抓手还没落下来。要不要先让我替你收一版 PLAN？",
+      "inboxGraduate": "收件箱里有 {{count}} 条碎片——挑几条升级成永久笔记？",
+      "inboxGraduateTheme": "这些碎片还没收束成主题。要不要先挑几条最像在说同一个问题的笔记？",
+      "inboxGraduateGentle": "你最近记下了不少东西，也许现在更需要一次归并，而不是继续往里塞。先收一轮，怎么样？",
+      "continueRecent": "要继续打磨「{{name}}」，还是让引擎帮你换个角度？",
+      "continueRecentDecision": "你最近一直回到「{{name}}」。你现在更缺的是继续写下去，还是先判断它真正卡在哪？",
+      "eveningCloseDay": "收工前——要复盘今天并给明天留个伏笔吗？",
+      "eveningCloseDayGentle": "今天已经推进了一些内容，现在也许最值得留下的，不是更多输入，而是一句能接住明天的话。",
+      "eveningNoNote": "今天还没写日记——用几分钟记下此刻的想法？",
+      "eveningNoNoteGentle": "今天不是没发生事，只是还没被你留住。要不要先把最关键的一点写下来？",
+      "reviewPlan": "今日计划已在仓库里——要对照计划看看推进得怎样？",
+      "reviewPlanTension": "计划已经有了，真正的问题可能不是‘做什么’，而是‘还有哪件最重要的事没被推进’。",
+      "afternoonNoPlan": "下午了，今日计划还没写——现在从仓库生成一份？",
+      "afternoonNoPlanFocus": "你今天大概已经在做事了，但还没有一个能收束注意力的抓手。先钉住最重要的几件，怎么样？",
+      "planOpenTasks": "PLAN 里「{{task}}」还没动——是缺时间，还是其实还没想清楚要不要做？",
+      "planOpenTasksTension": "计划写了 {{count}} 项还没勾。今天真正卡住你的，是执行，还是优先级没定？",
+      "planOpenTasksGentle": "你已经有一份今日 PLAN 了。要不要先推进「{{task}}」，让今天有一个清晰的开局？",
+      "scheduleToday": "今天有 {{count}} 项日程——「{{event}}」之前，你最想先推进哪一件事？",
+      "scheduleTodayTension": "日历已经排满了，但 PLAN 里还有未勾项。现在是在赶日程，还是在推进真正重要的事？",
+      "ideasBrewing": "「{{report}}」里有些点子还没落地——哪一个最值得今天先动一步？",
+      "ideasBrewingFocus": "你最近在酝酿新想法。现在更缺的是再收集，还是选一个点子把它推过决策线？",
+      "welcomeBack": "接下来想推进什么：写、整理，还是和引擎聊一句？",
+      "welcomeBackFocus": "你回来了，但现在也许不是缺选项，而是缺一个最值得推进的焦点。要不要先把它挑出来？"
+    },
+    "prefill": {
+      "noWorkspace": "我想打开一个工作区文件夹来存放笔记",
+      "noAgent": "帮我检查并连接可用的 AI 助手",
+      "authRequired": "帮我完成 AI 助手登录",
+      "newUser": "我是新用户，帮我用 /today 生成第一份今日计划",
+      "morningNoPlan": "请根据我的仓库上下文，运行 /today 生成今日计划",
+      "inboxGraduate": "请查看收件箱，帮我挑选值得升级的笔记并运行 /graduate",
+      "continueRecent": "我想继续完善「{{name}}」，请先读相关笔记再给建议",
+      "eveningCloseDay": "请根据今天的日记和计划，运行 /closeday 做收工复盘",
+      "eveningNoNote": "帮我写今天的日记要点，并建议是否需要更新计划",
+      "reviewPlan": "请阅读今日 PLAN，帮我看看还有哪些事项需要推进",
+      "afternoonNoPlan": "请运行 /today，根据仓库现状生成今日计划",
+      "planOpenTasks": "请阅读今日 PLAN，帮我判断「{{task}}」现在是否值得优先推进，并给出下一步",
+      "scheduleToday": "请结合我今天的日程和 PLAN，建议现在最该推进的一件事",
+      "ideasBrewing": "请阅读「{{report}}」和相关笔记，帮我挑一个最值得今天动手的点子",
+      "welcomeBack": "根据我最近的笔记，建议我现在最适合做的一件事"
+    },
+    "agentStatus": {
+      "ready": "引擎已就绪",
+      "connecting": "引擎连接中",
+      "authRequired": "需要登录助手",
+      "noAgent": "未检测到 AI 助手",
+      "idle": "引擎待命"
+    },
+    "actions": {
+      "openWorkspace": {
+        "title": "打开工作区",
+        "description": "选择存放日记、收件箱与项目笔记的文件夹"
+      },
+      "learnEngine": {
+        "title": "了解引擎能做什么",
+        "description": "连接 AI 后，对话与命令会读写同一仓库"
+      },
+      "installAgent": {
+        "title": "安装 AI 助手",
+        "description": "没有 CLI 时只能存笔记，无法自动整理与写计划"
+      },
+      "authAgent": {
+        "title": "完成助手登录",
+        "description": "登录后即可让引擎读取并写回你的文件"
+      },
+      "today": {
+        "title": "生成今日计划（/today）",
+        "description": "从仓库拉上下文，写出今天的 PLAN"
+      },
+      "closeday": {
+        "title": "今日复盘（/closeday）",
+        "description": "收工前复盘今天，埋下明日伏笔"
+      },
+      "chat": {
+        "title": "和 AI 说一句",
+        "description": "描述你现在想做的事，引擎会读仓库并写回成品"
+      },
+      "graduate": {
+        "title": "整理收件箱（/graduate）",
+        "description": "有 {{count}} 条 Inbox 笔记可升级"
+      },
+      "openTodayPlan": {
+        "title": "打开今日计划",
+        "description": "查看或微调今天的 PLAN 文件"
+      },
+      "recent": {
+        "title": "继续：{{name}}",
+        "description": "打开你最近编辑的笔记"
+      },
+      "intel": {
+        "title": "剪藏资料（/intel）",
+        "description": "把链接或文档变成情报笔记写入仓库"
+      }
+    }
   }
 }

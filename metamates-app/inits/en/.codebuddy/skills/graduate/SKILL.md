@@ -8,8 +8,8 @@ allowed-tools: Read, Glob, Grep, Write
 
 Please perform the following tasks:
 
-1. **Scan Journals**: Read `01_Log_and_Plan/` records from the last 14 days.
-2. **Identify Upgradable Insights**: Find fragmented thoughts worth expanding into standalone articles.
+1. **Scan Journals & Inbox**: Read `01_Log_and_Plan/` journals from the last 14 days, plus unprocessed captures in `01_Log_and_Plan/Inbox/` (skip `Inbox/processed/`).
+2. **Identify Upgradable Insights**: Find fragmented thoughts in journals and Inbox worth expanding into standalone articles.
 3. **Create Permanent Notes**: Create standalone Zettel notes in `03_Insights/`.
 4. **Backlinking**: Add links to the new notes in the original journals.
 
@@ -43,9 +43,12 @@ Please perform the following tasks:
 ```
 
 ---
-**Protocol Source**: Metamates CODEBUDDY.md
+**Protocol Source**: MetaMates CODEBUDDY.md
 
-## Memory & vault boundary (Metamates required)
+
+> **Inbox archive**: List **full paths** for Inbox sources (for example `01_Log_and_Plan/Inbox/xxx.md`). After successful writeback, MetaMates auto-moves cited Inbox files to `Inbox/processed/`.
+
+## Memory & vault boundary (MetaMates required)
 
 - Mirror user-facing long-term memory to `04_Intelligence/Memory_Index.md` (details under `04_Intelligence/Reference/`)
 - **Never** write only to `~/.codebuddy`, CLI caches, or paths outside the vault

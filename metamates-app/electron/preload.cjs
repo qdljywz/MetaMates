@@ -1,8 +1,54 @@
-const { contextBridge, ipcRenderer } = require('electron')
+const { contextBridge, ipcRenderer, clipboard } = require('electron')
+
+let simulateVoiceTranscriptFn = null
+let simulateGraduateArchiveFn = null
+let simulateSlashWritebackOpenFn = null
+let setAutoSaveFn = null
+let simulateExternalFileRemovedFn = null
+/** @type {Array<{ canceled: boolean, filePaths: string[] }>} */
+let mockSelectDirectoryQueue = []
 
 contextBridge.exposeInMainWorld('__METAMATES_E2E__', {
   enabled: process.env.METAMATES_E2E === '1',
   workspace: process.env.METAMATES_WORKSPACE || '',
+  noAgents: process.env.METAMATES_E2E_NO_AGENTS === '1',
+  registerSimulateVoiceTranscript(fn) {
+    simulateVoiceTranscriptFn = typeof fn === 'function' ? fn : null
+  },
+  simulateVoiceTranscript(text) {
+    simulateVoiceTranscriptFn?.(text)
+  },
+  registerSimulateGraduateArchive(fn) {
+    simulateGraduateArchiveFn = typeof fn === 'function' ? fn : null
+  },
+  async simulateGraduateInboxArchive(sourceTexts) {
+    return simulateGraduateArchiveFn?.(sourceTexts) ?? { moved: [], skipped: [] }
+  },
+  registerSimulateSlashWritebackOpen(fn) {
+    simulateSlashWritebackOpenFn = typeof fn === 'function' ? fn : null
+  },
+  async simulateSlashWritebackOpen(cmdId) {
+    return simulateSlashWritebackOpenFn?.(cmdId) ?? null
+  },
+  registerSetAutoSave(fn) {
+    setAutoSaveFn = typeof fn === 'function' ? fn : null
+  },
+  setAutoSave(enabled) {
+    setAutoSaveFn?.(enabled)
+  },
+  registerSimulateExternalFileRemoved(fn) {
+    simulateExternalFileRemovedFn = typeof fn === 'function' ? fn : null
+  },
+  async simulateExternalFileRemoved(filePath) {
+    return simulateExternalFileRemovedFn?.(filePath)
+  },
+  queueSelectDirectory(result) {
+    if (process.env.METAMATES_E2E !== '1') return
+    mockSelectDirectoryQueue.push(result)
+  },
+  clearSelectDirectoryQueue() {
+    mockSelectDirectoryQueue = []
+  },
 })
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -13,11 +59,37 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeFile: (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
   listFiles: (dirPath, recursive) => ipcRenderer.invoke('list-files', dirPath, recursive),
   deleteFile: (filePath) => ipcRenderer.invoke('delete-file', filePath),
-  selectDirectory: () => ipcRenderer.invoke('select-directory'),
+  selectDirectory: () => {
+    if (process.env.METAMATES_E2E === '1' && mockSelectDirectoryQueue.length > 0) {
+      return Promise.resolve(mockSelectDirectoryQueue.shift())
+    }
+    return ipcRenderer.invoke('select-directory')
+  },
   selectFile: (filters) => ipcRenderer.invoke('select-file', filters),
   saveFileDialog: () => ipcRenderer.invoke('save-file-dialog'),
   fileExists: (filePath) => ipcRenderer.invoke('file-exists', filePath),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  writeClipboardText: (text) => {
+    clipboard.writeText(String(text ?? ''))
+    return true
+  },
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getDatabaseStatus: () => ipcRenderer.invoke('get-database-status'),
+  waitDesktopReady: () => ipcRenderer.invoke('wait-desktop-ready'),
+  onDesktopReady: (callback) => {
+    const handler = () => callback()
+    ipcRenderer.on('desktop-ready', handler)
+    return () => ipcRenderer.removeListener('desktop-ready', handler)
+  },
+  updater: {
+    check: () => ipcRenderer.invoke('updater-check'),
+    quitAndInstall: () => ipcRenderer.invoke('updater-quit-and-install'),
+    onStatus: (callback) => {
+      const handler = (_event, data) => callback(data)
+      ipcRenderer.on('updater-status', handler)
+      return () => ipcRenderer.removeListener('updater-status', handler)
+    },
+  },
   createDirectory: (dirPath) => ipcRenderer.invoke('create-directory', dirPath),
   getFileStats: (filePath) => ipcRenderer.invoke('get-file-stats', filePath),
   renameFile: (oldPath, newPath) => ipcRenderer.invoke('rename-file', oldPath, newPath),
@@ -66,22 +138,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   pathResolve: (...paths) => ipcRenderer.invoke('path-resolve', paths),
   pathRelative: (from, to) => ipcRenderer.invoke('path-relative', from, to),
   
-  terminal: {
-    start: (cwd) => ipcRenderer.invoke('terminal-start', cwd),
-    input: (pid, data) => ipcRenderer.invoke('terminal-input', pid, data),
-    resize: (pid, cols, rows) => ipcRenderer.invoke('terminal-resize', pid, cols, rows),
-    kill: (pid) => ipcRenderer.invoke('terminal-kill', pid),
-    onOutput: (callback) => {
-      ipcRenderer.on('terminal-output', (event, data) => callback(data))
-    },
-    removeOutputListener: () => {
-      ipcRenderer.removeAllListeners('terminal-output')
-    },
-    removeListeners: () => {
-      ipcRenderer.removeAllListeners('terminal-output')
-    }
-  },
-  
   onFileChanged: (callback) => {
     ipcRenderer.on('file-changed', (event, data) => callback(data))
   },
@@ -123,6 +179,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isAvailable: () => ipcRenderer.invoke('speech-is-available'),
     start: (language) => ipcRenderer.invoke('speech-start', language),
     stop: () => ipcRenderer.invoke('speech-stop'),
+    ...(process.env.METAMATES_E2E === '1'
+      ? {
+          e2eInject: (update) => ipcRenderer.invoke('speech-e2e-inject', update),
+        }
+      : {}),
     onTranscript: (callback) => {
       const handler = (_event, data) => callback(data)
       ipcRenderer.on('speech-transcript', handler)
@@ -168,7 +229,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getAllConnectionStatuses: () => ipcRenderer.invoke('get-all-connection-statuses'),
     invalidateCloudReachability: (backendId) => ipcRenderer.invoke('invalidate-cloud-reachability', backendId),
     warmupAllAgents: () => ipcRenderer.invoke('warmup-all-agents'),
-    cancelPrompt: () => ipcRenderer.send('cancel-prompt'),
+    cancelPrompt: (backendId) => ipcRenderer.send('cancel-prompt', backendId ? { backend: backendId } : undefined),
     
     onBackendReady: (callback) => {
       const handler = (_event, data) => callback(data)

@@ -4,13 +4,15 @@ import {
   getRelativeVaultPath,
   getVaultNodeKey,
   hasDotPathSegment,
+  isHiddenFromFileTree,
+  filterMarkdownFilesForFileTree,
   isLivingControlFile,
   isSkillConfigPath,
   isStaticTemplateFile,
   isVaultContentFile,
 } from './vaultPaths'
 
-const WS = 'E:/Trae/Metamates/Test/test0407'
+const WS = 'E:/Trae/MetaMates/Test/test0407'
 
 describe('vaultPaths', () => {
   it('getRelativeVaultPath 应解析 Windows 绝对路径', () => {
@@ -22,6 +24,26 @@ describe('vaultPaths', () => {
   it('hasDotPathSegment 应识别 dot 目录', () => {
     expect(hasDotPathSegment('.codex/skills/foo/SKILL.md')).toBe(true)
     expect(hasDotPathSegment('01_日记与计划/a.md')).toBe(false)
+  })
+
+  it('isHiddenFromFileTree 应隐藏 CLI 配置目录与根 Agent 文件', () => {
+    expect(isHiddenFromFileTree(WS, `${WS}/.claude`)).toBe(true)
+    expect(isHiddenFromFileTree(WS, `${WS}/.codebuddy/skills/foo`)).toBe(true)
+    expect(isHiddenFromFileTree(WS, `${WS}/.claude/skills/challenge.md`)).toBe(true)
+    expect(isHiddenFromFileTree(WS, `${WS}/GEMINI.md`)).toBe(true)
+    expect(isHiddenFromFileTree(WS, `${WS}/01_日记与计划/2026-06-22.md`)).toBe(false)
+    expect(isHiddenFromFileTree(WS, `${WS}/05_模板与配置/Master_Control.md`)).toBe(false)
+  })
+
+  it('filterMarkdownFilesForFileTree 应与文件树可见范围一致', () => {
+    const files = [
+      { name: 'challenge.md', path: `${WS}/.claude/skills/challenge.md` },
+      { name: 'context.md', path: `${WS}/.codex/skills/context.md` },
+      { name: 'note.md', path: `${WS}/02_项目与知识/note.md` },
+      { name: 'GEMINI.md', path: `${WS}/GEMINI.md` },
+    ]
+    const visible = filterMarkdownFilesForFileTree(WS, files)
+    expect(visible.map((f) => f.name)).toEqual(['note.md'])
   })
 
   it('isSkillConfigPath 应识别 skills 与 SKILL.md', () => {
@@ -46,6 +68,13 @@ describe('vaultPaths', () => {
     expect(isVaultContentFile(WS, `${WS}/05_模板与配置/Master_Control.md`, 'zh')).toBe(true)
     expect(isVaultContentFile(WS, `${WS}/01_日记与计划/2026-06-22.md`, 'zh')).toBe(true)
     expect(isVaultContentFile(WS, `${WS}/README.md`, 'zh')).toBe(false)
+  })
+
+  it('isVaultContentFile 应排除根目录 Agent 配置', () => {
+    expect(isVaultContentFile(WS, `${WS}/GEMINI.md`, 'zh')).toBe(false)
+    expect(isVaultContentFile(WS, `${WS}/CLAUDE.md`, 'zh')).toBe(false)
+    expect(isVaultContentFile(WS, `${WS}/CODEBUDDY.md`, 'zh')).toBe(false)
+    expect(isVaultContentFile(WS, `${WS}/AI_Commands_Prompt.md`, 'zh')).toBe(false)
   })
 
   it('getVaultNodeKey 应使用路径级 ID', () => {

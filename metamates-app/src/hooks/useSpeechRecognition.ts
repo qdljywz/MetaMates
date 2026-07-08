@@ -5,8 +5,10 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { mapNativeSpeechError } from '../utils/voiceTranscript'
 
 type SpeechRecognitionCtor = new () => SpeechRecognition
+type SpeechBackend = 'pending' | 'native' | 'web' | 'none'
 
 /** Errors where auto-restart makes things worse. */
 const FATAL_SPEECH_ERRORS = new Set([
@@ -43,17 +45,6 @@ interface UseSpeechRecognitionOptions {
   onError?: (code: string) => void
 }
 
-function mapNativeSpeechError(message: string): string {
-  const lower = message.toLowerCase()
-  if (lower.includes('access') || lower.includes('denied') || lower.includes('permission')) {
-    return 'not-allowed'
-  }
-  if (lower.includes('network') || lower.includes('google')) {
-    return 'network'
-  }
-  return 'native-failed'
-}
-
 export function useSpeechRecognition({
   language,
   onTranscript,
@@ -61,10 +52,10 @@ export function useSpeechRecognition({
 }: UseSpeechRecognitionOptions) {
   const [isListening, setIsListening] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
+  const [speechBackend, setSpeechBackend] = useState<SpeechBackend>('pending')
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const listeningRef = useRef(false)
-  const nativeModeRef = useRef(false)
   const onTranscriptRef = useRef(onTranscript)
   const onErrorRef = useRef(onError)
 
@@ -98,17 +89,24 @@ export function useSpeechRecognition({
     let cancelled = false
 
     const detectSupport = async () => {
-      const native = await window.electronAPI?.speech?.isAvailable?.()
-      if (native?.available) {
-        if (!cancelled) {
-          nativeModeRef.current = true
-          setIsSupported(true)
+      if (isElectronEnvironment()) {
+        try {
+          const native = await window.electronAPI?.speech?.isAvailable?.()
+          if (cancelled) return
+          if (native?.available) {
+            setSpeechBackend('native')
+            setIsSupported(true)
+            return
+          }
+        } catch {
+          /* fall through to web */
         }
-        return
       }
 
-      nativeModeRef.current = false
-      if (!cancelled) setIsSupported(!!getSpeechRecognitionCtor())
+      if (cancelled) return
+      const webAvailable = !!getSpeechRecognitionCtor()
+      setSpeechBackend(webAvailable ? 'web' : 'none')
+      setIsSupported(webAvailable)
     }
 
     void detectSupport()
@@ -118,7 +116,7 @@ export function useSpeechRecognition({
   }, [])
 
   useEffect(() => {
-    if (nativeModeRef.current) return undefined
+    if (speechBackend !== 'web') return undefined
 
     const Ctor = getSpeechRecognitionCtor()
     if (!Ctor) return undefined
@@ -178,32 +176,22 @@ export function useSpeechRecognition({
       teardownWebRecognition()
       releaseMic()
     }
-  }, [language, releaseMic, teardownWebRecognition])
+  }, [speechBackend, language, releaseMic, teardownWebRecognition])
 
   const stopNative = useCallback(async () => {
     listeningRef.current = false
     setIsListening(false)
-    releaseMic()
     await window.electronAPI?.speech?.stop?.()
-  }, [releaseMic])
+  }, [])
 
   const startNative = useCallback(async () => {
     const api = window.electronAPI?.speech
     if (!api) return false
 
-    if (navigator.mediaDevices?.getUserMedia) {
-      try {
-        releaseMic()
-        mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true })
-      } catch {
-        onErrorRef.current?.('not-allowed')
-        return true
-      }
-    }
-
+    // Native System.Speech opens the default mic in the main process; do not
+    // hold the device here or Windows recognition fails silently.
     const result = await api.start(speechLangFromI18n(language))
     if (!result.success) {
-      releaseMic()
       onErrorRef.current?.('native-failed')
       return true
     }
@@ -211,7 +199,7 @@ export function useSpeechRecognition({
     listeningRef.current = true
     setIsListening(true)
     return true
-  }, [language, releaseMic])
+  }, [language])
 
   const stopWeb = useCallback(() => {
     listeningRef.current = false
@@ -268,7 +256,7 @@ export function useSpeechRecognition({
   }, [language, releaseMic])
 
   useEffect(() => {
-    if (!nativeModeRef.current) return undefined
+    if (speechBackend !== 'native') return undefined
     const api = window.electronAPI?.speech
     if (!api) return undefined
 
@@ -276,9 +264,9 @@ export function useSpeechRecognition({
       onTranscriptRef.current(data)
     })
     const offError = api.onError?.((data) => {
+      if (!listeningRef.current) return
       listeningRef.current = false
       setIsListening(false)
-      releaseMic()
       onErrorRef.current?.(mapNativeSpeechError(data.message ?? data.code))
     })
 
@@ -287,23 +275,23 @@ export function useSpeechRecognition({
       offError?.()
       void api.stop?.()
     }
-  }, [releaseMic])
+  }, [speechBackend])
 
   const stop = useCallback(() => {
-    if (nativeModeRef.current) {
+    if (speechBackend === 'native') {
       void stopNative()
       return
     }
     stopWeb()
-  }, [stopNative, stopWeb])
+  }, [speechBackend, stopNative, stopWeb])
 
   const start = useCallback(async () => {
-    if (nativeModeRef.current) {
+    if (speechBackend === 'native') {
       await startNative()
       return
     }
     await startWeb()
-  }, [startNative, startWeb])
+  }, [speechBackend, startNative, startWeb])
 
   const toggle = useCallback(() => {
     if (isListening) {

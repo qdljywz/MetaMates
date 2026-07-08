@@ -46,8 +46,6 @@
 [data-color-scheme="cyberpunk"] .cm-editor { background: var(--canvas-surface) !important; color: var(--text-primary) !important; font-family: 'JetBrains Mono', monospace !important; }
 [data-color-scheme="cyberpunk"] .cm-gutters { background: var(--canvas-elevated) !important; border-right: 1px solid var(--divider) !important; color: var(--text-muted) !important; font-size: 11px !important; opacity: 0.5; }
 [data-color-scheme="cyberpunk"] .cm-line { color: var(--text-primary) !important; padding: 0 10px !important; }
-[data-color-scheme="cyberpunk"] .cm-selectionBackground { background: rgba(34, 211, 238, 0.15) !important; }
-
 [data-color-scheme="cyberpunk"] .status-bar {
   background: var(--canvas-elevated);
   border-top: 1px solid var(--divider);

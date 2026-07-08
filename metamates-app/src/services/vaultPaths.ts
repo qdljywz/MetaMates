@@ -6,6 +6,7 @@ import {
   WORKSPACE_FILES,
   WORKSPACE_LAYOUT,
   getTemplatesDir,
+  AGENT_ROOT_CONFIG_FILES,
   type WorkspaceLanguage,
 } from '../constants/paths'
 
@@ -108,6 +109,46 @@ export function isIntelligenceSourcesPath(relativePath: string, language: Worksp
 }
 
 /**
+ * 侧栏文件树中隐藏的路径（CLI 配置层，非用户知识）
+ * @param workspacePath - 工作区根
+ * @param filePath - 文件或目录绝对路径
+ */
+export function isHiddenFromFileTree(workspacePath: string, filePath: string): boolean {
+  const rel = getRelativeVaultPath(workspacePath, filePath)
+  if (!rel || rel.includes('..')) return false
+  if (hasDotPathSegment(rel)) return true
+  return isRootAgentConfigFile(rel)
+}
+
+/** 侧栏文件树中应显示的路径（用户笔记层，非 CLI / Agent 配置） */
+export function isVisibleInFileTree(workspacePath: string, filePath: string): boolean {
+  return !isHiddenFromFileTree(workspacePath, filePath)
+}
+
+/** 与文件树一致：仅保留用户可见的 Markdown 文件 */
+export function filterMarkdownFilesForFileTree<T extends { path: string; name: string; isDirectory?: boolean }>(
+  workspacePath: string,
+  files: readonly T[],
+): T[] {
+  return files.filter(
+    (file) =>
+      !file.isDirectory &&
+      /\.md$/i.test(file.name) &&
+      isVisibleInFileTree(workspacePath, file.path),
+  )
+}
+
+/**
+ * 工作区根目录 Agent 配置（GEMINI.md / CLAUDE.md 等，init 时复制，非用户知识）
+ */
+export function isRootAgentConfigFile(relativePath: string): boolean {
+  const norm = normalizeVaultPath(relativePath)
+  if (norm.includes('/')) return false
+  const lower = norm.toLowerCase()
+  return AGENT_ROOT_CONFIG_FILES.some((name) => name.toLowerCase() === lower)
+}
+
+/**
  * 是否属于知识层（应进入索引 / 图谱 / 链接债务）
  * @param workspacePath - 工作区根
  * @param filePath - 文件绝对路径
@@ -125,6 +166,7 @@ export function isVaultContentFile(
 
   if (hasDotPathSegment(rel)) return false
   if (isSkillConfigPath(rel)) return false
+  if (isRootAgentConfigFile(rel)) return false
   if (isIntelligenceSourcesPath(rel, language)) return false
   if (isLivingControlFile(rel, language)) return true
   if (isStaticTemplateFile(rel, language)) return false

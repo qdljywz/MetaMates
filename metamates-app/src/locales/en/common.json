@@ -1,8 +1,12 @@
 {
   "app": {
-    "name": "Metamates",
+    "name": "MetaMates",
     "title": "Intelligent Personal Assistant",
     "subtitle": "Local knowledge workspace"
+  },
+  "brand": {
+    "sloganShort": "Private inspiration vault + thinking engine",
+    "sloganFull": "**Private inspiration vault + thinking engine.** Capture fragments first; say one sentence to AI on the right to get started—plans, insights, and upgraded notes are written back to local files, not lost in chat."
   },
   "actions": {
     "save": "Save",
@@ -67,6 +71,17 @@
     "selectWorkspaceTitle": "Select workspace",
     "selectWorkspaceDesc": "Your notes, diary, and knowledge graph live in this folder",
     "selectWorkspaceButton": "Choose folder",
+    "selectWorkspaceTipsTitle": "Tips",
+    "selectWorkspaceTip1": "Pick an empty folder, or one that already has Markdown notes",
+    "selectWorkspaceTip2": "Do not use the app install directory (inits templates are for first-time setup only)",
+    "selectWorkspaceTip3": "MetaMates will create diary, projects, and intelligence subfolders for you",
+    "startupLoading": "Starting…",
+    "startupLoadingWorkspace": "Loading workspace…",
+    "startupConnectingAgent": "Connecting to {{name}}…",
+    "startupConnectingAgentGeneric": "Connecting thinking engine…",
+    "startupEnteringApp": "Entering app…",
+    "startupAgentTimeout": "Thinking engine still connecting — check Agent panel shortly…",
+    "templateWorkspaceForbidden": "The bundled template (inits/zh or inits/en) cannot be used as your workspace. Choose your own folder (e.g. E:\\MyM2). Templates are only copied when you initialize a new vault.",
     "workspaceSwitching": "Switching to {{name}}…",
     "workspaceReady": "Workspace {{name}} is ready",
     "workspaceChatHint": "Each workspace keeps its own Agent chat history. Switching folders loads that workspace's messages."
@@ -93,6 +108,10 @@
     "fontSize": "Font Size",
     "autoSave": "Auto Save",
     "language": "Language",
+    "timezone": "Timezone",
+    "timezoneRequired": "Timezone is required (IANA format)",
+    "timezoneInvalid": "Invalid timezone, e.g. Asia/Shanghai",
+    "timezoneHint": "Used for daily plan/journal dates and agent time interpretation. Prefer IANA timezone.",
     "testConnection": "Test Connection",
     "save": "Save",
     "cancel": "Cancel",
@@ -117,7 +136,7 @@
     "mobileReaderQrCaption": "Scan to open on phone",
     "mobileReaderLanPending": "Click Save to apply LAN access",
     "mobileReaderSaveToConnect": "Your phone cannot connect until the service is running. Enable Vault API, click Save, then wait for the green running status.",
-    "mobileReaderFirewallHint": "If the phone still cannot connect, allow Metamates or TCP port 17333 in Windows Firewall (Private network).",
+    "mobileReaderFirewallHint": "If the phone still cannot connect, allow MetaMates or TCP port 17333 in Windows Firewall (Private network).",
     "vaultApiNotRunning": "Vault API is not running. Click Save to start it.",
     "vaultApiNoWorkspace": "Open a workspace before enabling Vault API",
     "vaultApiLanHint": "Allow LAN access (phone on same WiFi can capture; trusted networks only)",
@@ -149,7 +168,11 @@
     "actions": "Actions",
     "mcpReconnectHint": "Agent sessions reloaded to apply MCP/Vault changes",
     "mcpReconnectDone": "Agent sessions reloaded",
-    "mcpReconnectPartial": "Some agents failed to reload"
+    "mcpReconnectPartial": "Some agents failed to reload",
+    "tabGeneral": "General",
+    "tabAgent": "Agent",
+    "tabAdvanced": "Advanced",
+    "shortcutHint": "Shortcut: Ctrl+Shift+L cycles light / dark / system theme"
   },
   "search": {
     "placeholder": "Search notes (keyword + semantic)...",
@@ -169,6 +192,11 @@
   },
   "errorBoundary": {
     "title": "Something went wrong",
-    "hint": "Try refreshing or restarting the app. If it persists, check the console logs."
+    "hint": "This panel could not be displayed. Try refreshing, or restart the app.",
+    "reload": "Refresh",
+    "showDetails": "Show technical details",
+    "hideDetails": "Hide details",
+    "copyDetails": "Copy details",
+    "noDetails": "No further details"
   }
 }

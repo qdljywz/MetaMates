@@ -41,10 +41,10 @@ const toolLabels: Record<string, string> = {
 }
 
 const statusIcons: Record<string, React.ReactNode> = {
-  pending: <ToolOutlined style={{ color: '#999' }} />,
-  running: <LoadingOutlined style={{ color: '#1890ff' }} spin />,
-  success: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
-  error: <CloseCircleOutlined style={{ color: '#ff4d4f' }} />,
+  pending: <ToolOutlined style={{ color: 'var(--text-muted)' }} />,
+  running: <LoadingOutlined style={{ color: 'var(--info)' }} spin />,
+  success: <CheckCircleOutlined style={{ color: 'var(--success)' }} />,
+  error: <CloseCircleOutlined style={{ color: 'var(--error)' }} />,
 }
 
 const statusColors: Record<string, string> = {

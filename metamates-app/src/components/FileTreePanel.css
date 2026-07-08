@@ -55,8 +55,22 @@
 /* Content area */
 .file-tree-content {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: var(--space-2) var(--space-3);
+}
+
+.file-tree-search-bar {
+  flex-shrink: 0;
+  padding: 0 var(--space-3) var(--space-2);
+}
+
+.file-tree-activity {
+  flex-shrink: 0;
+  max-height: 42%;
+  overflow-y: auto;
+  border-top: 1px solid var(--divider-strong);
+  background: var(--canvas-surface);
 }
 
 .file-tree-content .ant-tree {

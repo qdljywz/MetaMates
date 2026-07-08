@@ -173,7 +173,7 @@ const AgentSelector: React.FC<AgentSelectorProps> = ({ onConnect, onDisconnect }
     }
     
     const bgColor = agent.logo?.bgColor || getAgentColor(agent.backend)
-    const initial = agent.logo?.initial || getAgentInitial(agent.name)
+    const initial = agent.logo?.initial || getAgentInitial(agent.backend, agent.name)
     
     return (
       <span style={{
@@ -204,14 +204,14 @@ const AgentSelector: React.FC<AgentSelectorProps> = ({ onConnect, onDisconnect }
       <div style={{ 
         marginBottom: 12,
         fontSize: 12,
-        color: isDark ? '#a6adc8' : '#6b7280',
+        color: 'var(--text-muted)',
       }}>
         AI Agents
       </div>
       
       {detectedAgents.length === 0 ? (
         <div style={{ 
-          color: isDark ? '#6b7280' : '#9ca3af', 
+          color: 'var(--text-dim)', 
           fontSize: 12,
           textAlign: 'center',
           padding: '16px 0',
@@ -296,7 +296,7 @@ const AgentSelector: React.FC<AgentSelectorProps> = ({ onConnect, onDisconnect }
             {sessionId && (
               <span style={{
                 fontSize: 10,
-                color: isDark ? '#6b7280' : '#9ca3af',
+                color: 'var(--text-dim)',
               }}>
                 ({sessionId.substring(0, 8)})
               </span>
@@ -375,7 +375,7 @@ const AgentSelector: React.FC<AgentSelectorProps> = ({ onConnect, onDisconnect }
       {loading && connectionStatus === 'connecting' && (
         <div style={{ textAlign: 'center', padding: 16 }}>
           <Spin />
-          <div style={{ marginTop: 8, color: isDark ? '#a6adc8' : '#6b7280', fontSize: 12 }}>
+          <div style={{ marginTop: 8, color: 'var(--text-muted)', fontSize: 12 }}>
             Connecting...
           </div>
         </div>

@@ -80,6 +80,18 @@ export function titleFromSourceFileName(fileName: string): string {
 }
 
 /**
+ * 从用户粘贴的纯文本生成笔记标题（首行或前若干字）
+ */
+export function titleFromPlainText(text: string): string {
+  const firstLine = text
+    .split('\n')
+    .map((line) => line.trim())
+    .find(Boolean)
+  const base = firstLine || text.trim()
+  return base.slice(0, 60) || '文本摘录'
+}
+
+/**
  * 生成情报笔记文件名
  * @param date - YYYY-MM-DD
  * @param title - 标题

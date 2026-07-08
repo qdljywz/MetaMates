@@ -1,7 +1,16 @@
 {
   "empty": {
-    "title": "还没有 AI 助手",
-    "description": "安装并登录 Gemini、Claude 或 CodeBuddy 后，在这里开始对话——这是 Metamates 的主入口。",
+    "panelLabel": "思考引擎",
+    "title": "尚未安装 AI 助手",
+    "valueStatement": "没有 CLI，MetaMates 只能当笔记仓库用——/today、/graduate 等命令与 AI 对话都无法运行。安装助手后，思考引擎才会成为日常起点。",
+    "stepsTitle": "完成安装（约 2 分钟）",
+    "step1": "点击「安装 AI 助手」，选择 Gemini、Claude 或 CodeBuddy",
+    "step2": "按向导完成安装；首次使用需在终端或面板内登录",
+    "step3": "安装完成后在此发消息，或点 /today 生成今日计划",
+    "installButton": "安装 AI 助手",
+    "rescan": "已安装？重新检测",
+    "rescanning": "正在检测…",
+    "description": "安装并登录 Gemini、Claude 或 CodeBuddy 后，在这里开始对话——这是 MetaMates 的主入口。",
     "openSettings": "去设置安装 AI"
   },
   "status": {
@@ -12,6 +21,7 @@
     "connected": "已连接 {{name}}",
     "error": "连接失败：{{error}}",
     "disconnected": "已断开连接",
+    "chatDbUnavailable": "聊天历史库不可用（本地数据库模块未加载）。可运行 npm run rebuild:native 后重启；当前对话仍可使用，但不会保存历史。",
     "reconnected": "已重新连接",
     "authRequired": "需要登录认证",
     "ready": "已检测到 {{name}}，点击输入框开始连接",
@@ -59,6 +69,11 @@
     "voiceStartFailed": "无法启动语音识别，请稍后重试",
     "voiceNativeFailed": "Windows 语音识别启动失败，请检查麦克风权限或系统语音组件"
   },
+  "message": {
+    "copy": "复制消息",
+    "copySuccess": "已复制到剪贴板",
+    "copyFailed": "复制失败，请手动选择文字复制"
+  },
   "sidebar": {
     "expand": "展开 Agent 侧栏",
     "collapse": "收起 Agent 侧栏",
@@ -102,7 +117,7 @@
     "intelFailed": "情报导入失败",
     "intelCreated": "已创建情报笔记：{{name}}",
     "intelEnhancing": "正在由 Agent 深化情报摘要…",
-    "intelNeedInput": "请粘贴网页链接或文件路径"
+    "intelNeedInput": "请粘贴链接、路径或文字，或用 @ 附加文件"
   },
   "auth": {
     "title": "CLI 登录认证",
@@ -128,11 +143,11 @@
   },
   "yoloWarning": {
     "title": "YOLO 模式 — 自动批准工具",
-    "body": "在此模式下，Metamates 将自动批准 Agent 的文件读写与命令执行，不再逐一询问。请确认你信任当前 Agent 且工作区已备份。",
+    "body": "在此模式下，MetaMates 将自动批准 Agent 的文件读写与命令执行，不再逐一询问。请确认你信任当前 Agent 且工作区已备份。",
     "confirm": "启用 YOLO",
     "cancel": "保持当前模式",
     "firstRunTitle": "默认 YOLO 模式 — 请确认",
-    "firstRunBody": "Metamates 默认启用 YOLO：Agent 的文件读写与命令将自动批准，不再逐一询问。若需每次确认，请选择「改用默认模式」。",
+    "firstRunBody": "MetaMates 默认启用 YOLO：Agent 的文件读写与命令将自动批准，不再逐一询问。若需每次确认，请选择「改用默认模式」。",
     "firstRunConfirm": "我了解，继续使用 YOLO",
     "firstRunCancel": "改用默认模式"
   },
@@ -152,8 +167,8 @@
     "openFile": "打开文件",
     "noWorkspace": "请先打开工作区",
     "fileNotFound": "找不到文件：{{path}}",
-    "outsideWorkspace": "该路径在工作区（Vault）之外，Metamates 无法在此打开：{{path}}",
-    "outsideWorkspaceHint": "⚠️ Agent 写入了 Vault 外路径（Metamates 只管理你的 Obsidian 工作区）：{{path}}",
+    "outsideWorkspace": "该路径在工作区（Vault）之外，MetaMates 无法在此打开：{{path}}",
+    "outsideWorkspaceHint": "⚠️ Agent 写入了 Vault 外路径（MetaMates 只管理你的 Obsidian 工作区）：{{path}}",
     "status": {
       "inProgress": "执行中",
       "completed": "已完成",
@@ -170,8 +185,15 @@
   },
   "writeback": {
     "verified": "/{{cmd}} 写回已验证",
+    "verifiedOpened": "已写入 {{file}}，已在编辑器打开",
     "verifiedDetail": "✅ /{{cmd}} 写回已验证（Act & Verify）：{{paths}}",
     "failed": "/{{cmd}} 写回未完成",
-    "failedDetail": "⚠️ /{{cmd}} 预期写回至 {{paths}}，但未检测到近期更新：{{detail}}"
+    "failedDetail": "⚠️ /{{cmd}} 预期写回至 {{paths}}，但未检测到近期更新：{{detail}}",
+    "detailStaleMtime": "文件已存在，但本轮 /{{cmd}} 没有更新它（Agent 可能只在聊天里回复，未写入磁盘）",
+    "detailEmpty": "目标文件为空",
+    "detailMissing": "目标文件不存在",
+    "detailNoRecentNotes": "目录下没有近期新建或更新的笔记",
+    "detailNotUpdated": "文件未被更新",
+    "inboxArchived": "已将 {{count}} 条 Inbox 剪藏移至 processed/"
   }
 }

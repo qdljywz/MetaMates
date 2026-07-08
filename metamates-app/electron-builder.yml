@@ -1,18 +1,45 @@
 appId: com.metamates.app
-productName: Metamates
-copyright: Copyright © 2026 Metamates
+productName: MetaMates
+copyright: Copyright © 2026 MetaMates Team
 
-npmRebuild: false
+# Keep only UI locales we ship (drops ~30–40 MB of Chromium .pak files on Windows).
+electronLanguages:
+  - en-US
+  - zh-CN
+
+# electron-builder runs @electron/rebuild; we also rebuild explicitly before pack.
+npmRebuild: true
 
 directories:
-  output: dist-release-v8
+  output: release
   buildResources: build
 
+# dependencies = main-process runtime only (SQLite, document extract).
+# UI libraries are devDependencies and ship inside dist/ via Vite.
 files:
   - dist/**/*
   - dist-electron/**/*
   - package.json
-  - inits/**/*
+  - node_modules/better-sqlite3/**/*
+  - node_modules/bindings/**/*
+  - node_modules/file-uri-to-path/**/*
+  - "!node_modules/@ant-design/**"
+  - "!node_modules/antd/**"
+  - "!node_modules/react/**"
+  - "!node_modules/react-dom/**"
+  - "!node_modules/three/**"
+  - "!node_modules/codemirror/**"
+  - "!node_modules/@codemirror/**"
+  - "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}"
+  - "!.editorconfig"
+  - "!**/._*"
+  - "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,__pycache__,thumbs.db,.gitignore,.gitattributes}"
+  - "!**/{test,__tests__,tests,powered-test,example,examples,demo,demos}"
+  - "!**/*.map"
+
+asarUnpack:
+  - "**/*.node"
+  - "**/node_modules/better-sqlite3/**"
 
 extraMetadata:
   main: dist-electron/main.cjs
@@ -20,8 +47,22 @@ extraMetadata:
 extraResources:
   - from: inits
     to: inits
+    filter:
+      - "**/*"
   - from: build
     to: build
+    filter:
+      - icon.ico
+      - icon.icns
+      - icon.png
+  - from: scripts/vault-mcp-bridge.mjs
+    to: scripts/vault-mcp-bridge.mjs
+  - from: scripts/ollama-acp-bridge.mjs
+    to: scripts/ollama-acp-bridge.mjs
+  - from: public/assets
+    to: assets
+    filter:
+      - "**/*"
 
 win:
   target:
@@ -29,26 +70,48 @@ win:
       arch:
         - x64
   icon: build/icon.ico
+  artifactName: MetaMates-${version}-win-${arch}.${ext}
+  legalTrademarks: MetaMates
 
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  allowElevation: true
+  perMachine: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  shortcutName: MetaMates
+  uninstallDisplayName: MetaMates
+  runAfterFinish: true
   license: LICENSE
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
 
 mac:
   target:
     - target: dmg
       arch:
-        - x64
         - arm64
-  category: public.app-category.productivity
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
   icon: build/icon.icns
+  artifactName: MetaMates-${version}-mac-${arch}.${ext}
+  category: public.app-category.productivity
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: MetaMates uses the microphone for voice input in the chat panel.
+    NSCameraUsageDescription: MetaMates does not use the camera.
 
 dmg:
+  title: MetaMates ${version}
+  icon: build/icon.icns
   contents:
     - x: 130
       y: 220
@@ -64,5 +127,10 @@ linux:
         - x64
   category: Office
   icon: build/icon.png
+  artifactName: MetaMates-${version}-linux-${arch}.${ext}
 
-publish: null
+publish:
+  provider: github
+  owner: qdljywz
+  repo: MetaMates
+  releaseType: release

@@ -67,6 +67,7 @@
     "renameSuccess": "重命名成功",
     "renameFailed": "重命名失败",
     "deleteSuccess": "删除成功",
+    "deleteAlreadyGone": "文件已不存在，已关闭相关标签",
     "deleteFailed": "删除失败",
     "copySuccess": "已复制到剪贴板",
     "reinitFailed": "同步失败",
@@ -80,11 +81,23 @@
   "reinitWorkspace": "同步默认目录",
   "migrateWorkspace": "迁移旧版路径",
   "dailyCalendar": {
-    "title": "日记日历",
+    "title": "活动日历",
+    "subtitle": "橙点=该日已有日记，蓝点=该日已有 PLAN；底色=当天有文件编辑。下方列表按实际修改时间列出。",
+    "legendNote": "日记",
+    "legendPlan": "PLAN",
+    "legendEdits": "有编辑",
     "openExisting": "打开日记",
     "openOrCreate": "打开或创建日记",
     "today": "今天",
     "recent": "最近日记",
-    "openPlanHint": "点击打开日记，Shift+点击打开 PLAN"
+    "openPlanHint": "点击打开日记，Shift+点击打开 PLAN",
+    "dateHint": "单击查看当日编辑 · 双击打开日记 · Shift+单击打开 PLAN",
+    "editedToday": "今日编辑",
+    "editedOn": "{{date}} 编辑",
+    "fileCount": "{{count}} 个文件",
+    "openDiary": "日记",
+    "openPlan": "PLAN",
+    "noEdits": "这一天没有检测到文件编辑记录",
+    "openInGraph": "在图谱中查看"
   }
 }

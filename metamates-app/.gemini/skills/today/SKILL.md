@@ -1,7 +1,7 @@
 ﻿---
 name: today
 description: 根据日记、日历和任务列表，生成按优先级排序的今日行动方案
-allowed-tools: Read, Glob, Grep
+allowed-tools: Read, Write, Glob, Grep
 ---
 
 # 📅 今日计划 (Today)

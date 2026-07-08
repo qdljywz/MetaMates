@@ -74,7 +74,7 @@
 | 2.1 | 配置 electron-builder | ✅ 完成 | electron-builder.yml |
 | 2.2 | 创建 LICENSE 文件 | ✅ 完成 | MIT 协议 |
 | 2.3 | 修复 TypeScript 错误 | ✅ 完成 | path API Promise 问题 |
-| 2.4 | 生成 Windows 可执行文件 | ✅ 完成 | dist-release-v2/win-unpacked/Metamates.exe |
+| 2.4 | 生成 Windows 可执行文件 | ✅ 完成 | dist-release-v2/win-unpacked/MetaMates.exe |
 | 2.5 | 功能验证 | ✅ 完成 | 关系图谱、文件树功能正常 |
 
 ### 实施记录
@@ -96,11 +96,10 @@
 
 4. 打包成功生成 Windows 可执行文件
 
-**打包输出位置**：
-- `dist-release-v2/win-unpacked/Metamates.exe`
+**打包输出位置**（electron-builder 默认）：
 
-**Git 标签**：
-- `v0.1-beta` (ba17bef)
+- `release/win-unpacked/MetaMates.exe`（Windows）
+- `release/*.dmg` / `release/*.exe`（安装包）
 
 ---
 
@@ -119,7 +118,7 @@
 
 ---
 
-## 第四阶段：开源准备
+## 第四阶段：开源准备（进行中 🔄）
 
 ### 目标
 - GitHub 开源发布
@@ -128,9 +127,25 @@
 
 | # | 任务 | 状态 | 说明 |
 |---|------|------|------|
-| 4.1 | GitHub 仓库设置 | ⏳ 待做 | 公开仓库 |
-| 4.2 | Issue/PR 模板 | ⏳ 待做 | 贡献指南 |
-| 4.3 | GitHub Actions | ⏳ 待做 | CI/CD |
+| 4.1 | 版本基线 0.1.0 | ✅ 完成 | CHANGELOG / package.json 统一为 0.1.0 |
+| 4.2 | 开源卫生检查 | ✅ 完成 | `npm run check:opensource` |
+| 4.3 | inits 同步校验 | ✅ 完成 | `npm run verify:inits-sync` |
+| 4.4 | Issue/PR 模板 | ✅ 完成 | `.github/ISSUE_TEMPLATE/`、`PULL_REQUEST_TEMPLATE.md` |
+| 4.5 | GitHub Actions | ✅ 完成 | `ci.yml`、`release-pack.yml` |
+| 4.6 | UX 回归门禁 | ✅ 完成 | `test:ux-guardrails` 纳入 CI |
+| 4.7 | `.gitignore` 收尾 | ✅ 完成 | `.cursor/`、`e2e-results.json` |
+| 4.8 | GitHub 仓库发布 | ⏳ 待做 | 创建公开仓库、`git push`、可选 `v0.1.0` tag |
+
+### 发布前自检（本地）
+
+```bash
+cd metamates-app
+npm run check:opensource
+npm run verify:inits-sync
+npm run test:ux-guardrails
+# 完整门禁（较慢）：
+npm run verify:round
+```
 
 ---
 
@@ -140,22 +155,16 @@
 第一阶段 ████████ 100% ✅ 配置抽离
 第二阶段 ████████ 100% ✅ 打包发布
 第三阶段 ████████ 100% ✅ 文档完善
-第四阶段 ░░░░░░░░   0%   开源准备
+第四阶段 ██████░░  75%   开源准备（待 push）
 ```
 
 ---
 
 ## 下一步工作
 
-1. **README.md** - 项目介绍，包含：
-   - 项目简介
-   - 功能特性
-   - 安装说明
-   - 使用指南
-
-2. **用户指南** - 详细的使用文档
-
-3. **GitHub 仓库设置** - 准备开源发布
+1. **创建 GitHub 公开仓库**并添加 `origin` remote
+2. **提交并推送**当前 0.1.0 基线（`git tag v0.1.0` 可选）
+3. **Release** — 使用 `release-pack.yml` 或本地 `electron:pack` 产出安装包
 
 ---
 

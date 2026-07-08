@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Ollama ACP stdio 桥接：将 Ollama HTTP API 适配为 Metamates ACP 子进程协议
+ * Ollama ACP stdio 桥接：将 Ollama HTTP API 适配为 MetaMates ACP 子进程协议
  *
  * 环境变量：
  *   OLLAMA_BASE_URL - 默认 http://127.0.0.1:11434

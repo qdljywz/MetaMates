@@ -1,7 +1,16 @@
 {
   "empty": {
-    "title": "No AI assistant yet",
-    "description": "Install and sign in to Gemini, Claude, or CodeBuddy — then start here. This is Metamates’ main entry.",
+    "panelLabel": "Thinking engine",
+    "title": "No AI assistant installed",
+    "valueStatement": "Without a CLI, MetaMates is only a note vault—/today, /graduate, and AI chat won't work. Install an assistant to unlock the thinking engine as your daily starting point.",
+    "stepsTitle": "Finish setup (about 2 minutes)",
+    "step1": "Click Install AI assistant and pick Gemini, Claude, or CodeBuddy",
+    "step2": "Follow the installer; sign in in the terminal or panel on first use",
+    "step3": "When done, chat here or run /today to generate today's plan",
+    "installButton": "Install AI assistant",
+    "rescan": "Already installed? Scan again",
+    "rescanning": "Detecting…",
+    "description": "Install and sign in to Gemini, Claude, or CodeBuddy — then start here. This is MetaMates’ main entry.",
     "openSettings": "Install AI in Settings"
   },
   "status": {
@@ -12,6 +21,7 @@
     "connected": "Connected to {{name}}",
     "error": "Connection failed: {{error}}",
     "disconnected": "Disconnected",
+    "chatDbUnavailable": "Chat history database is unavailable (native module not loaded). Run npm run rebuild:native and restart — live chat still works, but history will not persist.",
     "reconnected": "Reconnected",
     "authRequired": "Sign-in required",
     "ready": "{{name}} detected — focus the input to connect",
@@ -59,6 +69,11 @@
     "voiceStartFailed": "Could not start speech recognition — try again later",
     "voiceNativeFailed": "Windows speech recognition failed — check microphone permissions or system speech components"
   },
+  "message": {
+    "copy": "Copy message",
+    "copySuccess": "Copied to clipboard",
+    "copyFailed": "Copy failed — select the text manually"
+  },
   "sidebar": {
     "expand": "Expand agent sidebar",
     "collapse": "Collapse agent sidebar",
@@ -102,7 +117,7 @@
     "intelFailed": "Intelligence import failed",
     "intelCreated": "Intelligence note created: {{name}}",
     "intelEnhancing": "Agent is deepening the intelligence summary…",
-    "intelNeedInput": "Paste a web URL or file path"
+    "intelNeedInput": "Paste a URL, path, or text — or @-attach a file"
   },
   "auth": {
     "title": "CLI authentication",
@@ -128,11 +143,11 @@
   },
   "yoloWarning": {
     "title": "YOLO mode — auto-approve tools",
-    "body": "In this mode Metamates auto-approves file read/write and command execution without asking each time. Only enable if you trust the current agent and have backed up your vault.",
+    "body": "In this mode MetaMates auto-approves file read/write and command execution without asking each time. Only enable if you trust the current agent and have backed up your vault.",
     "confirm": "Enable YOLO",
     "cancel": "Keep current mode",
     "firstRunTitle": "Default YOLO mode — please confirm",
-    "firstRunBody": "Metamates defaults to YOLO: file writes and commands are auto-approved. Choose \"Switch to Default\" if you want a prompt for each tool call.",
+    "firstRunBody": "MetaMates defaults to YOLO: file writes and commands are auto-approved. Choose \"Switch to Default\" if you want a prompt for each tool call.",
     "firstRunConfirm": "I understand — keep YOLO",
     "firstRunCancel": "Switch to Default mode"
   },
@@ -152,8 +167,8 @@
     "openFile": "Open file",
     "noWorkspace": "Open a workspace first",
     "fileNotFound": "File not found: {{path}}",
-    "outsideWorkspace": "This path is outside your Vault — Metamates cannot open it here: {{path}}",
-    "outsideWorkspaceHint": "⚠️ Agent wrote outside the Vault (Metamates only manages your Obsidian workspace): {{path}}",
+    "outsideWorkspace": "This path is outside your Vault — MetaMates cannot open it here: {{path}}",
+    "outsideWorkspaceHint": "⚠️ Agent wrote outside the Vault (MetaMates only manages your Obsidian workspace): {{path}}",
     "status": {
       "inProgress": "In progress",
       "completed": "Completed",
@@ -170,8 +185,15 @@
   },
   "writeback": {
     "verified": "/{{cmd}} writeback verified",
+    "verifiedOpened": "Wrote {{file}} — opened in editor",
     "verifiedDetail": "✅ /{{cmd}} writeback verified (Act & Verify): {{paths}}",
     "failed": "/{{cmd}} writeback incomplete",
-    "failedDetail": "⚠️ /{{cmd}} expected writeback to {{paths}}, but no recent update detected: {{detail}}"
+    "failedDetail": "⚠️ /{{cmd}} expected writeback to {{paths}}, but no recent update detected: {{detail}}",
+    "detailStaleMtime": "File exists but was not updated by this /{{cmd}} run (agent may have replied in chat only)",
+    "detailEmpty": "Target file is empty",
+    "detailMissing": "Target file is missing",
+    "detailNoRecentNotes": "No recently created or updated notes in folder",
+    "detailNotUpdated": "File was not updated",
+    "inboxArchived": "Moved {{count}} inbox note(s) to processed/"
   }
 }

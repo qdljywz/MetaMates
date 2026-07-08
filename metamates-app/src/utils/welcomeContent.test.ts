@@ -5,8 +5,8 @@ const t = ((key: string) => key) as Parameters<typeof buildEditorWelcomeContent>
 
 describe('welcomeContent', () => {
   it('detects built-in welcome pages', () => {
-    expect(isEditorWelcomeContent('# 欢迎使用 Metamates\n\nhello')).toBe(true)
-    expect(isEditorWelcomeContent('# Welcome to Metamates\n\nhello')).toBe(true)
+    expect(isEditorWelcomeContent('# 欢迎使用 MetaMates\n\nhello')).toBe(true)
+    expect(isEditorWelcomeContent('# Welcome to MetaMates\n\nhello')).toBe(true)
     expect(isEditorWelcomeContent('# My note')).toBe(false)
   })
 

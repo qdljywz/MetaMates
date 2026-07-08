@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { Layout, Space, Tooltip } from 'antd'
+import { Space, Tooltip } from 'antd'
 import { CalendarOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { storageService } from '../services/storage'
-
-const { Footer } = Layout
 
 interface StatusBarProps {
   workspacePath?: string
@@ -67,7 +65,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
   }
 
   return (
-    <Footer className="status-bar">
+    <div className="status-bar" role="contentinfo">
       <Space size={12}>
         {workspacePath && (
           <Tooltip title={workspacePath}>
@@ -113,7 +111,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
           {t('statusBar.dailyPlan')}
         </button>
       </Space>
-    </Footer>
+    </div>
   )
 }
 

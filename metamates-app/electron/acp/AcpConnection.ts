@@ -1,8 +1,9 @@
 import { spawn, ChildProcess } from 'child_process'
+import { killProcessTree } from '../shared/processTreeKill'
 import * as fsPromises from 'fs/promises'
 import * as sessionDb from './sessionDb'
 import { sessionStore } from './sessionStore'
-import { buildMetamatesMcpServers } from './mcpSessionConfig'
+import { buildMetaMatesMcpServers } from './mcpSessionConfig'
 import { BrowserWindow, shell } from 'electron'
 import { POTENTIAL_ACP_CLIS, LOGO_COLORS } from '../shared/acpRegistry'
 import { createSpawnConfigFromResolved } from './acpSpawn'
@@ -116,6 +117,12 @@ export class BackendConnection {
   private promptKeepaliveInterval: NodeJS.Timeout | null = null
   
   private getWorkspacePath: () => string
+
+  private sendToRenderer(channel: string, payload: unknown): void {
+    const win = this.mainWindow
+    if (!win || win.isDestroyed()) return
+    win.webContents.send(channel, payload)
+  }
   
   private pendingPermissionRequests = new Map<number, {
     resolve: (value: any) => void
@@ -174,20 +181,18 @@ export class BackendConnection {
       void shell.openExternal(url).catch((err) => {
         console.error(`[${this.config.backend}] Failed to open auth URL:`, err)
       })
-      if (this.mainWindow) {
-        this.mainWindow.webContents.send('acp-auth-url', {
-          backend: this.config.backend,
-          url,
-        })
-      }
+      this.sendToRenderer('acp-auth-url', {
+        backend: this.config.backend,
+        url,
+      })
     }
   }
 
   private inspectTextForAuthUrl(text: string): void {
     if (!text) return
     this.tryOpenAuthUrlFromText(text)
-    if (/no longer supported|antigravity/i.test(text) && this.mainWindow) {
-      this.mainWindow.webContents.send('acp-auth-deprecated', {
+    if (/no longer supported|antigravity/i.test(text)) {
+      this.sendToRenderer('acp-auth-deprecated', {
         backend: this.config.backend,
         message: text.trim().slice(0, 500),
       })
@@ -255,6 +260,7 @@ export class BackendConnection {
 
     this.child.on('exit', (code: number | null, signal: NodeJS.Signals | null) => {
       console.log(`[${this.config.backend}] child exit:`, code, signal)
+      const pid = this.child?.pid
       this.child = null
       this.sessionId = null
       this.models = null
@@ -264,9 +270,10 @@ export class BackendConnection {
         req.reject(new Error('Process exited'))
       }
       this.pendingRequests.clear()
-      if (this.mainWindow) {
-        this.mainWindow.webContents.send('disconnected', { code, signal, backend: this.config.backend })
+      if (pid) {
+        killProcessTree(pid, { force: true })
       }
+      this.sendToRenderer('disconnected', { code, signal, backend: this.config.backend })
       emitAgentLifecycle(this.config.backend, 'disconnected')
       void pushConnectionStatus(this.config.backend, this)
     })
@@ -288,7 +295,7 @@ export class BackendConnection {
     } catch (error: any) {
       console.error(`[${this.config.backend}] initialize failed:`, error.message)
       if (this.child) {
-        this.child.kill()
+        killProcessTree(this.child.pid, { force: true })
         this.child = null
       }
       return { success: false, error: error.message }
@@ -367,9 +374,8 @@ export class BackendConnection {
     this.currentMsgId = null
     this.currentTurnId = null
     this.stopPromptKeepalive()
-    if (this.mainWindow) {
-      this.mainWindow.webContents.send('end-turn', { backend: this.config.backend })
-    }
+    sessionDb.flushAllPendingMessages()
+    this.sendToRenderer('end-turn', { backend: this.config.backend })
   }
 
   private buildPipelineContext(): SessionPipelineContext {
@@ -394,8 +400,7 @@ export class BackendConnection {
   }
 
   private emitStreamMessage(message: IResponseMessage): void {
-    if (!this.mainWindow) return
-    this.mainWindow.webContents.send('acp-stream-message', {
+    this.sendToRenderer('acp-stream-message', {
       backend: this.config.backend,
       message,
     })
@@ -732,13 +737,11 @@ export class BackendConnection {
             timeoutId,
           })
           
-          if (this.mainWindow) {
-            this.mainWindow.webContents.send('permission-request', {
-              backend: this.config.backend,
-              requestId,
-              ...msg.params
-            })
-          }
+          this.sendToRenderer('permission-request', {
+            backend: this.config.backend,
+            requestId,
+            ...msg.params
+          })
         }
       } else if (msg.method === 'session/update') {
         this.resetPromptTimeout()
@@ -830,7 +833,7 @@ export class BackendConnection {
     const savedSession = sessionStore.getSession(this.config.backend, workspacePath)
     const resumeSessionId = resume && savedSession?.sessionId ? savedSession.sessionId : null
     
-    const mcpServers = buildMetamatesMcpServers()
+    const mcpServers = buildMetaMatesMcpServers()
     
     if (resumeSessionId) {
       console.log(`[${this.config.backend}] attempting to resume session:`, resumeSessionId)
@@ -1043,7 +1046,6 @@ export class BackendConnection {
   rejectPermission(requestId: number): void {
     const pending = this.pendingPermissionRequests.get(requestId)
     if (pending) {
-      this.pendingPermissionRequests.delete(requestId)
       pending.reject()
     }
   }
@@ -1058,7 +1060,6 @@ export class BackendConnection {
   respondToPermission(requestId: number, optionId: string): void {
     const pending = this.pendingPermissionRequests.get(requestId)
     if (pending) {
-      this.pendingPermissionRequests.delete(requestId)
       pending.resolve({ optionId })
     }
   }
@@ -1130,19 +1131,37 @@ export class BackendConnection {
       req.reject(new Error('Disconnected'))
     }
     this.pendingRequests.clear()
+    for (const pending of this.pendingPermissionRequests.values()) {
+      clearTimeout(pending.timeoutId)
+    }
     this.pendingPermissionRequests.clear()
     
     if (this.child) {
+      const pid = this.child.pid
       this.child.stdout?.removeAllListeners()
       this.child.stderr?.removeAllListeners()
-      this.child.stdin?.end()
-      this.child.kill()
+      this.child.removeAllListeners('exit')
+      try {
+        this.child.stdin?.end()
+      } catch {
+        /* ignore */
+      }
+      killProcessTree(pid, { force: true })
       this.child = null
     }
     this.sessionId = null
     this.models = null
     this.availableCommands = []
-    
+
+    this.sendToRenderer('disconnected', {
+      code: null,
+      signal: null,
+      backend: this.config.backend,
+      intentional: true,
+    })
+    emitAgentLifecycle(this.config.backend, 'disconnected')
+    void pushConnectionStatus(this.config.backend, this)
+
     clearConversationCache(this.config.backend, this.getWorkspacePath())
   }
 }

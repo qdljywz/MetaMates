@@ -22,11 +22,16 @@ import type { FileChangeEvent } from '../types/electron'
 import { storageService } from '../services/storage'
 import GraphView from './GraphView'
 import { useTheme } from '../hooks/useTheme'
+import { isShippedTemplateWorkspace } from '../constants/paths'
+import { treePathsEqual } from '../utils/fileTreeExpand'
+import { getRenameTabPayload, getTabPathsToCloseForDeletedFile } from '../utils/tabFileSync'
+import { confirmAllDirtyTabsClosed } from '../utils/tabClose'
 
 const { Sider } = Layout
 
 const Sidebar: React.FC = () => {
-  const { t } = useTranslation('sidebar')
+  const { t } = useTranslation(['sidebar', 'common'])
+  const { t: tEditor } = useTranslation('editor')
   const { state, dispatch } = useAppContext()
   const { theme } = useTheme()
   const isDark = theme.mode === 'dark'
@@ -147,6 +152,12 @@ const Sidebar: React.FC = () => {
     const result = await window.electronAPI.selectDirectory()
     if (!result.canceled && result.filePaths.length > 0) {
       const path = result.filePaths[0]
+      if (isShippedTemplateWorkspace(path)) {
+        message.error(t('appShell.templateWorkspaceForbidden', { ns: 'common' }))
+        return
+      }
+      const ok = await confirmAllDirtyTabsClosed(state.openTabs, tEditor, t)
+      if (!ok) return
       dispatch({ type: 'SET_WORKSPACE', payload: path })
       loadFiles(path)
       startWatching(path)
@@ -414,7 +425,11 @@ const Sidebar: React.FC = () => {
     if (result.success) {
       message.success(t('messages.renameSuccess'))
       await loadFiles(state.workspacePath, true)
-      if (state.currentFile === oldPath) {
+      const tabNewName = `${newName}${ext}`
+      const renamePayload = getRenameTabPayload(state.openTabs, oldPath, newPath, tabNewName)
+      if (renamePayload) {
+        dispatch({ type: 'RENAME_TAB', payload: renamePayload })
+      } else if (state.currentFile && treePathsEqual(state.currentFile, oldPath)) {
         dispatch({ type: 'SET_CURRENT_FILE', payload: newPath })
       }
     } else {
@@ -431,10 +446,10 @@ const Sidebar: React.FC = () => {
     const result = await window.electronAPI.deleteFile(filePath)
     
     if (result.success) {
-      message.success(t('messages.deleteSuccess'))
+      message.info(result.alreadyGone ? t('messages.deleteAlreadyGone') : t('messages.deleteSuccess'))
       await loadFiles(state.workspacePath, true)
-      if (state.currentFile === filePath) {
-        dispatch({ type: 'SET_CURRENT_FILE', payload: null })
+      for (const tabPath of getTabPathsToCloseForDeletedFile(state.openTabs, filePath)) {
+        dispatch({ type: 'CLOSE_TAB', payload: tabPath })
       }
     } else {
       message.error(t('messages.deleteFailed') + ': ' + result.error)
@@ -790,6 +805,7 @@ const Sidebar: React.FC = () => {
         visible={showGraph}
         onClose={() => setShowGraph(false)}
         workspacePath={state.workspacePath || ''}
+        focusFilePath={state.currentFile}
         onFileSelect={(path) => dispatch({ type: 'SET_CURRENT_FILE', payload: path })}
       />
       

@@ -1,40 +1,42 @@
 #!/usr/bin/env node
 /**
- * Rebuild better-sqlite3 for Electron after npm install (Node ABI ≠ Electron ABI).
+ * Rebuild native modules for Electron after npm install (Node ABI ≠ Electron ABI).
  */
-import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'url'
+import { fileURLToPath } from 'node:url'
+import { rebuildSqliteForElectron, sqliteBinaryExists, probeElectronSqlite } from './native-sqlite.mjs'
 
-if (process.env.SKIP_NATIVE_REBUILD === '1' || process.env.CI === 'true') {
-  console.log('[postinstall] SKIP_NATIVE_REBUILD — skipping better-sqlite3 rebuild')
+if (process.env.SKIP_NATIVE_REBUILD === '1') {
+  console.log('[postinstall] SKIP_NATIVE_REBUILD — skipping native rebuild')
   process.exit(0)
 }
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
-const modulePath = path.join(ROOT, 'node_modules', 'better-sqlite3')
-if (!fs.existsSync(modulePath)) {
-  console.log('[postinstall] better-sqlite3 not installed — skip')
+
+if (!fs.existsSync(path.join(ROOT, 'node_modules', 'better-sqlite3'))) {
+  console.log('[postinstall] better-sqlite3 not installed — skip native rebuild')
   process.exit(0)
 }
 
-const electronPkg = JSON.parse(
-  fs.readFileSync(path.join(ROOT, 'node_modules', 'electron', 'package.json'), 'utf8'),
-)
-const target = electronPkg.version
+if (!fs.existsSync(path.join(ROOT, 'node_modules', 'electron', 'package.json'))) {
+  console.log('[postinstall] Electron not installed yet — skip native rebuild')
+  process.exit(0)
+}
 
-console.log(`[postinstall] Rebuilding better-sqlite3 for Electron ${target}…`)
+if (sqliteBinaryExists()) {
+  if (probeElectronSqlite().ok) {
+    console.log('[postinstall] better-sqlite3 already OK for Electron — skip rebuild')
+    process.exit(0)
+  }
+}
 
-const result = spawnSync(
-  process.platform === 'win32' ? 'npx.cmd' : 'npx',
-  ['@electron/rebuild', '-f', '-w', 'better-sqlite3'],
-  { cwd: ROOT, stdio: 'inherit', shell: process.platform === 'win32' },
-)
+console.log('[postinstall] Rebuilding better-sqlite3 for Electron…')
+const result = rebuildSqliteForElectron({ killBlockingElectron: false })
 
 if (result.status !== 0) {
   console.warn('[postinstall] @electron/rebuild failed — run: npm run rebuild:native')
   process.exit(0)
 }
 
-console.log('[postinstall] better-sqlite3 rebuild OK')
+console.log('[postinstall] Native rebuild OK')

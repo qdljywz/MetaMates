@@ -13,7 +13,7 @@ import {
 } from '@ant-design/icons'
 import { Template, getTemplatesByCategory } from './definitions'
 
-const { Text, Paragraph } = Typography
+const { Text } = Typography
 const { TabPane } = Tabs
 const { TextArea } = Input
 
@@ -153,6 +153,7 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({ visible, onClose, o
       onCancel={onClose}
       title={t('title')}
       width={900}
+      className="template-selector-modal"
       footer={[
         <Button key="cancel" onClick={onClose}>
           {t('cancel')}
@@ -167,7 +168,7 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({ visible, onClose, o
         </Button>,
       ]}
     >
-      <div style={{ display: 'flex', gap: 16, height: 500 }}>
+      <div className="template-selector__layout">
         <div style={{ flex: '0 0 300px', overflow: 'auto' }}>
           <Tabs defaultActiveKey="daily" tabPosition="left" style={{ height: '100%' }}>
             {categories.map(cat => (
@@ -189,17 +190,14 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({ visible, onClose, o
                         size="small"
                         hoverable
                         onClick={() => handleSelect(template)}
-                        style={{
-                          background: selectedTemplate?.id === template.id ? '#e0f2fe' : '#ffffff',
-                          borderColor: selectedTemplate?.id === template.id ? '#2563eb' : '#e5e7eb',
-                        }}
+                        className={`template-selector__card${selectedTemplate?.id === template.id ? ' template-selector__card--selected' : ''}`}
                       >
                         <Space direction="vertical" size={4}>
                           <Space>
-                            <Text strong style={{ color: '#1f2937' }}>{template.name}</Text>
+                            <Text strong>{template.name}</Text>
                             {isCustomized && <Tag color="blue" style={{ fontSize: 10 }}>{t('customized')}</Tag>}
                           </Space>
-                          <Text type="secondary" style={{ fontSize: 12, color: '#6b7280' }}>
+                          <Text type="secondary" style={{ fontSize: 12 }}>
                             {template.description}
                           </Text>
                         </Space>
@@ -212,13 +210,13 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({ visible, onClose, o
           </Tabs>
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto', background: '#f8fafc', padding: 16, borderRadius: 8, border: '1px solid #e5e7eb' }}>
+        <div className="template-selector__preview-pane">
           {selectedTemplate ? (
             <div>
               <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
                 <Space>
                   <Tag color="blue">{getCategoryName(selectedTemplate.category)}</Tag>
-                  <Text strong style={{ color: '#1f2937' }}>{selectedTemplate.name}</Text>
+                  <Text strong>{selectedTemplate.name}</Text>
                 </Space>
                 <Space>
                   <Button 
@@ -263,31 +261,15 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({ visible, onClose, o
                   />
                 </div>
               ) : (
-                <Paragraph>
-                  <pre style={{ 
-                    whiteSpace: 'pre-wrap', 
-                    wordBreak: 'break-word',
-                    background: '#ffffff',
-                    padding: 16,
-                    borderRadius: 8,
-                    fontSize: 13,
-                    lineHeight: 1.6,
-                    border: '1px solid #e5e7eb',
-                    color: '#1f2937',
-                  }}>
+                <div>
+                  <pre className="template-selector__pre">
                     {preview}
                   </pre>
-                </Paragraph>
+                </div>
               )}
             </div>
           ) : (
-            <div style={{ 
-              height: '100%', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              color: '#6b7280',
-            }}>
+            <div className="template-selector__empty">
               {t('selectTemplate')}
             </div>
           )}

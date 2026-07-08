@@ -15,6 +15,7 @@ import {
   noteStemMatchesLink,
   rankLinkDebt,
   stripWikiLinksForMentionScan,
+  resolveStemToNodeKey,
   wikiLinksToDualTrack,
 } from './linkIntelligence'
 import type { FileIndex } from './fileIndex'
@@ -107,13 +108,19 @@ describe('linkIntelligence', () => {
     expect(debt?.path).toBe('/vault/当前.md')
   })
 
+  it('resolveStemToNodeKey matches path-based node ids', () => {
+    const map = new Map([['概览', '02_项目/智脉先锋/概览']])
+    expect(resolveStemToNodeKey('概览', map, ['02_项目/智脉先锋/概览'])).toBe('02_项目/智脉先锋/概览')
+    expect(resolveStemToNodeKey('missing', map, ['02_项目/智脉先锋/概览'])).toBeUndefined()
+  })
+
   it('buildSemanticGraphLinks creates dashed-track edges', () => {
     const a = mockFile('a.md', 'content a')
     const b = mockFile('b.md', 'content b')
     const semanticMap = new Map([
-      ['/vault/a.md', [{ file: b, score: 15 }]],
+      ['/vault/a.md', [{ file: b, score: 8 }]],
     ])
-    const edges = buildSemanticGraphLinks([a, b], semanticMap, 2, 5)
+    const edges = buildSemanticGraphLinks([a, b], semanticMap, 2, 3)
     expect(edges.some((e) => e.kind === 'semantic' && e.source === 'a' && e.target === 'b')).toBe(true)
   })
 

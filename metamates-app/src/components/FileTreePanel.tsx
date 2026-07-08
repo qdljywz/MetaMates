@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { flushSync } from 'react-dom'
 import { Tree, Button, message, Modal, Input, Spin } from 'antd'
 import { useTranslation } from 'react-i18next'
 import {
@@ -21,6 +22,7 @@ import {
 import type { TreeDataNode, TreeProps, MenuProps } from 'antd'
 import { useAppContext } from '../store/AppContext'
 import { getWorkspaceLanguage } from '../constants/paths'
+import { isHiddenFromFileTree } from '../services/vaultPaths'
 import { workspaceIndexService } from '../services/workspaceIndex'
 import { isImportableDocument } from '../../electron/shared/importableFormats'
 import { importDocumentAsIntelligence } from '../services/intelligenceImport'
@@ -28,23 +30,34 @@ import TemplateSelector from './TemplateSelector'
 import ContextMenu from './ContextMenu'
 import DailyNoteCalendar from './DailyNoteCalendar'
 import './FileTreePanel.css'
-import { collectRequiredExpandKeys } from '../utils/fileTreeExpand'
+import { collectRequiredExpandKeys, getTreeRefreshParentDir, treePathsEqual } from '../utils/fileTreeExpand'
+import { getRenameTabPayload, getTabPathsToCloseForDeletedFile } from '../utils/tabFileSync'
+import {
+  getExpandedDirsToRehydrate,
+  getVaultCreateRevealExpandKeys,
+  isTreeFolderNode,
+  mergeRootTreeChildren,
+  patchTreeNodeChildren,
+} from '../utils/fileTreeUx'
+import type { FileChangeEvent } from '../types/electron'
+import { wasStartupWorkspaceInitDone, consumeStartupFileTreeCache, wasStartupFileTreeReady } from '../utils/startupPreload'
 
 interface FileTreePanelProps {
   collapsed: boolean
   refreshKey?: number
-  workspaceLoading?: boolean
+  onOpenInGraph?: (paths: string[], dateLabel: string) => void
+  onOpenWorkspace?: () => void
 }
 
-const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, workspaceLoading = false }) => {
+const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, onOpenInGraph, onOpenWorkspace }) => {
   const { t, i18n } = useTranslation('sidebar')
   const { state, dispatch } = useAppContext()
   const [treeData, setTreeData] = useState<TreeDataNode[]>([])
-  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
-  const [loadedKeys, setLoadedKeys] = useState<React.Key[]>([])
+  const [userExpandedKeys, setUserExpandedKeys] = useState<string[]>([])
   const [searchText, setSearchText] = useState('')
-  const [filteredTreeData, setFilteredTreeData] = useState<TreeDataNode[]>([])
   const contextMenuNodeRef = useRef<TreeDataNode | null>(null)
+  const pendingNewFileParentRef = useRef<string | null>(null)
+  const pendingNewFolderParentRef = useRef<string | null>(null)
   const [contextMenuVisible, setContextMenuVisible] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
   const [renameModalVisible, setRenameModalVisible] = useState(false)
@@ -52,23 +65,34 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
   const [deleteModalVisible, setDeleteModalVisible] = useState(false)
   const [newFileModalVisible, setNewFileModalVisible] = useState(false)
   const [newFileName, setNewFileName] = useState('')
+  const [pendingNewFileParentPath, setPendingNewFileParentPath] = useState<string | null>(null)
   const [newFolderModalVisible, setNewFolderModalVisible] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
+  const [pendingNewFolderParentPath, setPendingNewFolderParentPath] = useState<string | null>(null)
   const [templateVisible, setTemplateVisible] = useState(false)
   const [templateTargetPath, setTemplateTargetPath] = useState<string | null>(null)
   const [reinitLoading, setReinitLoading] = useState(false)
   const [migrateLoading, setMigrateLoading] = useState(false)
   const [importIntelLoading, setImportIntelLoading] = useState(false)
   const [legacyPaths, setLegacyPaths] = useState<string[]>([])
-  /** Folders expanded automatically because an open tab needs them. */
-  const autoExpandedKeysRef = useRef<Set<string>>(new Set())
-  /** Folders the user expanded manually (kept across tab close). */
-  const userExpandedKeysRef = useRef<Set<string>>(new Set())
   const loadedKeysRef = useRef<Set<string>>(new Set())
+  const inFlightLoadsRef = useRef<Set<string>>(new Set())
+  const loadGenerationRef = useRef<Map<string, number>>(new Map())
+  const vaultRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingVaultEventRef = useRef<FileChangeEvent | undefined>(undefined)
+  const treeMutationChainRef = useRef(Promise.resolve())
 
-  useEffect(() => {
-    loadedKeysRef.current = new Set(loadedKeys.map(String))
-  }, [loadedKeys])
+  const requiredExpandedKeys = useMemo(() => {
+    if (!state.workspacePath) return [] as string[]
+    const paths = new Set(state.openTabs.map((tab) => tab.path))
+    if (state.currentFile) paths.add(state.currentFile)
+    return collectRequiredExpandKeys([...paths], state.workspacePath)
+  }, [state.currentFile, state.openTabs, state.workspacePath])
+
+  const expandedKeys = useMemo<React.Key[]>(
+    () => [...new Set([...userExpandedKeys, ...requiredExpandedKeys])],
+    [requiredExpandedKeys, userExpandedKeys],
+  )
 
   const sortListedFiles = useCallback((files: Array<{ name: string; path: string; isDirectory: boolean; mtime?: number }>) => {
     return [...files].sort((a, b) => {
@@ -78,91 +102,164 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
     })
   }, [])
 
-  const mapFilesToTreeNodes = useCallback((files: Array<{ name: string; path: string; isDirectory: boolean }>): TreeDataNode[] => {
-    return sortListedFiles(files).map((file) => ({
+  const mapFilesToTreeNodes = useCallback((
+    files: Array<{ name: string; path: string; isDirectory: boolean; mtime?: number }>,
+    workspacePath: string,
+  ): TreeDataNode[] => {
+    const visible = files.filter((file) => !isHiddenFromFileTree(workspacePath, file.path))
+    return sortListedFiles(visible).map((file) => ({
       key: file.path,
       title: file.name,
       isLeaf: !file.isDirectory,
-      icon: file.isDirectory ? <FolderOutlined /> : <FileOutlined />,
     }))
   }, [sortListedFiles])
 
+  const renderTreeIcon = useCallback((props: { isLeaf?: boolean }) => (
+    props.isLeaf ? <FileOutlined /> : <FolderOutlined />
+  ), [])
+
   const attachChildrenToTree = useCallback((nodePath: string, children: TreeDataNode[]) => {
     setTreeData((prevData) => {
-      const updateNode = (nodes: TreeDataNode[]): TreeDataNode[] =>
-        nodes.map((n) => {
-          if (n.key === nodePath) return { ...n, children }
-          if (n.children) return { ...n, children: updateNode(n.children) }
-          return n
-        })
-      return updateNode(prevData)
+      const { tree, patched } = patchTreeNodeChildren(prevData, nodePath, children)
+      return patched ? tree : prevData
     })
   }, [])
 
-  const loadNodeChildren = useCallback(async (nodePath: string) => {
-    if (!window.electronAPI || loadedKeysRef.current.has(nodePath)) return
-    const result = await window.electronAPI.listFiles(nodePath)
-    if (!result?.success || !result.files) return
-    const children = mapFilesToTreeNodes(result.files)
-    loadedKeysRef.current.add(nodePath)
-    setLoadedKeys((prev) => (prev.includes(nodePath) ? prev : [...prev, nodePath]))
-    attachChildrenToTree(nodePath, children)
-  }, [attachChildrenToTree, mapFilesToTreeNodes])
+  const bumpLoadGeneration = useCallback((nodePath: string) => {
+    const next = (loadGenerationRef.current.get(nodePath) ?? 0) + 1
+    loadGenerationRef.current.set(nodePath, next)
+    return next
+  }, [])
 
-  const applyExpandedKeysFromOpenFiles = useCallback((filePaths: string[]) => {
-    if (!state.workspacePath) return
-    const required = collectRequiredExpandKeys(filePaths, state.workspacePath)
-    autoExpandedKeysRef.current = new Set(required)
-    const merged = new Set<string>([...userExpandedKeysRef.current, ...required])
-    setExpandedKeys([...merged])
-  }, [state.workspacePath])
-
-  const revealFilesInTree = useCallback(async (filePaths: string[]) => {
-    if (!state.workspacePath || filePaths.length === 0) {
-      applyExpandedKeysFromOpenFiles([])
-      return
-    }
-    const dirs = new Set<string>()
-    for (const filePath of filePaths) {
-      for (const dir of collectRequiredExpandKeys([filePath], state.workspacePath)) {
-        dirs.add(dir)
+  const reloadDirectoryInTree = useCallback(async (dirPath: string) => {
+    if (!window.electronAPI || !state.workspacePath) return
+    const generation = bumpLoadGeneration(dirPath)
+    if (treePathsEqual(dirPath, state.workspacePath) && wasStartupFileTreeReady(state.workspacePath)) {
+      const cached = consumeStartupFileTreeCache(state.workspacePath)
+      if (cached) {
+        if (loadGenerationRef.current.get(dirPath) !== generation) return
+        const children = mapFilesToTreeNodes(cached, state.workspacePath)
+        setTreeData((prev) => mergeRootTreeChildren(prev, children))
+        return
       }
     }
-    const sortedDirs = [...dirs].sort((a, b) => a.length - b.length)
-    for (const dir of sortedDirs) {
-      await loadNodeChildren(dir)
-    }
-    applyExpandedKeysFromOpenFiles(filePaths)
-  }, [applyExpandedKeysFromOpenFiles, loadNodeChildren, state.workspacePath])
+    const result = await window.electronAPI.listFiles(dirPath)
+    if (loadGenerationRef.current.get(dirPath) !== generation) return
+    if (!result?.success || !result.files) return
+    const children = mapFilesToTreeNodes(result.files, state.workspacePath)
 
-  const openFilePathsKey = state.openTabs.map((tab) => tab.path).join('\0')
-  const revealTargetKey = `${openFilePathsKey}\0${state.currentFile ?? ''}`
+    if (treePathsEqual(dirPath, state.workspacePath)) {
+      setTreeData((prev) => mergeRootTreeChildren(prev, children))
+      return
+    }
+
+    loadedKeysRef.current.add(dirPath)
+    attachChildrenToTree(dirPath, children)
+  }, [attachChildrenToTree, bumpLoadGeneration, mapFilesToTreeNodes, state.workspacePath])
+
+  const refreshTreeFromVaultChange = useCallback(async (event?: FileChangeEvent) => {
+    if (!state.workspacePath) return
+    if (!event) return
+
+    if (event.dirPath) {
+      const parentDir = getTreeRefreshParentDir(state.workspacePath, event)
+      await reloadDirectoryInTree(parentDir)
+      return
+    }
+  }, [reloadDirectoryInTree, state.workspacePath])
+
+  const scheduleRefreshFromVaultChange = useCallback((event?: FileChangeEvent) => {
+    pendingVaultEventRef.current = event
+    if (vaultRefreshTimerRef.current) {
+      clearTimeout(vaultRefreshTimerRef.current)
+    }
+    vaultRefreshTimerRef.current = setTimeout(() => {
+      vaultRefreshTimerRef.current = null
+      const pending = pendingVaultEventRef.current
+      pendingVaultEventRef.current = undefined
+      void refreshTreeFromVaultChange(pending)
+    }, 200)
+  }, [refreshTreeFromVaultChange])
+
+  const loadNodeChildren = useCallback(async (nodePath: string) => {
+    if (!window.electronAPI) return
+    if (inFlightLoadsRef.current.has(nodePath)) return
+    const generation = bumpLoadGeneration(nodePath)
+    inFlightLoadsRef.current.add(nodePath)
+    try {
+      const result = await window.electronAPI.listFiles(nodePath)
+      if (loadGenerationRef.current.get(nodePath) !== generation) return
+      if (!result?.success || !result.files) return
+      const children = mapFilesToTreeNodes(result.files, state.workspacePath)
+      loadedKeysRef.current.add(nodePath)
+      attachChildrenToTree(nodePath, children)
+    } finally {
+      inFlightLoadsRef.current.delete(nodePath)
+    }
+  }, [attachChildrenToTree, bumpLoadGeneration, mapFilesToTreeNodes, state.workspacePath])
 
   useEffect(() => {
-    const paths = new Set(state.openTabs.map((tab) => tab.path))
-    if (state.currentFile) paths.add(state.currentFile)
-    void revealFilesInTree([...paths])
-  }, [revealTargetKey, state.workspacePath, revealFilesInTree])
-
-  const loadFiles = useCallback(async (dirPath: string) => {
-    if (!window.electronAPI) return
-    const result = await window.electronAPI.listFiles(dirPath)
-    if (result.success && result.files) {
-      const sortedFiles = result.files.sort((a: any, b: any) => {
-        if (a.isDirectory && !b.isDirectory) return -1
-        if (!a.isDirectory && b.isDirectory) return 1
-        return (b.mtime || 0) - (a.mtime || 0)
-      })
-      const data: TreeDataNode[] = sortedFiles.map((file: { name: string; path: string; isDirectory: boolean }) => ({
-        key: file.path,
-        title: file.name,
-        isLeaf: !file.isDirectory,
-        icon: file.isDirectory ? <FolderOutlined /> : <FileOutlined />,
-      }))
-      setTreeData(data)
-      setLoadedKeys([])
+    if (!state.workspacePath) return
+    const toLoad = expandedKeys
+      .map(String)
+      .filter((key) => !treePathsEqual(key, state.workspacePath))
+      .filter((key) => ![...loadedKeysRef.current].some((k) => treePathsEqual(k, key)))
+    if (toLoad.length > 0) {
+      void Promise.all(toLoad.map((dir) => loadNodeChildren(dir)))
     }
-  }, [])
+  }, [expandedKeys, loadNodeChildren, state.workspacePath])
+
+  useEffect(() => {
+    if (!state.workspacePath) return
+    if (state.openTabs.length > 0) return
+    if (state.currentFile) return
+    setUserExpandedKeys([])
+  }, [state.currentFile, state.openTabs.length, state.workspacePath])
+
+  /** Reload workspace root and re-attach children for expanded folders. */
+  const refreshExpandedTree = useCallback(async () => {
+    if (!state.workspacePath || !window.electronAPI) return
+
+    await reloadDirectoryInTree(state.workspacePath)
+
+    const dirsToReload = getExpandedDirsToRehydrate(state.workspacePath, expandedKeys.map(String))
+    if (dirsToReload.length === 0) return
+
+    for (const dir of dirsToReload) {
+      loadedKeysRef.current.delete(dir)
+    }
+    await Promise.all(dirsToReload.map((dir) => reloadDirectoryInTree(dir)))
+  }, [expandedKeys, reloadDirectoryInTree, state.workspacePath])
+
+  /** After create in a folder: patch treeData so new items appear under `.ant-tree-title`. */
+  const refreshAfterCreateInFolder = useCallback(async (parentPath: string, createdPath?: string) => {
+    if (!state.workspacePath || !window.electronAPI) return
+
+    bumpLoadGeneration(parentPath)
+    const result = await window.electronAPI.listFiles(parentPath)
+    if (!result?.success || !result.files) return
+    const children = mapFilesToTreeNodes(result.files, state.workspacePath)
+
+    flushSync(() => {
+      setTreeData((prev) => {
+        const next = patchTreeNodeChildren(prev, parentPath, children)
+        return next.patched ? next.tree : prev
+      })
+    })
+    await refreshExpandedTree()
+    await reloadDirectoryInTree(parentPath)
+
+    if (!createdPath) return
+
+    const expandDirs = getVaultCreateRevealExpandKeys(createdPath, parentPath, state.workspacePath)
+    setUserExpandedKeys((prev) => [...new Set([...prev, ...expandDirs])])
+    const dirsToLoad = [...expandDirs]
+      .filter((dir) => !treePathsEqual(dir, parentPath))
+      .sort((a, b) => a.length - b.length)
+    if (dirsToLoad.length > 0) {
+      await Promise.all(dirsToLoad.map((dir) => loadNodeChildren(dir)))
+    }
+  }, [bumpLoadGeneration, loadNodeChildren, mapFilesToTreeNodes, refreshExpandedTree, reloadDirectoryInTree, state.workspacePath])
 
   const handleReinitWorkspace = async () => {
     if (!window.electronAPI || !state.workspacePath) return
@@ -175,7 +272,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
       const result = await window.electronAPI.reinitWorkspace(state.workspacePath, language)
       console.log('[Reinit] Result:', result)
       if (result.success) {
-        loadFiles(state.workspacePath)
+        void refreshExpandedTree()
         message.success(result.message || `已添加 ${result.createdItems?.length || 0} 个项目`)
       } else {
         message.error(t('messages.reinitFailed') + ': ' + result.error)
@@ -196,7 +293,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
       const language = getWorkspaceLanguage(i18n.language)
       const result = await window.electronAPI.migrateWorkspace(state.workspacePath, language)
       if (result.success) {
-        loadFiles(state.workspacePath)
+        void refreshExpandedTree()
         void workspaceIndexService.rebuild(state.workspacePath)
         setLegacyPaths([])
         message.success(
@@ -225,13 +322,17 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
   }, [state.workspacePath, i18n.language])
 
   useEffect(() => {
-    userExpandedKeysRef.current.clear()
-    autoExpandedKeysRef.current.clear()
+    setUserExpandedKeys([])
     loadedKeysRef.current.clear()
   }, [state.workspacePath])
 
   useEffect(() => {
     if (state.workspacePath && window.electronAPI) {
+      if (wasStartupWorkspaceInitDone(state.workspacePath)) {
+        void refreshExpandedTree()
+        void checkLegacyPaths()
+        return
+      }
       const language = getWorkspaceLanguage(i18n.language)
       window.electronAPI.initWorkspace(state.workspacePath, language).then((result) => {
         if (result.success && result.initialized) {
@@ -241,31 +342,34 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
             sessionStorage.setItem(key, '1')
           }
         }
-        loadFiles(state.workspacePath)
+        void refreshExpandedTree()
         void checkLegacyPaths()
       })
     }
-  }, [state.workspacePath, loadFiles, checkLegacyPaths, i18n.language, t])
+  }, [state.workspacePath, refreshExpandedTree, checkLegacyPaths, i18n.language, t])
 
   useEffect(() => {
     if (refreshKey && refreshKey > 0 && state.workspacePath && window.electronAPI) {
-      loadFiles(state.workspacePath)
+      void refreshExpandedTree()
     }
-  }, [refreshKey, state.workspacePath, loadFiles])
+  }, [refreshKey, state.workspacePath, refreshExpandedTree])
 
   useEffect(() => {
     if (!state.workspacePath) return
-    const unsubscribe = workspaceIndexService.onVaultChanged(() => {
-      loadFiles(state.workspacePath)
+    const unsubscribe = workspaceIndexService.onVaultChanged((event) => {
+      scheduleRefreshFromVaultChange(event)
     })
-    return unsubscribe
-  }, [state.workspacePath, loadFiles])
-
-  useEffect(() => {
-    if (!searchText.trim()) {
-      setFilteredTreeData(treeData)
-      return
+    return () => {
+      unsubscribe()
+      if (vaultRefreshTimerRef.current) {
+        clearTimeout(vaultRefreshTimerRef.current)
+        vaultRefreshTimerRef.current = null
+      }
     }
+  }, [scheduleRefreshFromVaultChange, state.workspacePath])
+
+  const filteredTreeData = useMemo(() => {
+    if (!searchText.trim()) return treeData
     const filterNodes = (nodes: TreeDataNode[]): TreeDataNode[] => {
       return nodes.reduce((acc: TreeDataNode[], node) => {
         const title = (node.title as string).toLowerCase()
@@ -281,34 +385,34 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
         return acc
       }, [])
     }
-    setFilteredTreeData(filterNodes(treeData))
+    return filterNodes(treeData)
   }, [searchText, treeData])
 
-  const onSelect: TreeProps['onSelect'] = (selectedKeys, info) => {
-    if (selectedKeys.length > 0) {
-      const path = selectedKeys[0] as string
-      const node = info.node as TreeDataNode
-      const isFolder = node.isLeaf === false
-      
-      if (isFolder) {
-        const nodeKey = node.key as string
-        if (expandedKeys.includes(nodeKey)) {
-          userExpandedKeysRef.current.delete(nodeKey)
-          autoExpandedKeysRef.current.delete(nodeKey)
-          setExpandedKeys(expandedKeys.filter((k) => k !== nodeKey))
-        } else {
-          userExpandedKeysRef.current.add(nodeKey)
-          setExpandedKeys([...expandedKeys, nodeKey])
-        }
-      } else {
-        // 单击文件时打开文件
-        const fileName = (node.title as string) || path.split(/[/\\]/).pop() || path
-        dispatch({
-          type: 'ADD_TAB',
-          payload: { path, name: fileName, isDirty: false }
-        })
+  const toggleFolderExpanded = useCallback((nodeKey: string, isLeaf: boolean | undefined) => {
+    const isExpanded = expandedKeys.some((key) => treePathsEqual(String(key), nodeKey))
+    setUserExpandedKeys((current) => {
+      if (isExpanded) {
+        return current.filter((key) => !treePathsEqual(key, nodeKey))
       }
+      return current.some((key) => treePathsEqual(key, nodeKey)) ? current : [...current, nodeKey]
+    })
+    if (!isExpanded && isLeaf === false) {
+      void loadNodeChildren(nodeKey)
     }
+  }, [expandedKeys, loadNodeChildren])
+
+  const onSelect: TreeProps['onSelect'] = (_selectedKeys, info) => {
+    const node = info.node as TreeDataNode
+    const path = String(node.key)
+    if (isTreeFolderNode(node)) {
+      toggleFolderExpanded(path, node.isLeaf)
+      return
+    }
+    const fileName = (node.title as string) || path.split(/[/\\]/).pop() || path
+    dispatch({
+      type: 'ADD_TAB',
+      payload: { path, name: fileName, isDirty: false },
+    })
   }
 
   const handleContextMenu = (node: TreeDataNode, e: React.MouseEvent) => {
@@ -332,12 +436,17 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
     const result = await window.electronAPI.renameFile(oldPath, newPath)
     if (result.success) {
       message.success(t('messages.renameSuccess'))
-      await loadFiles(state.workspacePath!)
-      if (state.currentFile === oldPath) {
+      await workspaceIndexService.signalVaultTreeChange(oldPath)
+      await workspaceIndexService.signalVaultTreeChange(newPath)
+      const tabNewName = `${newName}${ext}`
+      const renamePayload = getRenameTabPayload(state.openTabs, oldPath, newPath, tabNewName)
+      if (renamePayload) {
+        dispatch({ type: 'RENAME_TAB', payload: renamePayload })
+      } else if (state.currentFile && treePathsEqual(state.currentFile, oldPath)) {
         dispatch({ type: 'SET_CURRENT_FILE', payload: newPath })
       }
     } else {
-      message.error(t('messages.renameSuccess') + ': ' + result.error)
+      message.error(t('messages.renameFailed') + ': ' + result.error)
     }
     setRenameModalVisible(false)
     contextMenuNodeRef.current = null
@@ -348,10 +457,10 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
     const filePath = contextMenuNodeRef.current.key as string
     const result = await window.electronAPI.deleteFile(filePath)
     if (result.success) {
-      message.success(t('messages.deleteSuccess'))
-      await loadFiles(state.workspacePath!)
-      if (state.currentFile === filePath) {
-        dispatch({ type: 'SET_CURRENT_FILE', payload: null })
+      message.info(result.alreadyGone ? t('messages.deleteAlreadyGone') : t('messages.deleteSuccess'))
+      await workspaceIndexService.signalVaultTreeChange(filePath)
+      for (const tabPath of getTabPathsToCloseForDeletedFile(state.openTabs, filePath)) {
+        dispatch({ type: 'CLOSE_TAB', payload: tabPath })
       }
     } else {
       message.error(t('messages.deleteFailed') + ': ' + result.error)
@@ -361,12 +470,8 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
   }
 
   const handleCreateFile = async () => {
-    if (!contextMenuNodeRef.current || !window.electronAPI || !newFileName.trim()) return
-    
-    const parentNode = contextMenuNodeRef.current
-    const parentPath = parentNode.isLeaf === false 
-      ? (parentNode.key as string)
-      : await window.electronAPI.path.dirname(parentNode.key as string)
+    const parentPath = pendingNewFileParentRef.current ?? pendingNewFileParentPath
+    if (!window.electronAPI || !newFileName.trim() || !parentPath) return
     
     const fileName = newFileName.trim().endsWith('.md') ? newFileName.trim() : `${newFileName.trim()}.md`
     const filePath = await window.electronAPI.path.join(parentPath, fileName)
@@ -375,24 +480,25 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
     
     if (result.success) {
       message.success(t('messages.fileCreated'))
-      await loadFiles(state.workspacePath!)
-      dispatch({ type: 'SET_CURRENT_FILE', payload: filePath })
+      const tabName = filePath.split(/[/\\]/).pop() || fileName
+      setNewFileModalVisible(false)
+      setNewFileName('')
+      pendingNewFileParentRef.current = null
+      setPendingNewFileParentPath(null)
+      contextMenuNodeRef.current = null
+      await refreshAfterCreateInFolder(parentPath, filePath)
+      dispatch({
+        type: 'ADD_TAB',
+        payload: { path: filePath, name: tabName, isDirty: false },
+      })
     } else {
       message.error(t('messages.createFailed') + ': ' + result.error)
     }
-    
-    setNewFileModalVisible(false)
-    setNewFileName('')
-    contextMenuNodeRef.current = null
   }
 
   const handleCreateFolder = async () => {
-    if (!contextMenuNodeRef.current || !window.electronAPI || !newFolderName.trim()) return
-    
-    const parentNode = contextMenuNodeRef.current
-    const parentPath = parentNode.isLeaf === false 
-      ? (parentNode.key as string)
-      : await window.electronAPI.path.dirname(parentNode.key as string)
+    const parentPath = pendingNewFolderParentRef.current ?? pendingNewFolderParentPath
+    if (!window.electronAPI || !newFolderName.trim() || !parentPath) return
     
     const folderPath = await window.electronAPI.path.join(parentPath, newFolderName.trim())
     
@@ -400,14 +506,15 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
     
     if (result.success) {
       message.success(t('messages.folderCreated'))
-      await loadFiles(state.workspacePath!)
+      setNewFolderModalVisible(false)
+      setNewFolderName('')
+      pendingNewFolderParentRef.current = null
+      setPendingNewFolderParentPath(null)
+      contextMenuNodeRef.current = null
+      await refreshAfterCreateInFolder(parentPath, folderPath)
     } else {
       message.error(t('messages.createFailed') + ': ' + result.error)
     }
-    
-    setNewFolderModalVisible(false)
-    setNewFolderName('')
-    contextMenuNodeRef.current = null
   }
 
   const handleOpenInExplorer = useCallback(async () => {
@@ -444,13 +551,14 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
       if (result.warnings?.length) {
         message.warning(result.warnings.join('；'))
       }
-      await loadFiles(state.workspacePath)
+      const parentDir = await window.electronAPI.path.dirname(result.notePath)
+      await refreshAfterCreateInFolder(parentDir, result.notePath)
     } finally {
       hide()
       setImportIntelLoading(false)
       contextMenuNodeRef.current = null
     }
-  }, [state.workspacePath, i18n.language, dispatch, loadFiles, t])
+  }, [state.workspacePath, i18n.language, dispatch, refreshAfterCreateInFolder, t])
 
   const handleUseTemplate = () => {
     setTemplateVisible(true)
@@ -489,11 +597,19 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
     if (result.success) {
       const baseName = await window.electronAPI.path.basename(dragPath)
       message.success(t('messages.moveSuccess', { name: baseName }))
-      await loadFiles(state.workspacePath!)
-      
-      if (state.currentFile === dragPath) {
+      const openTab = state.openTabs.find((tab) => treePathsEqual(tab.path, dragPath))
+      if (openTab) {
+        const newName = await window.electronAPI.path.basename(targetPath)
+        dispatch({ type: 'RENAME_TAB', payload: { oldPath: dragPath, newPath: targetPath, newName } })
+      } else if (state.currentFile && treePathsEqual(state.currentFile, dragPath)) {
         dispatch({ type: 'SET_CURRENT_FILE', payload: targetPath })
       }
+      await workspaceIndexService.signalVaultTreeChange(dragPath)
+      await workspaceIndexService.signalVaultTreeChange(targetPath)
+      await refreshAfterCreateInFolder(
+        await window.electronAPI.path.dirname(targetPath),
+        targetPath,
+      )
     } else {
       message.error(t('messages.moveFailed') + ': ' + result.error)
     }
@@ -507,8 +623,13 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
       label: t('expand'),
       icon: <FolderOpenOutlined />,
       onClick: () => {
-        if (!expandedKeys.includes(contextMenuNodeRef.current!.key as string)) {
-          setExpandedKeys([...expandedKeys, contextMenuNodeRef.current!.key as string])
+        const key = contextMenuNodeRef.current!.key as string
+        setUserExpandedKeys((prev) => (
+          prev.some((item) => treePathsEqual(item, key)) ? prev : [...prev, key]
+        ))
+        const isLoaded = [...loadedKeysRef.current].some((loadedKey) => treePathsEqual(String(loadedKey), key))
+        if (!isLoaded) {
+          void loadNodeChildren(key)
         }
         setContextMenuVisible(false)
         contextMenuNodeRef.current = null
@@ -519,7 +640,15 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
       key: 'newFile',
       label: t('contextMenu.newNote'),
       icon: <FileAddOutlined />,
-      onClick: () => {
+      onClick: async () => {
+        const node = contextMenuNodeRef.current
+        if (!node || !window.electronAPI) return
+        const parentPath =
+          node.isLeaf === false
+            ? (node.key as string)
+            : await window.electronAPI.path.dirname(node.key as string)
+        pendingNewFileParentRef.current = parentPath
+        setPendingNewFileParentPath(parentPath)
         setContextMenuVisible(false)
         setNewFileModalVisible(true)
       },
@@ -528,7 +657,15 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
       key: 'newFolder',
       label: t('contextMenu.newSubfolder'),
       icon: <FolderAddOutlined />,
-      onClick: () => {
+      onClick: async () => {
+        const node = contextMenuNodeRef.current
+        if (!node || !window.electronAPI) return
+        const parentPath =
+          node.isLeaf === false
+            ? (node.key as string)
+            : await window.electronAPI.path.dirname(node.key as string)
+        pendingNewFolderParentRef.current = parentPath
+        setPendingNewFolderParentPath(parentPath)
         setContextMenuVisible(false)
         setNewFolderModalVisible(true)
       },
@@ -745,13 +882,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
         </div>
         
         {!collapsed && (
-          <div style={{ padding: '0 12px' }}>
-            <DailyNoteCalendar
-              onOpenNote={handleOpenDailyNote}
-              onEntryCreated={() => {
-                if (state.workspacePath) void loadFiles(state.workspacePath)
-              }}
-            />
+          <div className="file-tree-search-bar">
             <Input
               placeholder={t('searchPlaceholder')}
               prefix={<SearchOutlined />}
@@ -762,12 +893,14 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
             />
           </div>
         )}
-        
+
         {!collapsed && (
           <div className="file-tree-content">
             {filteredTreeData.length > 0 ? (
               <Tree
                 showIcon
+                icon={renderTreeIcon}
+                motion={false}
                 draggable
                 onDrop={handleDrop}
                 treeData={filteredTreeData}
@@ -775,41 +908,54 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
                 onSelect={onSelect}
                 selectedKeys={state.currentFile ? [state.currentFile] : []}
                 expandedKeys={expandedKeys}
-                onExpand={(keys) => {
-                  const next = keys as string[]
-                  const prev = expandedKeys.map(String)
-                  for (const key of next) {
-                    if (!prev.includes(key)) userExpandedKeysRef.current.add(key)
-                  }
-                  for (const key of prev) {
-                    if (!next.includes(key)) {
-                      userExpandedKeysRef.current.delete(key)
-                      autoExpandedKeysRef.current.delete(key)
+                onExpand={(_keys, { expanded, node }) => {
+                  const nodeKey = String(node.key)
+                  setUserExpandedKeys((current) => {
+                    if (expanded) {
+                      return current.some((key) => treePathsEqual(key, nodeKey))
+                        ? current
+                        : [...current, nodeKey]
                     }
+                    return current.filter((key) => !treePathsEqual(key, nodeKey))
+                  })
+                  if (expanded && node.isLeaf === false) {
+                    void loadNodeChildren(nodeKey)
                   }
-                  setExpandedKeys(next)
                 }}
-                loadedKeys={loadedKeys}
                 blockNode
                 onRightClick={({ node, event }) => {
                   handleContextMenu(node, event as React.MouseEvent)
                 }}
-                loadData={async (node: TreeDataNode) => {
-                  const nodePath = String(node.key)
-                  if (node.isLeaf) return
-                  await loadNodeChildren(nodePath)
-                }}
               />
-            ) : workspaceLoading ? (
-              <div className="file-tree-empty">
-                <Spin size="small" />
-                <span style={{ marginLeft: 8 }}>{t('loadingWorkspace')}</span>
-              </div>
             ) : (
               <div className="file-tree-empty">
-                {state.workspacePath ? t('noMatchingFiles') : t('pleaseOpenWorkspace')}
+                {state.workspacePath ? (
+                  t('noMatchingFiles')
+                ) : (
+                  <>
+                    <span className="file-tree-empty-icon" aria-hidden>📁</span>
+                    <p style={{ margin: 0 }}>{t('pleaseOpenWorkspace')}</p>
+                    {onOpenWorkspace && (
+                      <Button type="primary" size="small" onClick={onOpenWorkspace}>
+                        {t('openWorkspace')}
+                      </Button>
+                    )}
+                  </>
+                )}
               </div>
             )}
+          </div>
+        )}
+
+        {!collapsed && (
+          <div className="file-tree-activity">
+            <DailyNoteCalendar
+              onOpenNote={handleOpenDailyNote}
+              onOpenInGraph={onOpenInGraph}
+              onEntryCreated={() => {
+                if (state.workspacePath) void refreshExpandedTree()
+              }}
+            />
           </div>
         )}
       </div>
@@ -821,7 +967,6 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
         items={contextMenuItems}
         onClose={() => {
           setContextMenuVisible(false)
-          contextMenuNodeRef.current = null
         }}
       />
 
@@ -867,6 +1012,8 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
         onCancel={() => {
           setNewFileModalVisible(false)
           setNewFileName('')
+          pendingNewFileParentRef.current = null
+          setPendingNewFileParentPath(null)
         }}
         onOk={handleCreateFile}
         okText={t('create')}
@@ -889,6 +1036,8 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
         onCancel={() => {
           setNewFolderModalVisible(false)
           setNewFolderName('')
+          pendingNewFolderParentRef.current = null
+          setPendingNewFolderParentPath(null)
         }}
         onOk={handleCreateFolder}
         okText={t('create')}
@@ -923,8 +1072,12 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, wo
           
           if (result.success) {
             message.success(t('messages.fileCreated'))
-            await loadFiles(state.workspacePath!)
-            dispatch({ type: 'SET_CURRENT_FILE', payload: filePath })
+            await refreshAfterCreateInFolder(templateTargetPath, filePath)
+            const tabName = filePath.split(/[/\\]/).pop() || fileName
+            dispatch({
+              type: 'ADD_TAB',
+              payload: { path: filePath, name: tabName, isDirty: false },
+            })
           } else {
             message.error(t('messages.createFailed') + ': ' + result.error)
           }

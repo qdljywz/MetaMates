@@ -1,0 +1,19 @@
+﻿# Personal vaults — never index for AI context
+MyMetaMates/
+Test/
+MyM2/
+
+# Build outputs (large; lock app.asar during pack)
+metamates-app/release/
+metamates-app/release-build/
+metamates-app/dist/
+metamates-app/dist-electron/
+metamates-app/node_modules/
+
+# Packaged app bundles
+**/*.asar
+
+# Internal notes at repo root
+PLAN.md
+VERSION.md
+project_rules.md

@@ -8,9 +8,11 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
+import { resolveDefaultWorkspace } from './lib/default-workspace.mjs'
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
-const WORKSPACE = process.env.MM_TEST_WORKSPACE || 'E:\\Trae\\Metamates\\Test\\test0407'
+const WORKSPACE = resolveDefaultWorkspace('MM_TEST_WORKSPACE')
 const CODEX_DIR = path.join(WORKSPACE, '.codex')
 const CODEX_SKILLS = path.join(CODEX_DIR, 'skills')
 const LOG_FILE = path.join(ROOT, 'codex-skill-scenario.log')

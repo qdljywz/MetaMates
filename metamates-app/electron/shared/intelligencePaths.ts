@@ -50,7 +50,7 @@ export function createUserMemoryIndexContent(language: WorkspaceLanguage = 'zh')
 `
   }
 
-  return `# Metamates 记忆索引
+  return `# MetaMates 记忆索引
 
 > 用户可读、可检索的长期记忆（在 Obsidian 中直接打开）。
 > CLI 如有记忆更新，**必须同步摘要到此文件**（Act & Verify）。

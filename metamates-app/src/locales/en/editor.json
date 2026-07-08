@@ -21,7 +21,12 @@
   "tabs": {
     "close": "Close",
     "closeOthers": "Close Others",
-    "closeAll": "Close All"
+    "closeAll": "Close All",
+    "emptyPlaceholder": "No open tabs — pick a next step below, or talk to AI on the right",
+    "listLabel": "Open tabs",
+    "unsavedCloseTitle": "Unsaved changes",
+    "unsavedCloseBody": "This file has unsaved edits. Closing the tab will discard them.",
+    "unsavedCloseConfirm": "Close without saving"
   },
   "wikiLink": {
     "title": "Wiki Link",
@@ -96,38 +101,149 @@
     "horizontalRule": "Horizontal Rule"
   },
   "welcome": {
-    "title": "Welcome to Metamates",
-    "tagline": "Notes stay on your computer. AI helps you organize and act—results are written to files, not lost in chat.",
-    "introNoWorkspace": "Metamates is a local knowledge workspace: browse notes on the left, edit in the center, collaborate with AI on the right. Choose a workspace folder to begin.",
-    "introReady": "Your workspace is ready. AI on the right can read and write Markdown notes in this folder.",
+    "title": "Welcome to MetaMates",
+    "introNoWorkspace": "Built for **creators, knowledge workers, and lifelong learners**: you have a steady stream of ideas but don’t want to organize them upfront. MetaMates lets you **capture first, process later**—vault on the left, editor in the center, **engine on the right as your daily starting point**. Choose a workspace folder to begin.",
+    "introReady": "Your inspiration vault is ready. **Each day, start on the right—pick an AI, send a message, or run a command.** The engine reads Markdown in this folder and writes results back. The center editor is for reviewing and tweaking, not the only entry point.",
     "nextTitle": "Next steps",
-    "stepSetup1": "On the left, click **Open workspace** and choose or create a notes folder",
-    "stepSetup2": "On the right, **connect an AI assistant** (complete sign-in if prompted)",
-    "stepSetup3": "Send your first message, or tap **`/today`** to generate today's plan",
-    "stepReady1": "On the right, **pick an AI and send a message**",
-    "stepReady2": "Try **`/today`** for a daily plan, or **`/intel`** to import a link or document",
-    "stepReady3": "Open today's journal from the **calendar** on the left, or press **`Ctrl+N`**",
+    "stepSetup1": "On the left, click **Open workspace** and choose a folder for your ideas (diary, inbox, and more are created on first run)",
+    "stepSetup2": "On the right, **connect an AI assistant**—that’s the main entry; you don’t need a long note first",
+    "stepSetup3": "Say “help me plan today” or tap **`/today`** and watch the engine write the plan to a file",
+    "stepReady1": "On the right, **pick an AI and describe what you want now** (triage inbox, plan the day, upgrade a spark…)",
+    "stepReady2": "Try **`/today`** for a daily plan, **`/graduate`** to promote a fragment to a permanent note, or **`/intel`** to clip a link",
+    "stepReady3": "Open results in the center editor; use the **calendar** on the left for today’s journal, or **`Ctrl+P`** to create or import",
     "stepAuth1": "When the panel shows **sign-in required**, follow the prompt to authenticate your assistant",
-    "stepAuth2": "After sign-in, send **`/today`** or any message to confirm it works",
+    "stepAuth2": "After sign-in, send **`/today`** or any message to confirm the engine can read and write your vault",
     "stepAuth3": "You can also switch or install another assistant under **Settings → AI** (top right)",
-    "stepNoAgent1": "No AI assistant is available yet",
-    "stepNoAgent2": "Open **Settings → AI** to install or enable Gemini, Claude, or CodeBuddy",
+    "stepNoAgent1": "No AI assistant detected—**without a CLI, MetaMates can only store, not transform**",
+    "stepNoAgent2": "Click **Install AI assistant** in the right Agent panel, or open **Settings → AI** to install Gemini, Claude, or CodeBuddy",
     "stepNoAgent3": "Once connected, chat in the right panel or use slash commands",
-    "stepConnecting1": "Connecting to your AI assistant — this usually takes a few seconds",
+    "stepConnecting1": "Connecting the thinking engine—usually a few seconds",
     "stepConnecting2": "When ready, try **`/today`** or **`/context`**",
     "stepConnecting3": "Use the **microphone** next to the input for voice (mic permission required; Windows often needs network)",
-    "agentTitle": "AI assistant",
-    "agentNeedsAuth": "**Sign-in required.** Complete authentication in the panel on the right before sending messages or slash commands.",
-    "agentReady": "**AI is ready.** Chat directly or use commands like `/today` and `/intel`.",
-    "agentConnecting": "Connecting to your AI assistant…",
-    "agentNoAgent": "No enabled AI assistant detected. Install or enable one under **Settings → AI**.",
-    "commandsTitle": "Common commands",
-    "commandsBody": "| Command | Purpose |\n|---------|--------|\n| `/today` | Generate today's plan |\n| `/closeday` | End-of-day review |\n| `/intel` | Import a URL or document as intelligence |\n| `/context` | Load project context |\n\nSee **?** (top right) for the full list.",
+    "agentTitle": "Engine status",
+    "agentNeedsAuth": "**Sign-in required.** Complete authentication in the panel on the right before the engine can read and write your vault.",
+    "agentReady": "**Engine is ready.** Chat directly or use `/today`, `/graduate`, `/intel`, and more—results land in your notes.",
+    "agentConnecting": "Connecting to the thinking engine…",
+    "agentNoAgent": "No enabled AI assistant detected. **Without a CLI, MetaMates is vault-only**—click Install AI assistant on the right, or open **Settings → AI**.",
+    "commandsTitle": "Common commands (read vault → process → write back)",
+    "commandsBody": "| Command | When to use it |\n|---------|----------------|\n| `/today` | Morning or start of work: pull context from the vault, generate today’s plan |\n| `/closeday` | End of day: review today, set up tomorrow |\n| `/graduate` | When an inbox fragment deserves to become a permanent note |\n| `/intel` | Clip an article or document into the vault as intelligence |\n| `/context` | Before a project session: let AI read related notes first |\n\nSee **?** (top right) for the full list.",
     "tipsTitle": "Shortcuts",
-    "tipsBody": "- **`Ctrl+P`** Command palette (new note, import intelligence, …)\n- **`Ctrl+Shift+F`** Global search\n- **`@`** Reference a file in chat\n- **`[[note name]]`** Link notes together\n- **Microphone** on the right for voice input (mic permission; Windows desktop often needs network)"
+    "tipsBody": "- **`Ctrl+P`** Command palette (new note, import intelligence, …)\n- **`Ctrl+Shift+F`** Search across your vault\n- **`@`** Reference a file in chat so the engine has context\n- **`[[note name]]`** Link notes together\n- **Microphone** on the right for voice input (mic permission; Windows desktop often needs network)"
   },
   "table": {
     "column": "Column",
     "content": "Content"
+  },
+  "emptyState": {
+    "eyebrow": "Thinking engine",
+    "askAgent": "Talk to AI about this",
+    "refreshQuestion": "Another question",
+    "footerHint": "Output lands in your vault on the left and opens here for review and tweaks.",
+    "contextLine": {
+      "inbox": "{{count}} notes waiting in Inbox",
+      "planOpen": "{{count}} open in PLAN · next: {{task}}",
+      "schedule": "{{count}} events today · next: {{time}} {{event}}",
+      "ideas": "Latest ideas report: {{report}}"
+    },
+    "questions": {
+      "noWorkspace": "Which folder should hold your ideas?",
+      "noAgent": "Your vault is ready—connect an AI assistant to process these notes?",
+      "authRequired": "Your assistant isn’t signed in yet—authenticate so the engine can read your vault?",
+      "newUser": "What first: today’s plan, triage inbox, or upgrade a spark?",
+      "morningNoPlan": "Good morning—no PLAN yet. Pull today’s plan from your vault?",
+      "morningNoPlanGentle": "You’re ready to start, but today still has no clear handle. Want me to sketch a PLAN first?",
+      "inboxGraduate": "{{count}} fragments in Inbox—upgrade a few into permanent notes?",
+      "inboxGraduateTheme": "These fragments still haven’t collapsed into a theme. Want to first spot which ones are really about the same problem?",
+      "inboxGraduateGentle": "You’ve been collecting a lot lately. Maybe what you need now is synthesis, not another input. Want to do one pass?",
+      "continueRecent": "Keep shaping “{{name}}”, or ask the engine for a fresh angle?",
+      "continueRecentDecision": "You keep returning to “{{name}}”. Do you need to keep writing, or first name what’s actually blocking it?",
+      "eveningCloseDay": "Wrapping up—review today and set a hook for tomorrow?",
+      "eveningCloseDayGentle": "You moved things forward today. What may matter most now is not more input, but one line that hands tomorrow a clean start.",
+      "eveningNoNote": "No journal entry today—capture a few thoughts before you stop?",
+      "eveningNoNoteGentle": "Today wasn’t empty, it just hasn’t been captured yet. Want to save the one thing that matters most before you stop?",
+      "reviewPlan": "Today’s plan is in the vault—check progress against it?",
+      "reviewPlanTension": "The plan exists. The real question may not be what to do, but which important thing still hasn’t moved.",
+      "afternoonNoPlan": "Afternoon already—generate today’s plan from the vault now?",
+      "afternoonNoPlanFocus": "You’ve probably already started moving, but without a clear handle. Want to pin down the few things worth focusing on?",
+      "planOpenTasks": "“{{task}}” in your PLAN is still open—is it blocked by time, or by uncertainty whether it matters?",
+      "planOpenTasksTension": "{{count}} items unchecked in your plan. Is today stuck on execution, or on not knowing what comes first?",
+      "planOpenTasksGentle": "You already have a PLAN for today. Want to move “{{task}}” first and give the day a clear start?",
+      "scheduleToday": "{{count}} events on the calendar—before “{{event}}”, what’s the one thing worth pushing forward?",
+      "scheduleTodayTension": "The calendar is full but PLAN items remain open. Are you chasing the schedule, or what actually matters?",
+      "ideasBrewing": "“{{report}}” has ideas still in motion—which one deserves one real step today?",
+      "ideasBrewingFocus": "You’ve been brewing new ideas lately. Do you need more capture, or one idea pushed past the decision line?",
+      "welcomeBack": "What’s next: write, organize, or one sentence to the engine?",
+      "welcomeBackFocus": "You’re back. Maybe the problem isn’t a lack of options, but a lack of one clear focal point. Want to pick it first?"
+    },
+    "prefill": {
+      "noWorkspace": "I want to open a workspace folder for my notes",
+      "noAgent": "Help me detect and connect an available AI assistant",
+      "authRequired": "Help me complete AI assistant sign-in",
+      "newUser": "I’m new—run /today to create my first daily plan from the vault",
+      "morningNoPlan": "Please run /today and generate today’s plan from my vault context",
+      "inboxGraduate": "Review my inbox and run /graduate on notes worth keeping",
+      "continueRecent": "I want to continue improving “{{name}}”—read related notes and advise",
+      "eveningCloseDay": "Please run /closeday to review today based on my notes and plan",
+      "eveningNoNote": "Help me capture today’s journal highlights and whether to update the plan",
+      "reviewPlan": "Read today’s PLAN and tell me what still needs attention",
+      "afternoonNoPlan": "Run /today now based on what’s in my vault",
+      "planOpenTasks": "Read today’s PLAN and help me decide if “{{task}}” should be my priority right now",
+      "scheduleToday": "Given today’s calendar and PLAN, what’s the one thing I should push forward now?",
+      "ideasBrewing": "Read “{{report}}” and related notes—pick one idea worth acting on today",
+      "welcomeBack": "Based on my recent notes, what’s the one best thing to do next?"
+    },
+    "agentStatus": {
+      "ready": "Engine ready",
+      "connecting": "Connecting engine",
+      "authRequired": "Assistant sign-in required",
+      "noAgent": "No AI assistant detected",
+      "idle": "Engine idle"
+    },
+    "actions": {
+      "openWorkspace": {
+        "title": "Open workspace",
+        "description": "Choose the folder for diary, inbox, and project notes"
+      },
+      "learnEngine": {
+        "title": "What the engine can do",
+        "description": "With AI connected, chat and commands read the same vault"
+      },
+      "installAgent": {
+        "title": "Install an AI assistant",
+        "description": "Without a CLI you can store notes, not auto-organize or plan"
+      },
+      "authAgent": {
+        "title": "Complete assistant sign-in",
+        "description": "Then the engine can read and write your files"
+      },
+      "today": {
+        "title": "Generate today’s plan (/today)",
+        "description": "Pull vault context and write today’s PLAN"
+      },
+      "closeday": {
+        "title": "Close the day (/closeday)",
+        "description": "Review today and set up tomorrow"
+      },
+      "chat": {
+        "title": "Say one thing to AI",
+        "description": "Describe what you want now—the engine reads the vault and writes back"
+      },
+      "graduate": {
+        "title": "Triage inbox (/graduate)",
+        "description": "{{count}} inbox notes ready to upgrade"
+      },
+      "openTodayPlan": {
+        "title": "Open today’s plan",
+        "description": "Review or tweak today’s PLAN file"
+      },
+      "recent": {
+        "title": "Continue: {{name}}",
+        "description": "Reopen a note you edited recently"
+      },
+      "intel": {
+        "title": "Clip intelligence (/intel)",
+        "description": "Turn a link or document into a vault note"
+      }
+    }
   }
 }

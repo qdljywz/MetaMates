@@ -11,7 +11,7 @@ allowed-tools: Read, Write, Glob, Grep
 1. **扫描今日活动**：读取今日日记和相关文件，了解今天的进展
 2. **读取 Master_Control**：查看 `05_模板与配置/Master_Control.md` 当前状态
 3. **识别核心进展**：总结今天完成的重要工作、产生的想法
-4. **更新 Master_Control**：根据 Metamates 协议，更新 Master_Control.md 文件
+4. **更新 Master_Control**：根据 MetaMates 协议，更新 Master_Control.md 文件
 
 ## 更新内容应包括
 - 📊 核心目标进展

@@ -1,4 +1,5 @@
 import * as http from 'http'
+import * as crypto from 'crypto'
 import * as fs from 'fs'
 import * as path from 'path'
 import { listMarkdownFiles, searchMarkdownFiles, searchMarkdownSemantic } from '../workspaceMigrate'
@@ -8,11 +9,14 @@ import { detectWorkspaceLanguage, resolveInboxDir } from '../workspaceLayout'
 import { isPathWithinRoot } from '../shared/pathSafety'
 
 const DEFAULT_PORT = 17333
+const MAX_BODY_BYTES = 5 * 1024 * 1024
 
 export interface VaultApiStatus {
   running: boolean
   port: number
   workspacePath: string
+  /** Present when LAN access is enabled — required for non-localhost API calls. */
+  lanToken?: string
 }
 
 /**
@@ -23,12 +27,15 @@ export class VaultApiServer {
   private workspacePath = ''
   private port = DEFAULT_PORT
   private calendarIcsPath = ''
+  private bindLan = false
+  private authToken = ''
 
   getStatus(): VaultApiStatus {
     return {
       running: this.server !== null,
       port: this.port,
       workspacePath: this.workspacePath,
+      lanToken: this.bindLan && this.authToken ? this.authToken : undefined,
     }
   }
 
@@ -36,12 +43,33 @@ export class VaultApiServer {
     workspacePath: string,
     port = DEFAULT_PORT,
     options?: { calendarIcsPath?: string; bindLan?: boolean }
-  ): Promise<{ success: boolean; port: number; error?: string }> {
+  ): Promise<{ success: boolean; port: number; error?: string; lanToken?: string }> {
     return new Promise((resolve) => {
+      const requestedCalendarPath = options?.calendarIcsPath || ''
+      const requestedBindLan = !!options?.bindLan
+
+      // Idempotent fast-path: same config should not restart server.
+      if (
+        this.server &&
+        this.workspacePath === workspacePath &&
+        this.port === port &&
+        this.calendarIcsPath === requestedCalendarPath &&
+        this.bindLan === requestedBindLan
+      ) {
+        resolve({ success: true, port: this.port, lanToken: this.bindLan ? this.authToken : undefined })
+        return
+      }
+
       const bind = () => {
         this.workspacePath = workspacePath
         this.port = port
-        this.calendarIcsPath = options?.calendarIcsPath || ''
+        this.calendarIcsPath = requestedCalendarPath
+        this.bindLan = requestedBindLan
+        if (requestedBindLan) {
+          this.authToken = crypto.randomBytes(24).toString('hex')
+        } else {
+          this.authToken = ''
+        }
 
         this.server = http.createServer((req, res) => {
           this.handleRequest(req, res)
@@ -56,10 +84,14 @@ export class VaultApiServer {
           this.server = null
         })
 
-        this.server.listen(port, options?.bindLan ? '0.0.0.0' : '127.0.0.1', () => {
-          const host = options?.bindLan ? '0.0.0.0' : '127.0.0.1'
+        this.server.listen(port, requestedBindLan ? '0.0.0.0' : '127.0.0.1', () => {
+          const host = requestedBindLan ? '0.0.0.0' : '127.0.0.1'
           console.log(`[VaultAPI] Listening on http://${host}:${port}`)
-          resolve({ success: true, port })
+          resolve({
+            success: true,
+            port,
+            lanToken: requestedBindLan ? this.authToken : undefined,
+          })
         })
       }
 
@@ -85,6 +117,8 @@ export class VaultApiServer {
         this.server = null
         this.workspacePath = ''
         this.calendarIcsPath = ''
+        this.bindLan = false
+        this.authToken = ''
         console.log('[VaultAPI] Stopped')
         resolve()
       })
@@ -94,7 +128,7 @@ export class VaultApiServer {
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS')
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Vault-Token')
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204)
@@ -109,30 +143,33 @@ export class VaultApiServer {
 
     const url = new URL(req.url || '/', `http://127.0.0.1:${this.port}`)
 
+    if (req.method === 'GET' && url.pathname === '/health') {
+      this.sendJson(res, 200, {
+        status: 'ok',
+        port: this.port,
+        lan: this.bindLan,
+      })
+      return
+    }
+
+    if (req.method === 'GET' && url.pathname === '/mobile') {
+      const mobilePath = path.join(__dirname, 'mobile.html')
+      if (!fs.existsSync(mobilePath)) {
+        this.sendJson(res, 404, { error: 'Mobile reader not found' })
+        return
+      }
+      const html = fs.readFileSync(mobilePath, 'utf-8')
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+      res.end(html)
+      return
+    }
+
+    if (!this.isAuthorized(req, url)) {
+      this.sendJson(res, 401, { error: 'Unauthorized — scan the QR code in MetaMates settings for the access token' })
+      return
+    }
+
     try {
-      if (req.method === 'GET' && url.pathname === '/health') {
-        this.sendJson(res, 200, {
-          status: 'ok',
-          workspace: this.workspacePath,
-          port: this.port,
-          mobileReader: `http://127.0.0.1:${this.port}/mobile`,
-          capture: `POST /api/capture`,
-        })
-        return
-      }
-
-      if (req.method === 'GET' && url.pathname === '/mobile') {
-        const mobilePath = path.join(__dirname, 'mobile.html')
-        if (!fs.existsSync(mobilePath)) {
-          this.sendJson(res, 404, { error: 'Mobile reader not found' })
-          return
-        }
-        const html = fs.readFileSync(mobilePath, 'utf-8')
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-        res.end(html)
-        return
-      }
-
       if (req.method === 'GET' && url.pathname === '/api/ollama/status') {
         const baseUrl = url.searchParams.get('baseUrl') || 'http://127.0.0.1:11434'
         void getOllamaStatus(baseUrl)
@@ -237,12 +274,16 @@ export class VaultApiServer {
           } catch {
             this.sendJson(res, 400, { error: 'Invalid JSON body' })
           }
+        }).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error)
+          const status = message.includes('too large') ? 413 : 400
+          this.sendJson(res, status, { error: message })
         })
         return
       }
 
       if (req.method === 'PUT' && url.pathname === '/api/file') {
-        this.readBody(req).then((body) => {
+        void this.readBody(req).then((body) => {
           try {
             const data = JSON.parse(body)
             if (!data.path || typeof data.content !== 'string') {
@@ -263,6 +304,10 @@ export class VaultApiServer {
           } catch {
             this.sendJson(res, 400, { error: 'Invalid JSON body' })
           }
+        }).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error)
+          const status = message.includes('too large') ? 413 : 400
+          this.sendJson(res, status, { error: message })
         })
         return
       }
@@ -281,6 +326,20 @@ export class VaultApiServer {
     return resolved
   }
 
+  private isLocalRequest(req: http.IncomingMessage): boolean {
+    const addr = req.socket.remoteAddress || ''
+    return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1'
+  }
+
+  private isAuthorized(req: http.IncomingMessage, url: URL): boolean {
+    if (!this.bindLan || this.isLocalRequest(req)) return true
+    const header = req.headers['x-vault-token']
+    const fromHeader = Array.isArray(header) ? header[0] : header
+    const fromQuery = url.searchParams.get('token')
+    const token = (fromHeader || fromQuery || '').trim()
+    return token.length > 0 && token === this.authToken
+  }
+
   private sendJson(res: http.ServerResponse, status: number, data: object): void {
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' })
     res.end(JSON.stringify(data))
@@ -289,7 +348,16 @@ export class VaultApiServer {
   private readBody(req: http.IncomingMessage): Promise<string> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = []
-      req.on('data', (chunk) => chunks.push(chunk))
+      let total = 0
+      req.on('data', (chunk: Buffer) => {
+        total += chunk.length
+        if (total > MAX_BODY_BYTES) {
+          req.destroy()
+          reject(new Error('Request body too large'))
+          return
+        }
+        chunks.push(chunk)
+      })
       req.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')))
       req.on('error', reject)
     })

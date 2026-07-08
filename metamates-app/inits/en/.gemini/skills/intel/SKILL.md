@@ -8,7 +8,7 @@ allowed-tools: Read, Write, Glob, Grep
 
 ## Workflow
 
-Metamates desktop app performs **local extraction** first (web pages, PDF, Word, Excel, image OCR, etc.), creates a draft note under `04_Intelligence/` with originals in `sources/`. Your job is to **deepen** that note:
+MetaMates desktop app performs **local extraction** first (web pages, PDF, Word, Excel, image OCR, etc.), creates a draft note under `04_Intelligence/` with originals in `sources/`. Your job is to **deepen** that note:
 
 1. **Read** the draft `.md` and source metadata (URL or `sources/` path)
 2. **Add** structured summary: core thesis, key data, assumptions to verify
@@ -48,9 +48,3 @@ Metamates desktop app performs **local extraction** first (web pages, PDF, Word,
 ✅ Action items
 - …
 ```
-
-## Memory & vault boundary (Metamates required)
-
-- Mirror user-facing long-term memory to `04_Intelligence/Memory_Index.md` (details under `04_Intelligence/Reference/`)
-- **Never** write only to `~/.codebuddy`, CLI caches, or paths outside the vault
-- When this command requires writeback: use Write/edit tools and **read back to verify** (Act & Verify)

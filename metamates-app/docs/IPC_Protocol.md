@@ -86,7 +86,7 @@ interface LoadHistoryMessage extends IPCMessage {
 | stream | message: string | 发送流式消息 |
 | cancel | - | 取消当前消息 |
 
-### 2.2 Metamates 命令
+### 2.2 MetaMates 命令
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
@@ -108,7 +108,7 @@ Gemini CLI                 执行工具
      ↓ 返回结果
      ↓
 主进程                    拦截结果
-     ↓ 转换为 Metamates API
+     ↓ 转换为 MetaMates API
      ↓
 渲染进程                    显示结果
 ```
@@ -149,7 +149,7 @@ Gemini CLI                 执行工具
 
 5. 主进程拦截工具调用
 
-6. 主进程转换为 Metamates API 调用：
+6. 主进程转换为 MetaMates API 调用：
 ```typescript
 await window.electronAPI.writeFile(filePath, content)
 ```
@@ -224,7 +224,7 @@ interface ContextWindow {
   - 消息发送和接收
 - [ ] 实现工具调用拦截
   - 拦截 Gemini CLI 的工具调用
-  - 转换为 Metamates API
+  - 转换为 MetaMates API
 - [ ] 编写单元测试
   - 测试进程管理器
   - 测试 IPC 通信
@@ -255,7 +255,7 @@ interface GeminiOutput {
 
 ### 7.2 工具调用映射
 
-| Gemini CLI 工具 | Metamates API | 说明 |
+| Gemini CLI 工具 | MetaMates API | 说明 |
 |----------------|----------------|------|
 | read_file | readFile | 读取文件内容 |
 | write_file | writeFile | 创建或覆盖文件 |

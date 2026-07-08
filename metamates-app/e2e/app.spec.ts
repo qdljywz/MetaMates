@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-test.describe('Metamates Electron App E2E Test', () => {
+test.describe('MetaMates Electron App E2E Test', () => {
   let electronApp
   let window
 
@@ -36,7 +36,7 @@ test.describe('Metamates Electron App E2E Test', () => {
     
     const title = await window.title()
     console.log('Page title:', title)
-    expect(title).toContain('Metamates')
+    expect(title).toContain('MetaMates')
   })
 
   test('应该显示Agent Chat Panel', async () => {

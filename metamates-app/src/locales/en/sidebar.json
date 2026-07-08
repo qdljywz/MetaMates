@@ -67,6 +67,7 @@
     "renameSuccess": "Renamed successfully",
     "renameFailed": "Rename failed",
     "deleteSuccess": "Deleted successfully",
+    "deleteAlreadyGone": "File no longer exists; related tabs were closed",
     "deleteFailed": "Delete failed",
     "copySuccess": "Copied to clipboard",
     "reinitFailed": "Sync failed",
@@ -80,11 +81,23 @@
   "reinitWorkspace": "Sync Default Structure",
   "migrateWorkspace": "Migrate legacy paths",
   "dailyCalendar": {
-    "title": "Daily notes",
+    "title": "Activity",
+    "subtitle": "Orange dot = diary exists for that day, blue = PLAN; tint = edits that day. List below uses file mtime.",
+    "legendNote": "Diary",
+    "legendPlan": "PLAN",
+    "legendEdits": "Edits",
     "openExisting": "Open daily note",
     "openOrCreate": "Open or create daily note",
     "today": "Today",
     "recent": "Recent notes",
-    "openPlanHint": "Click for daily note, Shift+click for PLAN"
+    "openPlanHint": "Click for daily note, Shift+click for PLAN",
+    "dateHint": "Click: edits that day · Double-click: diary · Shift+click: PLAN",
+    "editedToday": "Edited today",
+    "editedOn": "Edited {{date}}",
+    "fileCount": "{{count}} files",
+    "openDiary": "Diary",
+    "openPlan": "PLAN",
+    "noEdits": "No file edits recorded for this day",
+    "openInGraph": "View in graph"
   }
 }

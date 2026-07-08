@@ -8,8 +8,8 @@ allowed-tools: Read, Glob, Grep, Write
 
 请执行以下任务：
 
-1. **扫描日记**：读取 `01_日记与计划/` 最近 14 天的记录
-2. **识别可升级灵感**：发现值得独立成文的碎片化想法
+1. **扫描日记与 Inbox**：读取 `01_日记与计划/` 最近 14 天的日记，以及 `01_日记与计划/Inbox/` 中未处理的剪藏（跳过 `Inbox/processed/`）
+2. **识别可升级灵感**：从日记与 Inbox 中发现值得独立成文的碎片化想法
 3. **创建永久笔记**：在 `03_点滴积累/` 创建独立的 Zettel 笔记
 4. **回链**：在原日记中添加指向新笔记的链接
 
@@ -43,9 +43,12 @@ allowed-tools: Read, Glob, Grep, Write
 ```
 
 ---
-**协议来源**: Metamates CODEBUDDY.md
+**协议来源**: MetaMates CODEBUDDY.md
 
-## 记忆与 Vault 边界（Metamates 强制）
+
+> **Inbox 归档**：报告中须列出 Inbox 来源的**完整路径**（如 `01_日记与计划/Inbox/xxx.md`）。MetaMates 写回成功后会自动将引用的 Inbox 源文件移至 `Inbox/processed/`。
+
+## 记忆与 Vault 边界（MetaMates 强制）
 
 - 用户可读的长期记忆须镜像到 `04_情报与连接/记忆索引.md`（详细条目放 `04_情报与连接/参考/`）
 - **禁止**只写入 `~/.codebuddy`、CLI 项目缓存或其它 Vault 外路径

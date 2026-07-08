@@ -20,7 +20,7 @@ allowed-tools: Read, Write, Glob, Grep
 🌙 每日复盘完成
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📅 复盘日期：[北京时间]
+📅 复盘日期：[MetaMates prompt 注入的有效时区日期]
 
 ✅ 今日完成
 - [ ] [任务1]
@@ -41,9 +41,3 @@ allowed-tools: Read, Write, Glob, Grep
 ```
 
 **重要**：复盘后建议运行 `/sync` 更新 Master_Control。
-
-## 记忆与 Vault 边界（Metamates 强制）
-
-- 用户可读的长期记忆须镜像到 `04_情报与连接/记忆索引.md`（详细条目放 `04_情报与连接/参考/`）
-- **禁止**只写入 `~/.codebuddy`、CLI 项目缓存或其它 Vault 外路径
-- 本命令若要求写回：必须使用 Write/编辑工具落盘，并在写后 **Read 验证**（Act & Verify）

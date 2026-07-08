@@ -1,7 +1,9 @@
 import React, { memo, useCallback } from 'react'
+import { message } from 'antd'
 import { useTranslation } from 'react-i18next'
 import ToolCallCard from './ToolCallCard'
 import LazyMarkdownContent from './LazyMarkdownContent'
+import { copyTextToClipboard } from '../../utils/clipboard'
 import type { ChatAttachment } from './AgentChatInput'
 
 export interface AgentMessage {
@@ -49,11 +51,17 @@ interface AgentMessageItemProps {
 
 const AgentMessageItem = memo(({ msg, theme, isDark, workspacePath, renderMarkdown, onOpenFile }: AgentMessageItemProps) => {
   const { t } = useTranslation('agent')
-  const handleCopy = useCallback(() => {
-    if (msg.content) {
-      navigator.clipboard?.writeText(msg.content).catch(() => {})
+  const handleCopy = useCallback(async (event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (!msg.content) return
+    const ok = await copyTextToClipboard(msg.content)
+    if (ok) {
+      message.success(t('message.copySuccess'))
+    } else {
+      message.error(t('message.copyFailed'))
     }
-  }, [msg.content])
+  }, [msg.content, t])
 
   const isUser = msg.type === 'user'
   const isStreaming = msg.type === 'agent' && msg.status === 'streaming'
@@ -80,8 +88,9 @@ const AgentMessageItem = memo(({ msg, theme, isDark, workspacePath, renderMarkdo
       {msg.type !== 'user' && msg.content && (
         <button
           type="button"
-          onClick={handleCopy}
-          title="Copy"
+          onClick={(event) => void handleCopy(event)}
+          title={t('message.copy')}
+          aria-label={t('message.copy')}
           className="agent-panel__copy-btn"
         >
           📋

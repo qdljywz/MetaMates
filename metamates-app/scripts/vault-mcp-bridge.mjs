@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Metamates Vault MCP Bridge (stdio)
+ * MetaMates Vault MCP Bridge (stdio)
  *
- * 将 Metamates Vault HTTP API 暴露为 MCP 工具，供 Claude Desktop / Cursor 连接。
+ * 将 MetaMates Vault HTTP API 暴露为 MCP 工具，供 Claude Desktop / Cursor 连接。
  *
- * 前置条件：在 Metamates 设置中启用 Vault API，或手动启动 API 服务。
+ * 前置条件：在 MetaMates 设置中启用 Vault API，或手动启动 API 服务。
  *
  * 环境变量：
  *   VAULT_API_URL - 默认 http://127.0.0.1:17333
@@ -26,7 +26,7 @@ const VAULT_API_URL = process.env.VAULT_API_URL || 'http://127.0.0.1:17333'
 const TOOLS = [
   {
     name: 'search_vault',
-    description: 'Search markdown notes in the Metamates workspace by keyword',
+    description: 'Search markdown notes in the MetaMates workspace by keyword',
     inputSchema: {
       type: 'object',
       properties: {
@@ -38,7 +38,7 @@ const TOOLS = [
   },
   {
     name: 'search_vault_semantic',
-    description: 'Semantic (TF-IDF) search markdown notes in the Metamates workspace',
+    description: 'Semantic (TF-IDF) search markdown notes in the MetaMates workspace',
     inputSchema: {
       type: 'object',
       properties: {

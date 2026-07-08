@@ -143,22 +143,51 @@ const VirtualAgentMessageList = forwardRef<VirtualMessageListHandle, VirtualAgen
       onUserScrollChange?.(false)
     }, [listKey, onUserScrollChange])
 
+    const pinScrollToBottom = useCallback((el: HTMLDivElement | null) => {
+      if (!el) return
+      el.scrollTop = el.scrollHeight
+    }, [])
+
     const scrollToBottom = useCallback((force = false) => {
       if (!force && userScrolledRef.current) return
 
-      if (useVirtual) {
-        if (messages.length === 0) {
-          const el = listRef.current?.element
-          if (el) el.scrollTop = el.scrollHeight
-          return
+      const run = () => {
+        if (useVirtual) {
+          if (messages.length === 0) {
+            pinScrollToBottom(listRef.current?.element ?? null)
+            return
+          }
+          const api = listRef.current
+          api?.scrollToRow({ index: messages.length - 1, align: 'end', behavior: 'instant' })
+          pinScrollToBottom(listRef.current?.element ?? null)
+        } else {
+          pinScrollToBottom(simpleScrollRef.current)
         }
-        const api = listRef.current
-        api?.scrollToRow({ index: messages.length - 1, align: 'end', behavior: 'instant' })
-      } else {
-        const el = simpleScrollRef.current
-        if (el) el.scrollTop = el.scrollHeight
       }
-    }, [listRef, messages.length, useVirtual])
+
+      run()
+      requestAnimationFrame(() => {
+        run()
+        requestAnimationFrame(run)
+      })
+      window.setTimeout(run, 50)
+      window.setTimeout(run, 150)
+      window.setTimeout(run, 320)
+    }, [listRef, messages.length, pinScrollToBottom, useVirtual])
+
+    useEffect(() => {
+      if (messages.length === 0) return
+      scrollToBottom(true)
+    }, [listKey, scrollToBottom])
+
+    const prevMessageCountRef = useRef(0)
+    useEffect(() => {
+      const prev = prevMessageCountRef.current
+      prevMessageCountRef.current = messages.length
+      if (prev === 0 && messages.length > 0) {
+        scrollToBottom(true)
+      }
+    }, [messages.length, scrollToBottom])
 
     const scrollToIndex = useCallback((index: number, align: 'start' | 'end' | 'auto' = 'start') => {
       if (useVirtual) {

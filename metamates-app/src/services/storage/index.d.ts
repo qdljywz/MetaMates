@@ -4,6 +4,7 @@ export interface AppSettings {
     fontSize: number;
     autoSave: boolean;
     language?: 'zh' | 'en';
+    userTimezone?: string;
     workspacePath?: string;
     vaultApiEnabled?: boolean;
     vaultApiPort?: number;

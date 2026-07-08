@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Modal, Form, Select, Button, Switch, message, Row, Col, Typography, InputNumber, Input, Space, QRCode } from 'antd'
+import { Modal, Form, Select, Button, Switch, message, Row, Col, Typography, InputNumber, Input, Space, QRCode, Tabs } from 'antd'
 import { FolderOpenOutlined, SyncOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { storageService } from '../services/storage'
@@ -11,6 +11,33 @@ import McpSettingsPanel from './McpSettingsPanel'
 const { Option } = Select
 const { Text, Paragraph } = Typography
 
+const COMMON_TIMEZONES: Array<{ label: string; value: string }> = [
+  { label: '北京时间（Asia/Shanghai）', value: 'Asia/Shanghai' },
+  { label: '香港（Asia/Hong_Kong）', value: 'Asia/Hong_Kong' },
+  { label: '台北（Asia/Taipei）', value: 'Asia/Taipei' },
+  { label: '东京（Asia/Tokyo）', value: 'Asia/Tokyo' },
+  { label: '首尔（Asia/Seoul）', value: 'Asia/Seoul' },
+  { label: '新加坡（Asia/Singapore）', value: 'Asia/Singapore' },
+  { label: '悉尼（Australia/Sydney）', value: 'Australia/Sydney' },
+  { label: '伦敦（Europe/London）', value: 'Europe/London' },
+  { label: '巴黎（Europe/Paris）', value: 'Europe/Paris' },
+  { label: '柏林（Europe/Berlin）', value: 'Europe/Berlin' },
+  { label: '纽约（America/New_York）', value: 'America/New_York' },
+  { label: '芝加哥（America/Chicago）', value: 'America/Chicago' },
+  { label: '丹佛（America/Denver）', value: 'America/Denver' },
+  { label: '洛杉矶（America/Los_Angeles）', value: 'America/Los_Angeles' },
+  { label: 'UTC（Etc/UTC）', value: 'Etc/UTC' },
+]
+
+function isValidTimezone(value: string): boolean {
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone: value })
+    return true
+  } catch {
+    return false
+  }
+}
+
 interface SettingsModalProps {
   visible: boolean
   onClose: () => void
@@ -18,11 +45,12 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
   const { t, i18n } = useTranslation('common')
-  const { state } = useAppContext()
+  const { state, dispatch } = useAppContext()
   const { setThemeMode, setColorScheme } = useTheme()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [vaultApiStatus, setVaultApiStatus] = useState<{ running: boolean; port: number } | null>(null)
+  const [vaultLanToken, setVaultLanToken] = useState<string | null>(null)
   const [lanAddresses, setLanAddresses] = useState<string[]>([])
   const [ollamaStatus, setOllamaStatus] = useState<{ running: boolean; models: Array<{ name: string }> } | null>(null)
   const [cliInstallOpen, setCliInstallOpen] = useState(false)
@@ -49,6 +77,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
       fontSize: settings.fontSize || 14,
       autoSave: settings.autoSave !== false,
       language: settings.language || 'zh',
+      userTimezone: settings.userTimezone || 'Asia/Shanghai',
       vaultApiEnabled: settings.vaultApiEnabled || false,
       vaultApiPort: settings.vaultApiPort || 17333,
       vaultApiLanAccess: settings.vaultApiLanAccess || false,
@@ -88,13 +117,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
         )
         if (result.success) {
           setVaultApiStatus({ running: true, port: result.port })
+          setVaultLanToken(result.lanToken || null)
         } else {
           setVaultApiStatus({ running: false, port: settings.vaultApiPort || 17333 })
+          setVaultLanToken(null)
           message.warning(t('settings.vaultApiStartFailed') + ': ' + result.error)
         }
       } else {
         const status = await window.electronAPI.vaultApi.getStatus()
         setVaultApiStatus({ running: status.running, port: status.port || settings.vaultApiPort || 17333 })
+        setVaultLanToken(status.lanToken || null)
       }
     }
   }
@@ -112,10 +144,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
     [vaultApiEnabled, effectivePort]
   )
 
+  const appendVaultToken = (url: string) => {
+    if (!vaultLanToken || !url) return url
+    const sep = url.includes('?') ? '&' : '?'
+    return `${url}${sep}token=${encodeURIComponent(vaultLanToken)}`
+  }
+
   const mobileLanUrls = useMemo(() => {
     if (!vaultApiLanAccess || !showMobileReader || !vaultApiEnabled) return []
-    return lanAddresses.map((ip) => `http://${ip}:${effectivePort}/mobile`)
-  }, [vaultApiLanAccess, showMobileReader, vaultApiEnabled, lanAddresses, effectivePort])
+    return lanAddresses.map((ip) => appendVaultToken(`http://${ip}:${effectivePort}/mobile`))
+  }, [vaultApiLanAccess, showMobileReader, vaultApiEnabled, lanAddresses, effectivePort, vaultLanToken])
 
   const primaryMobileLanUrl = mobileLanUrls[0] || ''
   const lanAccessPending = vaultApiLanAccess !== agentSnapshot.vaultApiLanAccess
@@ -125,12 +163,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
   const handleSave = async () => {
     setLoading(true)
     try {
-      const values = form.getFieldsValue()
+      const values = await form.validateFields()
+      const normalizedTimezone = String(values.userTimezone || '').trim()
       const saveData: any = {
         theme: values.theme,
         fontSize: values.fontSize,
         autoSave: values.autoSave,
         language: values.language,
+        userTimezone: normalizedTimezone || 'Asia/Shanghai',
         vaultApiEnabled: values.vaultApiEnabled,
         vaultApiPort: values.vaultApiPort || 17333,
         vaultApiLanAccess: values.vaultApiLanAccess || false,
@@ -146,6 +186,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
       if (window.electronAPI?.saveSettings) {
         await window.electronAPI.saveSettings(saveData)
       }
+      dispatch({ type: 'UPDATE_SETTINGS', payload: saveData })
 
       if (values.theme) setThemeMode(values.theme as 'light' | 'dark' | 'system')
       if (values.colorScheme) setColorScheme(values.colorScheme as 'default' | 'nordic' | 'cyberpunk' | 'forest' | 'vintage')
@@ -261,7 +302,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
       width={520}
       styles={{ body: { maxHeight: '72vh', overflowY: 'auto' } }}
       footer={[
-        <Button key="cancel" onClick={onClose}>
+        <Button key="cancel" className="settings-modal__cancel" onClick={onClose}>
           {t('settings.cancel')}
         </Button>,
         <Button key="save" type="primary" onClick={handleSave} loading={loading}>
@@ -270,6 +311,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
       ]}
     >
       <Form form={form} layout="vertical" size="small">
+        <Tabs
+          defaultActiveKey="general"
+          items={[
+            {
+              key: 'general',
+              label: t('settings.tabGeneral'),
+              children: (
+                <>
         <Row gutter={16}>
           <Col span={12}>
             <Form.Item name="theme" label={t('settings.theme')}>
@@ -314,10 +363,54 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
           </Col>
         </Row>
 
+        <Form.Item
+          name="userTimezone"
+          label={t('settings.timezone')}
+          rules={[
+            { required: true, message: t('settings.timezoneRequired') },
+            {
+              validator: async (_, value: string) => {
+                if (!value?.trim()) return Promise.reject(new Error(t('settings.timezoneRequired')))
+                if (!isValidTimezone(value.trim())) {
+                  return Promise.reject(new Error(t('settings.timezoneInvalid')))
+                }
+                return Promise.resolve()
+              },
+            },
+          ]}
+        >
+          <Select
+            showSearch
+            options={COMMON_TIMEZONES}
+            placeholder="Asia/Shanghai"
+            filterOption={(input, option) =>
+              String(option?.label ?? '')
+                .toLowerCase()
+                .includes(input.toLowerCase()) ||
+              String(option?.value ?? '')
+                .toLowerCase()
+                .includes(input.toLowerCase())
+            }
+          />
+        </Form.Item>
+        <Paragraph type="secondary" style={{ fontSize: 12, marginTop: -8 }}>
+          {t('settings.timezoneHint')}
+        </Paragraph>
+
         <Form.Item name="autoSave" label={t('settings.autoSave')} valuePropName="checked">
           <Switch />
         </Form.Item>
-
+        <Paragraph type="secondary" style={{ fontSize: 12, marginTop: -8 }}>
+          {t('settings.shortcutHint')}
+        </Paragraph>
+                </>
+              ),
+            },
+            {
+              key: 'agent',
+              label: t('settings.tabAgent'),
+              children: (
+                <>
         <Form.Item label={t('settings.vaultApi')} style={{ marginBottom: 8 }}>
           <Row gutter={16} align="middle">
             <Col>
@@ -343,7 +436,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
               </Form.Item>
             </Col>
             <Col flex="auto">
-              <span style={{ fontSize: 12, color: '#888' }}>{t('settings.vaultApiLanHint')}</span>
+              <Text type="secondary" style={{ fontSize: 12 }}>{t('settings.vaultApiLanHint')}</Text>
             </Col>
           </Row>
 
@@ -366,15 +459,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
                     <>
                       {primaryMobileLanUrl && (
                         <div style={{ marginTop: 10, textAlign: 'center' }}>
-                          <QRCode
-                            value={primaryMobileLanUrl}
-                            size={140}
-                            bordered={false}
-                            style={{ padding: 8, background: '#fff', borderRadius: 8 }}
-                          />
-                          <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
-                            {t('settings.mobileReaderQrCaption')}
+                          <div className="settings-qr-wrap">
+                            <QRCode
+                              value={primaryMobileLanUrl}
+                              size={140}
+                              bordered={false}
+                              color="#000000"
+                              bgColor="#ffffff"
+                            />
                           </div>
+                          <Text type="secondary" style={{ display: 'block', fontSize: 11, marginTop: 6 }}>
+                            {t('settings.mobileReaderQrCaption')}
+                          </Text>
                         </div>
                       )}
                       {mobileLanUrls.map((url) => (
@@ -482,7 +578,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
             )}
           </Paragraph>
         </Form.Item>
-
+                </>
+              ),
+            },
+            {
+              key: 'advanced',
+              label: t('settings.tabAdvanced'),
+              children: (
+                <>
         <Form.Item label={t('settings.calendar')}>
           <Space.Compact style={{ width: '100%' }}>
             <Form.Item name="calendarIcsPath" noStyle>
@@ -496,6 +599,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
             {t('settings.calendarHint')}
           </Paragraph>
         </Form.Item>
+                </>
+              ),
+            },
+          ]}
+        />
       </Form>
       <CliInstallPanel open={cliInstallOpen} onClose={() => setCliInstallOpen(false)} />
       <McpSettingsPanel open={mcpOpen} onClose={() => setMcpOpen(false)} />

@@ -52,9 +52,21 @@ describe('assembleSlashPrompt', () => {
     const prompt = assembleSlashPrompt({
       cmd,
       language: 'en',
-      userInput: 'Metamates positioning',
+      userInput: 'MetaMates positioning',
     })
-    expect(prompt).toContain('Metamates positioning')
+    expect(prompt).toContain('MetaMates positioning')
     expect(prompt).toContain('analysis-only')
+  })
+
+  it('injects explicit timezone into slash prompt', () => {
+    const cmd = getAgentSlashCommands('zh').find((c) => c.id === '/today')!
+    const prompt = assembleSlashPrompt({
+      cmd,
+      language: 'zh',
+      timezone: 'America/Los_Angeles',
+    })
+    expect(prompt).toContain('America/Los_Angeles')
+    expect(prompt).toContain('生效时区')
+    expect(prompt).toContain('YYYY-MM-DD PLAN.md')
   })
 })

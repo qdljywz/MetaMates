@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { EditorView, basicSetup } from 'codemirror'
-import { drawSelection } from '@codemirror/view'
 import { StateEffect, StateField } from '@codemirror/state'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { keymap, KeyBinding, ViewPlugin, Decoration, DecorationSet, ViewUpdate } from '@codemirror/view'
@@ -37,8 +36,9 @@ import MarkdownPreview from './MarkdownPreview'
 import FrontmatterPanel from './editor/FrontmatterPanel'
 import { extractBlockContent, extractHeadingContent, stripFrontmatter, parseLinkTarget, findHeadingLine, findBlockLine } from '../services/embedResolver'
 import { getWorkspaceLanguage, resolveInboxDirPath } from '../constants/paths'
-import { buildEditorWelcomeContent, isEditorWelcomeContent } from '../utils/welcomeContent'
-import { useWelcomeAgentHint } from '../hooks/useWelcomeAgentHint'
+import { filterMarkdownFilesForFileTree } from '../services/vaultPaths'
+import EditorEmptyState from './EditorEmptyState'
+import { storageService } from '../services/storage'
 
 interface EditorProps {
   filePath?: string
@@ -306,7 +306,6 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
   const noteStemsRef = useRef<string[]>([])
   const [allTags, setAllTags] = useState<Map<string, { name: string; path: string }[]>>(new Map())
   const { state, dispatch } = useAppContext()
-  const agentWelcomeHint = useWelcomeAgentHint(state.workspacePath)
   const [showFilePicker, setShowFilePicker] = useState(false)
   const [filePickerFiles, setFilePickerFiles] = useState<{ name: string; path: string }[]>([])
   const [filePickerSearch, setFilePickerSearch] = useState('')
@@ -376,6 +375,14 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
 
   saveFileRef.current = saveFile
 
+  useEffect(() => {
+    const onSaveRequest = () => {
+      void saveFileRef.current()
+    }
+    window.addEventListener('metamates:save-file', onSaveRequest)
+    return () => window.removeEventListener('metamates:save-file', onSaveRequest)
+  }, [])
+
   const triggerAutoSave = useCallback(() => {
     if (!autoSaveEnabled) return
     if (saveTimeoutRef.current) {
@@ -418,6 +425,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
       setCurrentFile(path)
       setHasUnsavedChanges(false)
       setLastSaved(new Date())
+      void storageService.addRecentFile(path)
       if (viewRef.current) {
         viewRef.current.dispatch({
           changes: { from: 0, to: viewRef.current.state.doc.length, insert: result.content },
@@ -566,9 +574,10 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
     
     const result = await window.electronAPI.listFiles(state.workspacePath, true)
     if (result.success && result.files) {
-      const mdFiles = result.files
-        .filter((f: any) => !f.isDirectory && f.name.endsWith('.md'))
-        .map((f: any) => ({ name: f.name, path: f.path }))
+      const mdFiles = filterMarkdownFilesForFileTree(state.workspacePath, result.files).map((f) => ({
+        name: f.name,
+        path: f.path,
+      }))
       setFilePickerFiles(mdFiles)
       setFilePickerSearch('')
       setShowFilePicker(true)
@@ -743,54 +752,46 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
 
   const wikiLinkTheme = EditorView.baseTheme({
     '.cm-wiki-link': {
-      color: isDarkMode ? '#ff8c28' : '#ff7a00',
+      color: 'var(--accent)',
       cursor: 'pointer',
       textDecoration: 'underline',
-      backgroundColor: isDarkMode ? 'rgba(255, 140, 40, 0.12)' : 'rgba(255, 122, 0, 0.1)',
-      padding: '0 2px',
-      borderRadius: '3px',
+      textUnderlineOffset: '2px',
     },
     '.cm-wiki-link:hover': {
-      color: isDarkMode ? '#ffa050' : '#e66a00',
-      backgroundColor: isDarkMode ? 'rgba(255, 140, 40, 0.2)' : 'rgba(255, 122, 0, 0.18)',
+      color: 'var(--accent)',
+      backgroundColor: 'var(--accent-soft)',
     },
   })
 
   const tagTheme = EditorView.baseTheme({
     '.cm-tag': {
-      color: isDarkMode ? '#00d4c4' : '#00b4a6',
+      color: 'var(--secondary-accent)',
       cursor: 'pointer',
-      backgroundColor: isDarkMode ? 'rgba(0, 212, 196, 0.12)' : 'rgba(0, 180, 166, 0.1)',
-      padding: '0 2px',
-      borderRadius: '3px',
     },
     '.cm-tag:hover': {
-      color: isDarkMode ? '#20e8d8' : '#009080',
-      backgroundColor: isDarkMode ? 'rgba(0, 212, 196, 0.2)' : 'rgba(0, 180, 166, 0.18)',
+      color: 'var(--secondary-accent)',
+      backgroundColor: 'var(--secondary-accent-soft)',
     },
   })
 
   useEffect(() => {
-    if (editorRef.current) {
-      const welcomeContent = buildEditorWelcomeContent(t, state.workspacePath, agentWelcomeHint)
-
-      const currentContent = viewRef.current?.state.doc.toString()
-      const isWelcomePage = currentContent && isEditorWelcomeContent(currentContent)
-      const savedContent = (currentContent && !isWelcomePage) ? currentContent : welcomeContent
-      
+    if (!filePath) {
       if (viewRef.current) {
         viewRef.current.destroy()
         viewRef.current = null
+        setEditorReady(false)
       }
-      
-      const wikiLinkPlugin = createWikiLinkPlugin((target) => handleLinkClickRef.current(target))
-      const tagPlugin = createTagPlugin((name) => handleTagClickRef.current(name))
-      const wikiLinkAutocomplete = createWikiLinkAutocomplete(() => noteStemsRef.current)
-      viewRef.current = new EditorView({
-        doc: savedContent,
-        extensions: [
+      return
+    }
+    if (!editorRef.current || viewRef.current) return
+
+    const wikiLinkPlugin = createWikiLinkPlugin((target) => handleLinkClickRef.current(target))
+    const tagPlugin = createTagPlugin((name) => handleTagClickRef.current(name))
+    const wikiLinkAutocomplete = createWikiLinkAutocomplete(() => noteStemsRef.current)
+    viewRef.current = new EditorView({
+      doc: '',
+      extensions: [
           basicSetup,
-          drawSelection(),
           markdown({ base: markdownLanguage }),
           syntaxHighlighting(markdownHighlightStyle),
           wikiLinkAutocomplete,
@@ -822,17 +823,17 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
           tagTheme,
           EditorView.lineWrapping,
           EditorView.theme({
-            '&': { height: '100%', width: '100%', backgroundColor: isDarkMode ? '#1e1e2e' : '#fafafa', fontSize: '16px' },
+            '&': { height: '100%', width: '100%', backgroundColor: 'var(--canvas-surface)', fontSize: '16px' },
             '.cm-scroller': { 
               overflow: 'auto', 
-              backgroundColor: isDarkMode ? '#1e1e2e' : '#fafafa',
+              backgroundColor: 'var(--canvas-surface)',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
               fontSize: '16px',
             },
             '.cm-content': { 
               padding: '32px 48px', 
-              backgroundColor: isDarkMode ? '#1e1e2e' : '#fafafa', 
-              color: isDarkMode ? '#e6e6e6' : '#1f2937',
+              backgroundColor: 'transparent', 
+              color: 'var(--text-primary)',
               width: '100%',
               maxWidth: '800px',
               margin: '0 auto',
@@ -843,7 +844,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
             },
             '.cm-line': { 
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-              color: isDarkMode ? '#e6e6e6' : '#1f2937',
+              color: 'var(--text-primary)',
               lineHeight: '1.75',
               padding: '1px 0',
               fontSize: '16px',
@@ -855,27 +856,27 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
             '.cm-header-1': { 
               fontSize: '2.1875em', 
               fontWeight: '700', 
-              color: isDarkMode ? '#cdd6f4' : '#1a1a2e',
+              color: 'var(--text-primary)',
               marginTop: '24px',
               marginBottom: '12px',
               lineHeight: '1.3',
-              borderBottom: `2px solid ${isDarkMode ? '#cdd6f4' : '#1a1a2e'}`,
+              borderBottom: '2px solid var(--text-primary)',
               paddingBottom: '8px',
             },
             '.cm-header-2': { 
               fontSize: '1.75em', 
               fontWeight: '600', 
-              color: isDarkMode ? '#bac2de' : '#16213e',
+              color: 'var(--text-primary)',
               marginTop: '20px',
               marginBottom: '10px',
               lineHeight: '1.35',
-              borderBottom: `1px solid ${isDarkMode ? '#bac2de' : '#16213e'}`,
+              borderBottom: '1px solid var(--text-primary)',
               paddingBottom: '6px',
             },
             '.cm-header-3': { 
               fontSize: '1.4375em', 
               fontWeight: '600', 
-              color: isDarkMode ? '#a6adc8' : '#0f3460',
+              color: 'var(--text-secondary)',
               marginTop: '16px',
               marginBottom: '8px',
               lineHeight: '1.4',
@@ -883,7 +884,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
             '.cm-header-4': { 
               fontSize: '1.1875em', 
               fontWeight: '600', 
-              color: isDarkMode ? '#f38ba8' : '#be185d',
+              color: 'var(--text-secondary)',
               marginTop: '14px',
               marginBottom: '6px',
               lineHeight: '1.45',
@@ -891,7 +892,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
             '.cm-header-5': { 
               fontSize: '1em', 
               fontWeight: '600', 
-              color: isDarkMode ? '#cba6f7' : '#7c3aed',
+              color: 'var(--text-secondary)',
               marginTop: '12px',
               marginBottom: '4px',
               lineHeight: '1.5',
@@ -899,62 +900,68 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
             '.cm-header-6': { 
               fontSize: '0.875em', 
               fontWeight: '600', 
-              color: isDarkMode ? '#a6e3a1' : '#059669',
+              color: 'var(--text-secondary)',
               marginTop: '10px',
               marginBottom: '4px',
               lineHeight: '1.5',
             },
             '.cm-strong': { 
               fontWeight: '700', 
-              color: isDarkMode ? '#cdd6f4' : '#111827',
+              color: 'var(--text-primary)',
             },
             '.cm-emphasis': { 
               fontStyle: 'italic', 
-              color: isDarkMode ? '#a6adc8' : '#4b5563',
+              color: 'var(--text-secondary)',
             },
             '.cm-strikethrough': {
               textDecoration: 'line-through',
-              color: isDarkMode ? '#6c7086' : '#9ca3af',
+              color: 'var(--text-muted)',
             },
             '.cm-highlight': {
-              backgroundColor: isDarkMode ? '#45475a' : '#fef08a',
+              backgroundColor: 'var(--canvas-hover)',
               padding: '0 2px',
               borderRadius: '2px',
             },
             '.cm-link, .cm-url': { 
-              color: isDarkMode ? '#89b4fa' : '#2563eb', 
+              color: 'var(--accent)', 
               textDecoration: 'underline',
             },
             '.cm-quote': { 
-              color: isDarkMode ? '#a6adc8' : '#6b7280', 
+              color: 'var(--text-secondary)', 
               fontStyle: 'italic', 
-              borderLeft: `4px solid ${isDarkMode ? '#45475a' : '#d1d5db'}`, 
+              borderLeft: '4px solid var(--divider-strong)', 
               paddingLeft: '16px',
               marginLeft: '0',
-              backgroundColor: isDarkMode ? '#181825' : '#f3f4f6',
+              backgroundColor: 'var(--canvas-elevated)',
               padding: '8px 16px',
               borderRadius: '0 8px 8px 0',
             },
             '.cm-list': { 
-              color: isDarkMode ? '#f9e2af' : '#d97706',
+              color: 'var(--accent)',
               fontWeight: '500',
             },
             '.cm-hr': {
-              borderTop: `2px solid ${isDarkMode ? '#45475a' : '#e5e7eb'}`,
+              borderTop: '2px solid var(--divider-strong)',
               margin: '24px 0',
             },
             '.cm-cursor': { 
-              borderLeftColor: isDarkMode ? '#89b4fa' : '#2563eb',
+              borderLeftColor: 'var(--accent)',
               borderLeftWidth: '2px',
             },
+            '.cm-activeLine': {
+              backgroundColor: 'rgba(127, 127, 127, 0.14)',
+            },
+            '.cm-activeLineGutter': {
+              backgroundColor: 'rgba(127, 127, 127, 0.18)',
+            },
             '.cm-selectionBackground': { 
-              backgroundColor: isDarkMode ? 'rgba(56, 189, 248, 0.35)' : 'rgba(37, 99, 235, 0.3)',
+              backgroundColor: 'transparent',
             },
             '.cm-focused .cm-selectionBackground': { 
-              backgroundColor: isDarkMode ? 'rgba(56, 189, 248, 0.45)' : 'rgba(37, 99, 235, 0.4)',
+              backgroundColor: 'transparent',
             },
-            '.cm-selectionLayer': {
-              zIndex: 1,
+            '.cm-selectionMatch': {
+              backgroundColor: 'rgba(255, 170, 0, 0.35)',
             },
           }),
         ],
@@ -966,28 +973,18 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
       parseContent(initialContent)
       
       setEditorReady(true)
-    }
 
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
       }
+      if (viewRef.current) {
+        viewRef.current.destroy()
+        viewRef.current = null
+        setEditorReady(false)
+      }
     }
-  }, [isDarkMode, t, i18n.language])
-
-  /** Refresh welcome copy when workspace becomes available (avoid stale "open folder" steps). */
-  useEffect(() => {
-    if (!viewRef.current || !editorReady || filePath) return
-    const current = viewRef.current.state.doc.toString()
-    if (!isEditorWelcomeContent(current)) return
-    const next = buildEditorWelcomeContent(t, state.workspacePath, agentWelcomeHint)
-    if (next === current) return
-    viewRef.current.dispatch({
-      changes: { from: 0, to: current.length, insert: next },
-    })
-    setPreviewContent(next)
-    parseContent(next)
-  }, [state.workspacePath, agentWelcomeHint, editorReady, filePath, t, i18n.language, parseContent])
+  }, [filePath])
 
   useEffect(() => {
     if (filePath && editorReady) {
@@ -1059,6 +1056,14 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
 
   const tagArray = Array.from(allTags.entries())
 
+  if (!filePath) {
+    return (
+      <div style={{ flex: 1, width: '100%', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <EditorEmptyState />
+      </div>
+    )
+  }
+
   const bgColor = isDarkMode ? '#1e1e2e' : '#fafafa'
   const surfaceColor = isDarkMode ? '#181825' : '#ffffff'
   const borderColor = isDarkMode ? '#313244' : '#e5e7eb'
@@ -1070,7 +1075,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
   const dividerColor = isDarkMode ? '#45475a' : '#d1d5db'
 
   return (
-    <div style={{ height: '100%', width: '100%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ flex: 1, width: '100%', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div
         style={{
           padding: '4px 12px',

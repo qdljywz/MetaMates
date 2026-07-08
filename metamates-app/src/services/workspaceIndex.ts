@@ -8,7 +8,7 @@ import {
 } from './vaultPaths'
 
 type IndexListener = (stats: IndexStats) => void
-type VaultChangeListener = () => void
+type VaultChangeListener = (event?: FileChangeEvent) => void
 
 /**
  * 工作区索引管理：全量构建 + 文件监听增量更新
@@ -18,6 +18,7 @@ class WorkspaceIndexService {
   private workspaceLanguage: WorkspaceLanguage = 'zh'
   private building = false
   private ready = false
+  private rebuildGeneration = 0
   private indexListeners = new Set<IndexListener>()
   private vaultChangeListeners = new Set<VaultChangeListener>()
   private detachWatch: (() => void) | null = null
@@ -33,6 +34,10 @@ class WorkspaceIndexService {
 
   getWorkspacePath(): string {
     return this.workspacePath
+  }
+
+  getWorkspaceLanguage(): WorkspaceLanguage {
+    return this.workspaceLanguage
   }
 
   getStats(): IndexStats | null {
@@ -57,8 +62,19 @@ class WorkspaceIndexService {
     this.indexListeners.forEach((listener) => listener(stats))
   }
 
-  private notifyVaultChanged(): void {
-    this.vaultChangeListeners.forEach((listener) => listener())
+  private notifyVaultChanged(event?: FileChangeEvent): void {
+    this.vaultChangeListeners.forEach((listener) => listener(event))
+  }
+
+  /** 主动通知侧栏文件树刷新（如从标签栏删除后） */
+  async signalVaultTreeChange(filePath: string): Promise<void> {
+    if (!window.electronAPI || !this.workspacePath) {
+      this.notifyVaultChanged()
+      return
+    }
+    const parentDir = await window.electronAPI.path.dirname(filePath)
+    const filename = filePath.split(/[/\\]/).pop() || ''
+    this.notifyVaultChanged({ type: 'change', dirPath: parentDir, filename })
   }
 
   /**
@@ -76,7 +92,7 @@ class WorkspaceIndexService {
 
     const handleFileChange = (event: FileChangeEvent) => {
       this.scheduleIncrementalUpdate(event)
-      this.notifyVaultChanged()
+      this.notifyVaultChanged(event)
     }
 
     window.electronAPI.onFileChanged(handleFileChange)
@@ -90,6 +106,7 @@ class WorkspaceIndexService {
   }
 
   detach(): void {
+    this.rebuildGeneration += 1
     if (this.pendingUpdateTimer) {
       clearTimeout(this.pendingUpdateTimer)
       this.pendingUpdateTimer = null
@@ -110,13 +127,17 @@ class WorkspaceIndexService {
       return fileIndexService.getStats()
     }
 
+    const generation = ++this.rebuildGeneration
     this.building = true
     this.ready = false
     this.workspacePath = workspacePath
 
     try {
       const result = await window.electronAPI.listFiles(workspacePath, true)
-      const indexedFiles: { name: string; path: string; content: string }[] = []
+      if (generation !== this.rebuildGeneration) {
+        return fileIndexService.getStats()
+      }
+      const indexedFiles: { name: string; path: string; content: string; lastModified?: number }[] = []
 
       if (result.success && result.files) {
         this.workspaceLanguage = detectWorkspaceLanguageFromPaths(
@@ -131,15 +152,27 @@ class WorkspaceIndexService {
         )
         for (const f of mdFiles) {
           const content = await window.electronAPI.readFile(f.path)
+          if (generation !== this.rebuildGeneration) {
+            return fileIndexService.getStats()
+          }
           if (content.success && content.content !== undefined) {
-            indexedFiles.push({ name: f.name, path: f.path, content: content.content })
+            indexedFiles.push({
+              name: f.name,
+              path: f.path,
+              content: content.content,
+              lastModified: typeof f.modified === 'number' ? f.modified : undefined,
+            })
           }
         }
       }
 
       const stats = await fileIndexService.buildIndex(indexedFiles)
+      if (generation !== this.rebuildGeneration) {
+        return stats
+      }
       this.ready = true
       this.notifyIndexListeners()
+      this.notifyVaultChanged()
       return stats
     } finally {
       this.building = false
@@ -173,6 +206,7 @@ class WorkspaceIndexService {
         fileIndexService.removeFile(filePath)
         this.notifyIndexListeners()
       }
+      this.notifyVaultChanged(event)
       return
     }
 
@@ -180,16 +214,28 @@ class WorkspaceIndexService {
     if (!exists.exists) {
       fileIndexService.removeFile(filePath)
       this.notifyIndexListeners()
+      this.notifyVaultChanged(event)
       return
     }
 
     const readResult = await window.electronAPI.readFile(filePath)
     if (readResult.success && readResult.content !== undefined) {
       const name = event.filename.split(/[/\\]/).pop() || event.filename
-      fileIndexService.upsertFile({ name, path: filePath, content: readResult.content })
+      const statsResult = await window.electronAPI.getFileStats(filePath)
+      const lastModified =
+        statsResult.success && typeof statsResult.stats?.modified === 'number'
+          ? statsResult.stats.modified
+          : undefined
+      fileIndexService.upsertFile({
+        name,
+        path: filePath,
+        content: readResult.content,
+        lastModified,
+      })
       this.ready = true
       this.notifyIndexListeners()
     }
+    this.notifyVaultChanged(event)
   }
 
   async search(query: string, limit = 50, options?: { includeConfig?: boolean }) {
@@ -291,9 +337,13 @@ class WorkspaceIndexService {
     })
   }
 
-  getAllFiles(): { name: string; path: string }[] {
+  getAllFiles(): { name: string; path: string; lastModified: number }[] {
     if (!this.ready) return []
-    return fileIndexService.getAllFiles().map((f) => ({ name: f.name, path: f.path }))
+    return fileIndexService.getAllFiles().map((f) => ({
+      name: f.name,
+      path: f.path,
+      lastModified: f.lastModified,
+    }))
   }
 
   getTagIndex(): Map<string, { name: string; path: string }[]> {

@@ -68,7 +68,7 @@ test.describe('完整应用功能测试', () => {
       const titleBar = page.locator('.title-bar')
       await expect(titleBar).toBeVisible()
       
-      const appName = page.locator('text=Metamates')
+      const appName = page.locator('text=MetaMates')
       await expect(appName.first()).toBeVisible()
       console.log('✅ 标题栏显示正确')
     })

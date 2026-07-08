@@ -50,7 +50,7 @@ export async function ensureViteDevServer(): Promise<ChildProcess | null> {
   }
 }
 
-export async function launchMetamatesApp(
+export async function launchMetaMatesApp(
   electron: { launch: (opts: Record<string, unknown>) => Promise<ElectronApplication> },
   workspacePath: string,
 ): Promise<{ app: ElectronApplication; page: Page; viteProc: ChildProcess | null }> {

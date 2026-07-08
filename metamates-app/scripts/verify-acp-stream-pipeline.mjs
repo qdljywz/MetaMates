@@ -8,9 +8,11 @@ import { spawn } from 'child_process'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 
+import { resolveDefaultWorkspace } from './lib/default-workspace.mjs'
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
-const WORKSPACE = process.env.METAMATES_WORKSPACE || 'E:\\MyM2'
+const WORKSPACE = resolveDefaultWorkspace()
 
 const results = []
 
@@ -50,7 +52,7 @@ function runUnitScenarios(P) {
 
   const jsonLeak = JSON.stringify({
     content: '# PLAN\\n\\n- [ ] item',
-    file_path: 'E:\\\\MyM2\\\\PLAN.md',
+    file_path: path.join(WORKSPACE, 'PLAN.md').replace(/\\/g, '\\\\'),
   })
   const { stream } = P.processSessionUpdate(
     { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: jsonLeak } },
@@ -265,7 +267,12 @@ async function main() {
   await acpDetector.initialize(true)
   const agents = acpDetector.getDetectedAgents()
 
-  for (const backend of ['codebuddy', 'gemini']) {
+  // Default: one backend live smoke (CodeBuddy). Gemini costs quota — opt in with VERIFY_GEMINI_LIVE=1.
+  const liveBackends =
+    process.env.VERIFY_GEMINI_LIVE === '1'
+      ? ['codebuddy', 'gemini']
+      : [process.env.VERIFY_AGENT_BACKEND?.trim() || 'codebuddy']
+  for (const backend of liveBackends) {
     const agent = agents.find((a) => a.backend === backend)
     if (!agent) {
       record(`实连:${backend} 检测`, false, 'not detected')

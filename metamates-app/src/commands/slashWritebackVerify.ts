@@ -109,6 +109,24 @@ async function checkFileTarget(
   }
 }
 
+/** Map internal verify codes to i18n keys under agent.writeback.detail* */
+export function writebackDetailI18nKey(detail: string): string {
+  switch (detail) {
+    case 'stale mtime':
+      return 'writeback.detailStaleMtime'
+    case 'empty':
+      return 'writeback.detailEmpty'
+    case 'missing':
+      return 'writeback.detailMissing'
+    case 'no recent notes':
+      return 'writeback.detailNoRecentNotes'
+    case 'not updated':
+      return 'writeback.detailNotUpdated'
+    default:
+      return 'writeback.failedDetail'
+  }
+}
+
 async function checkDirectoryTarget(
   absDir: string,
   turnStartedAt: number,

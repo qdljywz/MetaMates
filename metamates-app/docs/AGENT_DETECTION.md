@@ -1,6 +1,6 @@
 # Agent CLI 自动发现
 
-> 产品行为：用户安装 CLI 后打开 Metamates，右侧 Agent 工具栏自动出现对应图标，**无需手动配置**。
+> 产品行为：用户安装 CLI 后打开 MetaMates，右侧 Agent 工具栏自动出现对应图标，**无需手动配置**。
 
 ---
 
@@ -42,6 +42,18 @@ Gemini、CodeBuddy、Claude、Qwen、Codex、iFlow、Goose、Augment、Kimi、Op
 
 新增 CLI：在 `acpRegistry.ts` 增加一条 `detectByDefault: true` 的定义即可，检测与安装面板自动对齐。
 
+### Agent 图标
+
+| 项 | 说明 |
+|----|------|
+| 品牌 SVG | `public/assets/{backendId}.svg`，Gemini/Claude 等 5 个从 `src/assets/logos/` 同步 |
+| 颜色 / 首字母 | `acpRegistry.ts` → `LOGO_COLORS` |
+| 统一逻辑 | `electron/shared/agentLogos.ts` |
+| 生成缺失图标 | `npm run logos:agents`（打包前 `npm run icons` 会自动执行） |
+| CI 校验 | `npm run verify:agent-logos`（acceptance 门禁） |
+
+工具栏与 CLI 安装面板均通过 `backendId` → `./assets/{backendId}.svg` 显示；文件缺失时回退为彩色首字母。
+
 ## 验证
 
 ```bash
@@ -54,9 +66,9 @@ node scripts/full-functional-test.mjs --skip-build
 
 ## 与 AionUi 的关系
 
-检测思路对齐 AionUi（注册表 + enhanced PATH + Windows shim），Metamates 额外增加 npm 全局包回退，并将结果接入「Vault 主场 + 单 Agent 单对话」的执行层 UI，而非聊天 App 三栏布局。
+检测思路对齐 AionUi（注册表 + enhanced PATH + Windows shim），MetaMates 额外增加 npm 全局包回退，并将结果接入「Vault 主场 + 单 Agent 单对话」的执行层 UI，而非聊天 App 三栏布局。
 
-**参考源码（勿放入 Metamates 仓库内，避免 Cursor 锁定 `app.asar`）：**
+**参考源码（勿放入 MetaMates 仓库内，避免 Cursor 锁定 `app.asar`）：**
 
 ```powershell
 git clone --depth 1 https://github.com/iOfficeAI/AionUi.git E:\Trae\AionUi-source

@@ -357,7 +357,7 @@ officecli view deck.pptx html
 
 **Remember:** This doc is a quick reference. **For the latest syntax, always query the CLI first** with help commands.
 
-## Memory & vault boundary (Metamates required)
+## Memory & vault boundary (MetaMates required)
 
 - Mirror user-facing long-term memory to `04_Intelligence/Memory_Index.md` (details under `04_Intelligence/Reference/`)
 - **Never** write only to `~/.codebuddy`, CLI caches, or paths outside the vault

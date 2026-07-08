@@ -52,7 +52,7 @@ export function useWelcomeAgentHint(workspacePath?: string): WelcomeAgentHint {
     const onReady = window.electronAPI.acp.onBackendReady?.(() => {
       void refresh()
     })
-    const timer = window.setInterval(refresh, 6000)
+    const timer = window.setInterval(refresh, 2000)
 
     return () => {
       cancelled = true

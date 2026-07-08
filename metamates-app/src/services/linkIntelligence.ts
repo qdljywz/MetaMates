@@ -255,13 +255,33 @@ export function rankLinkDebt(
 }
 
 /**
+ * Resolve a note stem to a graph node key (path-based id).
+ */
+export function resolveStemToNodeKey(
+  stem: string,
+  stemToNodeKey: Map<string, string>,
+  nodeKeys?: Iterable<string>,
+): string | undefined {
+  const normalized = normalizeNoteStem(stem)
+  const direct = stemToNodeKey.get(normalized) ?? stemToNodeKey.get(stem)
+  if (direct) return direct
+  if (!nodeKeys) return undefined
+  for (const nodeKey of nodeKeys) {
+    const leaf = nodeKey.split('/').pop() || nodeKey
+    if (normalizeNoteStem(leaf) === normalized) return nodeKey
+  }
+  return undefined
+}
+
+/**
  * Build semantic graph edges (top neighbors per note, excluding existing wikilinks).
+ * Scores come from TF-IDF cosine × 100 (see fileIndex.searchSemantic).
  */
 export function buildSemanticGraphLinks(
   files: FileIndex[],
   semanticQueryByPath: Map<string, Array<{ file: FileIndex; score: number }>>,
   neighborsPerNode = 2,
-  minScore = 5,
+  minScore = 3,
 ): DualTrackGraphLink[] {
   const edges: DualTrackGraphLink[] = []
   const edgeKeys = new Set<string>()

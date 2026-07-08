@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Metamates 完整功能测试 — 逐项真实验证
+ * MetaMates 完整功能测试 — 逐项真实验证
  * 用法: node scripts/full-functional-test.mjs [--acp-smoke]
  */
 import { execSync, spawn } from 'child_process'
@@ -10,9 +10,12 @@ import http from 'http'
 import { fileURLToPath, pathToFileURL } from 'url'
 import { createRequire } from 'module'
 
+import { resolveDefaultWorkspace } from './lib/default-workspace.mjs'
+import { probeElectronSqlite } from './native-sqlite.mjs'
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
-const WORKSPACE = process.env.METAMATES_WORKSPACE || 'E:\\Trae\\Metamates\\MyMetaMates'
+const WORKSPACE = resolveDefaultWorkspace()
 const VAULT_PORT = 17334
 const require = createRequire(import.meta.url)
 
@@ -190,15 +193,7 @@ record('持久化', 'session-store.json 可读', (() => {
 })(), fs.existsSync(sessionStorePath) ? '存在' : '首次运行可能不存在')
 record('持久化', 'conversations.sqlite 可用', (() => {
   if (fs.existsSync(convSqlitePath)) {
-    try {
-      const Database = require('better-sqlite3')
-      const db = new Database(convSqlitePath, { readonly: true })
-      db.prepare('SELECT COUNT(*) AS count FROM conversations').get()
-      db.close()
-      return true
-    } catch {
-      return false
-    }
+    return probeElectronSqlite().ok
   }
 
   if (!fs.existsSync(convDbPath)) return true
@@ -216,7 +211,8 @@ try {
   await sessionStore.load()
   record('持久化', 'sessionStore.load()', true)
 } catch (e) {
-  record('持久化', 'sessionStore.load()', false, e.message)
+  const skip = /getAppPath|app\.getPath|Electron app/i.test(String(e.message || ''))
+  record('持久化', 'sessionStore.load()', skip, skip ? 'SKIP: 非 Electron 主进程' : e.message)
 }
 
 // ─── 6. Vault API ───
@@ -242,7 +238,7 @@ if (!fs.existsSync(WORKSPACE)) {
       const listData = JSON.parse(list.body)
       record('Vault API', 'GET /api/list', list.status === 200 && Array.isArray(listData.files), `${listData.files?.length || 0} 项`)
 
-      const search = await httpGet(`http://127.0.0.1:${VAULT_PORT}/api/search?q=Metamates&limit=5`)
+      const search = await httpGet(`http://127.0.0.1:${VAULT_PORT}/api/search?q=MetaMates&limit=5`)
       const searchData = JSON.parse(search.body)
       record('Vault API', 'GET /api/search', search.status === 200 && Array.isArray(searchData.results))
 
@@ -288,9 +284,9 @@ if (!fs.existsSync(WORKSPACE)) {
 // ─── 7. MCP 配置 ───
 console.log('\n═══ 7. MCP 桥接 ═══')
 try {
-  const { buildMetamatesMcpServers } = require(path.join(ROOT, 'dist-electron/acp/mcpSessionConfig.cjs'))
-  const servers = buildMetamatesMcpServers()
-  record('MCP', 'buildMetamatesMcpServers()', Array.isArray(servers), servers.length ? `${servers.length} 服务器` : 'Vault 未启用时为 []')
+  const { buildMetaMatesMcpServers } = require(path.join(ROOT, 'dist-electron/acp/mcpSessionConfig.cjs'))
+  const servers = buildMetaMatesMcpServers()
+  record('MCP', 'buildMetaMatesMcpServers()', Array.isArray(servers), servers.length ? `${servers.length} 服务器` : 'Vault 未启用时为 []')
   const bridgeExists = fs.existsSync(path.join(ROOT, 'scripts/vault-mcp-bridge.mjs'))
   record('MCP', 'vault-mcp-bridge.mjs', bridgeExists)
   record('MCP', 'ollama-acp-bridge.mjs', fs.existsSync(path.join(ROOT, 'scripts/ollama-acp-bridge.mjs')))

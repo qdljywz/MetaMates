@@ -23,7 +23,7 @@ public class MetamatesKernel32 {
 $appRoot = Split-Path $PSScriptRoot -Parent
 $repoRoot = Split-Path $appRoot -Parent
 
-Get-Process electron, Metamates -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process electron, MetaMates, Metamates -ErrorAction SilentlyContinue | Stop-Process -Force
 Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
   Where-Object { $_.CommandLine -match 'Metamates\\metamates-app' } |
   ForEach-Object { Stop-Process -Id $_.ProcessId -Force }

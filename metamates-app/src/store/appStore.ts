@@ -1,3 +1,13 @@
+import { treePathsEqual } from '../utils/fileTreeExpand'
+
+function findTabByPath(tabs: OpenTab[], filePath: string): OpenTab | undefined {
+  return tabs.find((tab) => treePathsEqual(tab.path, filePath))
+}
+
+function tabNameFromPath(filePath: string): string {
+  return filePath.split(/[/\\]/).pop() || filePath
+}
+
 export interface OpenTab {
   path: string
   name: string
@@ -69,6 +79,7 @@ export interface AppSettings {
   fontSize: number
   autoSave: boolean
   language?: 'zh' | 'en'
+  userTimezone?: string
   workspacePath?: string
   vaultApiEnabled?: boolean
   vaultApiPort?: number
@@ -84,6 +95,9 @@ export type AppAction =
   | { type: 'UPDATE_SETTINGS'; payload: Partial<AppSettings> }
   | { type: 'ADD_TAB'; payload: OpenTab }
   | { type: 'CLOSE_TAB'; payload: string }
+  | { type: 'CLOSE_OTHER_TABS'; payload: string }
+  | { type: 'CLOSE_ALL_TABS' }
+  | { type: 'RENAME_TAB'; payload: { oldPath: string; newPath: string; newName: string } }
   | { type: 'UPDATE_TAB_DIRTY'; payload: { path: string; isDirty: boolean } }
   | { type: 'SET_ACTIVE_TAB'; payload: string }
   | { type: 'SET_ACP_BACKENDS'; payload: AcpBackend[] }
@@ -98,7 +112,7 @@ export type AppAction =
 
 const initialState: AppState = {
   workspacePath: '',
-  currentFile: '',
+  currentFile: null,
   openTabs: [],
   files: [],
   commandHistory: [],
@@ -121,8 +135,24 @@ export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case 'SET_WORKSPACE':
       return { ...state, workspacePath: action.payload }
-    case 'SET_CURRENT_FILE':
-      return { ...state, currentFile: action.payload }
+    case 'SET_CURRENT_FILE': {
+      const payload = action.payload
+      if (!payload) {
+        return { ...state, currentFile: payload }
+      }
+      const existingTab = findTabByPath(state.openTabs, payload)
+      if (existingTab) {
+        return { ...state, currentFile: existingTab.path }
+      }
+      return {
+        ...state,
+        currentFile: payload,
+        openTabs: [
+          ...state.openTabs,
+          { path: payload, name: tabNameFromPath(payload), isDirty: false },
+        ],
+      }
+    }
     case 'SET_FILES':
       return { ...state, files: action.payload }
     case 'ADD_COMMAND_HISTORY':
@@ -136,9 +166,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         settings: { ...state.settings, ...action.payload } 
       }
     case 'ADD_TAB': {
-      const exists = state.openTabs.find(tab => tab.path === action.payload.path)
+      const exists = findTabByPath(state.openTabs, action.payload.path)
       if (exists) {
-        return { ...state, currentFile: action.payload.path }
+        return { ...state, currentFile: exists.path }
       }
       return { 
         ...state, 
@@ -147,16 +177,16 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       }
     }
     case 'CLOSE_TAB': {
-      const newTabs = state.openTabs.filter(tab => tab.path !== action.payload)
-      const closedIndex = state.openTabs.findIndex(tab => tab.path === action.payload)
+      const newTabs = state.openTabs.filter((tab) => !treePathsEqual(tab.path, action.payload))
+      const closedIndex = state.openTabs.findIndex((tab) => treePathsEqual(tab.path, action.payload))
       let newCurrentFile = state.currentFile
       
-      if (state.currentFile === action.payload) {
+      if (state.currentFile && treePathsEqual(state.currentFile, action.payload)) {
         if (newTabs.length > 0) {
           const newIndex = Math.min(closedIndex, newTabs.length - 1)
-          newCurrentFile = newTabs[newIndex]?.path || ''
+          newCurrentFile = newTabs[newIndex]?.path || null
         } else {
-          newCurrentFile = ''
+          newCurrentFile = null
         }
       }
       
@@ -166,16 +196,45 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         currentFile: newCurrentFile
       }
     }
+    case 'CLOSE_OTHER_TABS': {
+      const keep = action.payload
+      const newTabs = state.openTabs.filter((tab) => treePathsEqual(tab.path, keep))
+      return {
+        ...state,
+        openTabs: newTabs,
+        currentFile: keep,
+      }
+    }
+    case 'CLOSE_ALL_TABS':
+      return {
+        ...state,
+        openTabs: [],
+        currentFile: null,
+      }
+    case 'RENAME_TAB': {
+      const { oldPath, newPath, newName } = action.payload
+      const newTabs = state.openTabs.map((tab) =>
+        treePathsEqual(tab.path, oldPath) ? { ...tab, path: newPath, name: newName, isDirty: false } : tab,
+      )
+      return {
+        ...state,
+        openTabs: newTabs,
+        currentFile:
+          state.currentFile && treePathsEqual(state.currentFile, oldPath) ? newPath : state.currentFile,
+      }
+    }
     case 'UPDATE_TAB_DIRTY': {
       const newTabs = state.openTabs.map(tab => 
-        tab.path === action.payload.path 
+        treePathsEqual(tab.path, action.payload.path)
           ? { ...tab, isDirty: action.payload.isDirty }
           : tab
       )
       return { ...state, openTabs: newTabs }
     }
-    case 'SET_ACTIVE_TAB':
-      return { ...state, currentFile: action.payload }
+    case 'SET_ACTIVE_TAB': {
+      const tab = findTabByPath(state.openTabs, action.payload)
+      return { ...state, currentFile: tab?.path ?? action.payload }
+    }
     case 'SET_ACP_BACKENDS':
       return { ...state, acp: { ...state.acp, backends: action.payload } }
     case 'SET_ACP_CONNECTION':
@@ -207,7 +266,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
     case 'OPEN_EDITOR_AT': {
       const { path, line } = action.payload
       const name = action.payload.name || path.split(/[/\\]/).pop() || path
-      const exists = state.openTabs.find((tab) => tab.path === path)
+      const exists = findTabByPath(state.openTabs, path)
       return {
         ...state,
         openTabs: exists

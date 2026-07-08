@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(ls -la \"E:\\\\Trae\\\\Metamates\\\\metamates-app\\\\inits\\\\zh\\\\.gemini\\\\skills\"\" 2>/dev/null || echo \"Gemini skills 目录不存在 \")"
-    ]
-  }
-}

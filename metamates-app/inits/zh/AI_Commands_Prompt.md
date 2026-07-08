@@ -1,6 +1,6 @@
-﻿# 🤖 Metamates + Gemini CLI: 15 个核心自动化命令 (Prompt 集合)
+﻿# 🤖 MetaMates + Gemini CLI: 15 个核心自动化命令 (Prompt 集合)
 
-本文档提供 15 个可以直接发送给 AI 助手（如 Gemini CLI）的提示词 (Prompt)，用于在您的 Metamates 库中构建自动化工作流。
+本文档提供 15 个可以直接发送给 AI 助手（如 Gemini CLI）的提示词 (Prompt)，用于在您的 MetaMates 库中构建自动化工作流。
 
 ---
 
@@ -33,7 +33,7 @@
 ### /trace (溯源想法)
 *   **功能**: 追踪某个特定想法在整个库中是如何演变的轨迹。
 *   **Prompt**:
-    > "Track how a specific idea has evolved over time across my Metamates vault. Take a topic as input, search for all mentions, follow backlinks, and output a timeline."
+    > "Track how a specific idea has evolved over time across my MetaMates vault. Take a topic as input, search for all mentions, follow backlinks, and output a timeline."
 
 ### /connect (寻找连接)
 *   **功能**: 寻找两个看似无关的主题之间的意外联系。
@@ -60,9 +60,9 @@
     > "Scan my vault for emerging patterns. Generate ideas for: tools I should build, people I should reach out to, topics I should investigate, and things I should write."
 
 ### /graduate (灵感升级)
-*   **功能**: 从碎片化日记中提取灵感，转化为独立的永久笔记。
+*   **功能**: 从日记与 Inbox 剪藏中提取灵感，升维为 `03_点滴积累/` 永久笔记；报告中须列出 Inbox 源路径，MetaMates 写回后自动归档到 `Inbox/processed/`。
 *   **Prompt**:
-    > "Scan my daily notes from the past 14 days. Find ideas that deserve their own note and create standalone files for them."
+    > "Scan my daily notes and unprocessed Inbox captures from the past 14 days. Upgrade ideas into standalone notes. In your report, cite full paths for any Inbox sources so the app can archive them after writeback."
 
 ### /drift (潜意识漂移)
 *   **功能**: 捕捉在不同笔记中反复出现但尚未成形的关键词或主题。
@@ -77,7 +77,7 @@
 ### /intel (情报导入)
 *   **功能**: 抓取网页或工作区文档（PDF/Word/表格/图片等），写入 `04_情报与连接/` 并深化摘要与双链。
 *   **Prompt**:
-    > "Import external intelligence: URL or file path. After Metamates creates a draft note under the intelligence folder, deepen the summary, add tags, [[wiki links]], and action items. Preserve source metadata."
+    > "Import external intelligence: URL or file path. After MetaMates creates a draft note under the intelligence folder, deepen the summary, add tags, [[wiki links]], and action items. Preserve source metadata."
 
 ---
 
@@ -86,7 +86,7 @@
 ### /sync (系统同步)
 *   **功能**: 核心主控指令。扫描全库进展，复盘今日并自动更新 Master_Control.md。
 *   **Prompt**:
-    > "Read my vault and summarize today's activities. Then, based on the Metamates protocol in GEMINI.md, update the Master_Control.md file. Ensure it includes core goals, micro-time blocks, and strategic reminders derived from today's progress."
+    > "Read my vault and summarize today's activities. Then, based on the MetaMates protocol in GEMINI.md, update the Master_Control.md file. Ensure it includes core goals, micro-time blocks, and strategic reminders derived from today's progress."
 
 ### /soal (进化同步)
 *   **功能**: 显式同步用户的习惯、偏好或教训至 2M.md，实现 AI 的永久进化。

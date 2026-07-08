@@ -7,6 +7,7 @@ import {
 import {
   buildIntelligenceNoteFileName,
   summarizeExtractedText,
+  titleFromPlainText,
   titleFromSourceFileName,
   truncateExcerpt,
 } from './intelligenceSummarize'
@@ -15,6 +16,7 @@ import { IMPORT_FILE_DIALOG_FILTERS } from '../../electron/shared/importableForm
 import {
   extractUrlsFromText,
   parseIntelCaptureTarget,
+  stripIntelCommandPrefix,
   titleFromUrl,
 } from '../utils/intelligenceCapture'
 
@@ -210,6 +212,78 @@ export async function importUrlAsIntelligence(
   })
 }
 
+export interface IntelligenceCaptureInput {
+  text?: string
+  attachmentPaths?: string[]
+}
+
+export async function importTextAsIntelligence(
+  workspacePath: string,
+  rawText: string,
+  language: WorkspaceLanguage = 'zh',
+): Promise<IntelligenceImportResult> {
+  const text = stripIntelCommandPrefix(rawText).trim()
+  if (!text) {
+    return { success: false, error: 'Empty text' }
+  }
+
+  return writeIntelligenceNote(workspacePath, language, {
+    title: titleFromPlainText(text),
+    format: 'text',
+    sourceRelativePath: language === 'en' ? 'Pasted text' : '用户粘贴文本',
+    importedAt: new Date().toISOString(),
+    extractedText: text,
+  })
+}
+
+/**
+ * /intel 统一入口：URL、路径、纯文本、@ 附件（可组合）
+ */
+export async function captureIntelligenceFromInput(
+  workspacePath: string,
+  input: IntelligenceCaptureInput,
+  language: WorkspaceLanguage = 'zh',
+): Promise<IntelligenceImportResult> {
+  const stripped = stripIntelCommandPrefix(input.text || '').trim()
+  const attachmentPaths = (input.attachmentPaths || []).filter(Boolean)
+
+  if (attachmentPaths.length > 0) {
+    const primaryPath = attachmentPaths[0]
+    if (!window.electronAPI?.intelligence?.prepareImport) {
+      return { success: false, error: 'Intelligence import is only available in the desktop app' }
+    }
+
+    const prepared = await window.electronAPI.intelligence.prepareImport(primaryPath) as IntelligencePreparePayload
+    if (!prepared.success || !prepared.text) {
+      return { success: false, error: prepared.error || 'Failed to prepare attachment' }
+    }
+
+    let extractedText = prepared.text
+    const supplement = stripped && parseIntelCaptureTarget(stripped)?.kind === 'text' ? stripped : ''
+    if (supplement) {
+      extractedText = `${extractedText}\n\n--- 用户补充 ---\n${supplement}`
+    }
+
+    const title = titleFromSourceFileName(prepared.sourceFileName || 'intel')
+    const primary = await writeIntelligenceNote(workspacePath, language, {
+      title,
+      format: prepared.format || 'file',
+      sourceRelativePath: prepared.archivedRelativePath || prepared.sourceRelativePath || prepared.sourceFileName || '',
+      importedAt: new Date().toISOString(),
+      extractedText,
+      warnings: prepared.warnings,
+    })
+
+    for (const extraPath of attachmentPaths.slice(1)) {
+      await importDocumentAsIntelligence(workspacePath, extraPath, language)
+    }
+
+    return primary
+  }
+
+  return captureIntelligenceFromText(workspacePath, input.text || '', language)
+}
+
 export async function captureIntelligenceFromText(
   workspacePath: string,
   text: string,
@@ -217,15 +291,15 @@ export async function captureIntelligenceFromText(
 ): Promise<IntelligenceImportResult> {
   const target = parseIntelCaptureTarget(text)
   if (!target) {
-    const urls = extractUrlsFromText(text)
-    if (urls.length === 0) {
-      return { success: false, error: 'No URL or file path found' }
-    }
-    return importUrlAsIntelligence(workspacePath, urls[0], language)
+    return { success: false, error: 'No URL, file path, or text content found' }
   }
 
   if (target.kind === 'url') {
     return importUrlAsIntelligence(workspacePath, target.value, language)
+  }
+
+  if (target.kind === 'text') {
+    return importTextAsIntelligence(workspacePath, target.value, language)
   }
 
   const resolved = await resolveWorkspaceFilePath(

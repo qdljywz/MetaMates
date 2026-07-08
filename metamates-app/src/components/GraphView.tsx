@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { Modal, Spin, Empty, Input, Select, Space, Button, Tag, Divider, message, Switch, Tooltip } from 'antd'
+import { Modal, Spin, Empty, Input, Select, Space, Button, Tag, Divider, message, Switch, Tooltip, Segmented } from 'antd'
 import { useTranslation } from 'react-i18next'
-import { SearchOutlined, FilterOutlined, ReloadOutlined, ZoomInOutlined, ZoomOutOutlined, BulbOutlined } from '@ant-design/icons'
+import { SearchOutlined, FilterOutlined, ReloadOutlined, ZoomInOutlined, ZoomOutOutlined, BulbOutlined, CopyOutlined } from '@ant-design/icons'
 import { LinkParser } from '../services/linkParser'
-import { buildSemanticGraphLinks, buildPlainMentionCountMap, computeGraphNodeImportance, importanceToNodeSize, normalizeNoteStem } from '../services/linkIntelligence'
+import { buildSemanticGraphLinks, buildPlainMentionCountMap, computeGraphNodeImportance, importanceToNodeSize, normalizeNoteStem, resolveStemToNodeKey } from '../services/linkIntelligence'
 import { fileIndexService } from '../services/fileIndex'
 import { workspaceIndexService } from '../services/workspaceIndex'
 import {
@@ -13,6 +13,18 @@ import {
 } from '../services/vaultPaths'
 import { useTheme } from '../hooks/useTheme'
 import GraphView3D from './KnowledgeGraph/GraphView3D'
+import {
+  collectActivityNeighborhood,
+  collectFocusNeighborhood,
+  filterLinksForDisplay,
+  filterLinksToNodeSet,
+  getGraphFolderLegend,
+  getGraphNodeColor,
+  isOrphanGraphNode,
+  layoutGraphCluster,
+  type GraphViewMode,
+} from '../utils/graphFocus'
+import { drawGraphBackground, drawGraphLink, drawGraphNode, fitViewportToNodes, sanitizeGraphNodePositions } from '../utils/graphCanvas2D'
 
 interface GraphNode {
   id: string
@@ -42,6 +54,12 @@ interface GraphViewProps {
   visible: boolean
   onClose: () => void
   workspacePath: string
+  /** Current editor file — focus graph centers on this note when in focus mode. */
+  focusFilePath?: string | null
+  /** When opened from activity calendar: files edited on that day. */
+  highlightPaths?: string[]
+  activityDateLabel?: string
+  initialViewMode?: GraphViewMode
   onFileSelect: (path: string) => void
 }
 
@@ -55,12 +73,7 @@ interface GraphCache {
   timestamp: number
 }
 
-const GRAPH_CACHE_VERSION = 4
-
-const colors = [
-  '#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', 
-  '#0891b2', '#c026d3', '#ea580c', '#16a34a', '#8b5cf6'
-]
+const GRAPH_CACHE_VERSION = 7
 
 const graphCache = new Map<string, GraphCache>()
 const CACHE_TTL = 5 * 60 * 1000
@@ -95,14 +108,23 @@ function extractAllLinks(content: string): string[] {
   return links
 }
 
-const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, onFileSelect }) => {
+const GraphView: React.FC<GraphViewProps> = ({
+  visible,
+  onClose,
+  workspacePath,
+  focusFilePath,
+  highlightPaths,
+  activityDateLabel,
+  initialViewMode,
+  onFileSelect,
+}) => {
   const { t } = useTranslation('graph')
   const { theme } = useTheme()
   const isDark = theme.mode === 'dark'
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [allNodes, setAllNodes] = useState<GraphNode[]>([])
   const [nodes, setNodes] = useState<GraphNode[]>([])
-  const [links, setLinks] = useState<GraphLink[]>([])
+  const [allLinks, setAllLinks] = useState<GraphLink[]>([])
   const [loading, setLoading] = useState(true)
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null)
   const [draggingNode, setDraggingNode] = useState<GraphNode | null>(null)
@@ -112,10 +134,32 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
   const [filterTag, setFilterTag] = useState<string | null>(null)
   const [allTags, setAllTags] = useState<string[]>([])
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
-  const [is3DMode, setIs3DMode] = useState(true)
-  const [showSemanticLinks, setShowSemanticLinks] = useState(true)
+  const [is3DMode, setIs3DMode] = useState(false)
+  const [showSemanticLinks, setShowSemanticLinks] = useState(false)
+  const [viewMode, setViewMode] = useState<GraphViewMode>('focus')
+  const [filterFolder, setFilterFolder] = useState<string | null>(null)
+  const [workspaceLanguage, setWorkspaceLanguage] = useState<'zh' | 'en'>('zh')
   const [linkDebtRanking, setLinkDebtRanking] = useState<Array<{ path: string; name: string; score: number; stem: string }>>([])
+  const simulationPausedRef = useRef(true)
+  const simulationFrameRef = useRef(0)
+  const frameTimeRef = useRef(0)
   const animationRef = useRef<number | undefined>(undefined)
+  const scaleRef = useRef(scale)
+  const offsetRef = useRef(offset)
+  const draggingNodeRef = useRef<GraphNode | null>(null)
+  const canvasLayoutRef = useRef({ cssWidth: 0, cssHeight: 0, dpr: 1 })
+  const renderStateRef = useRef({
+    nodes: [] as GraphNode[],
+    visibleLinks: [] as GraphLink[],
+    hoveredNode: null as GraphNode | null,
+    selectedNode: null as GraphNode | null,
+    isDark: false,
+  })
+  const interactionRef = useRef({
+    draggingNode: null as GraphNode | null,
+    hoveredNode: null as GraphNode | null,
+    selectedNode: null as GraphNode | null,
+  })
   const fileMapRef = useRef<Map<string, string>>(new Map())
   const isDraggingCanvas = useRef(false)
   const lastMousePos = useRef({ x: 0, y: 0 })
@@ -124,9 +168,250 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
   const lastClickTime = useRef(0)
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingClickNode = useRef<GraphNode | null>(null)
+  const loadGenerationRef = useRef(0)
+  const didCenterFocusRef = useRef(false)
+  const didFitViewRef = useRef(false)
+  const nodesRef = useRef(nodes)
+  nodesRef.current = nodes
+
+  const focusNodeId = React.useMemo(() => {
+    if (!focusFilePath || !workspacePath) return null
+    return getVaultNodeKey(workspacePath, focusFilePath)
+  }, [focusFilePath, workspacePath])
+
+  const focusNeighborhood = React.useMemo(() => {
+    if (viewMode !== 'focus' || !focusNodeId || allNodes.length === 0) return null
+    if (!allNodes.some((n) => n.id === focusNodeId)) return null
+    return collectFocusNeighborhood(focusNodeId, allLinks, 2)
+  }, [viewMode, focusNodeId, allNodes, allLinks])
+
+  const activityNeighborhood = React.useMemo(() => {
+    if (viewMode !== 'activity' || !highlightPaths?.length || !workspacePath) return null
+    return collectActivityNeighborhood(workspacePath, highlightPaths, allLinks)
+  }, [viewMode, highlightPaths, workspacePath, allLinks])
+
+  const resumeSimulation = useCallback(() => {
+    simulationPausedRef.current = false
+    simulationFrameRef.current = 0
+    for (const node of allNodes) {
+      node.vx = 0
+      node.vy = 0
+    }
+  }, [allNodes])
+
+  const nodeHitRadius = useCallback((node: GraphNode) => Math.max(node.size / 2 + 10, 18), [])
+
+  const applyViewport = useCallback((nextScale: number, nextOffset: { x: number; y: number }) => {
+    scaleRef.current = nextScale
+    offsetRef.current = nextOffset
+    setScale(nextScale)
+    setOffset(nextOffset)
+  }, [])
+
+  const shouldCompactLayout = Boolean(focusNeighborhood || activityNeighborhood)
+
+  const compactAnchorId = React.useMemo(() => {
+    if (focusNeighborhood && focusNodeId) return focusNodeId
+    if (activityNeighborhood && highlightPaths?.[0]) {
+      return getVaultNodeKey(workspacePath, highlightPaths[0])
+    }
+    return null
+  }, [focusNeighborhood, activityNeighborhood, focusNodeId, highlightPaths, workspacePath])
+
+  const fitViewNow = useCallback(() => {
+    const canvas = canvasRef.current
+    const visibleNodes = nodesRef.current
+    if (!canvas || visibleNodes.length === 0 || is3DMode) return false
+    const rect = canvas.getBoundingClientRect()
+    if (rect.width < 10 || rect.height < 10) return false
+
+    if (shouldCompactLayout) {
+      layoutGraphCluster(visibleNodes, compactAnchorId)
+      simulationPausedRef.current = true
+    } else {
+      sanitizeGraphNodePositions(visibleNodes)
+    }
+
+    const focusId = viewMode === 'focus' ? focusNodeId : null
+    const vp = fitViewportToNodes(visibleNodes, rect, 56, focusId)
+    applyViewport(vp.scale, vp.offset)
+    didFitViewRef.current = true
+    return true
+  }, [is3DMode, applyViewport, viewMode, focusNodeId, shouldCompactLayout, compactAnchorId])
+
+  const scheduleFitView = useCallback(() => {
+    didFitViewRef.current = false
+    let attempts = 0
+    const tryFit = () => {
+      attempts += 1
+      if (fitViewNow()) return
+      if (attempts < 36) requestAnimationFrame(tryFit)
+    }
+    requestAnimationFrame(tryFit)
+    window.setTimeout(() => fitViewNow(), 400)
+  }, [fitViewNow])
+
+  useEffect(() => {
+    scaleRef.current = scale
+    offsetRef.current = offset
+  }, [scale, offset])
+
+  useEffect(() => {
+    draggingNodeRef.current = draggingNode
+  }, [draggingNode])
+
+  const getWorldCoords = useCallback((clientX: number, clientY: number) => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    const rect = canvas.getBoundingClientRect()
+    return {
+      x: (clientX - rect.left - offsetRef.current.x) / scaleRef.current,
+      y: (clientY - rect.top - offsetRef.current.y) / scaleRef.current,
+    }
+  }, [])
+
+  const findNodeAtWorld = useCallback((worldX: number, worldY: number) => {
+    return nodes.find((node) => {
+      const dx = node.x - worldX
+      const dy = node.y - worldY
+      return Math.sqrt(dx * dx + dy * dy) < nodeHitRadius(node)
+    }) ?? null
+  }, [nodes, nodeHitRadius])
+
+  const endPointerDrag = useCallback(() => {
+    const wasPanning = isDraggingCanvas.current
+    const draggedNode = draggingNodeRef.current
+
+    setDraggingNode(null)
+    draggingNodeRef.current = null
+    isDraggingCanvas.current = false
+
+    if (wasPanning) {
+      setOffset({ ...offsetRef.current })
+    } else if (draggedNode) {
+      setNodes((prev) =>
+        prev.map((node) =>
+          node.id === draggedNode.id ? { ...node, x: draggedNode.x, y: draggedNode.y } : node,
+        ),
+      )
+    }
+
+    const canvas = canvasRef.current
+    if (canvas) canvas.style.cursor = 'grab'
+  }, [])
+
+  const bindWindowDragListeners = useCallback(() => {
+    const onWindowMouseMove = (e: MouseEvent) => {
+      const dx = e.clientX - dragStartPos.current.x
+      const dy = e.clientY - dragStartPos.current.y
+      if (Math.sqrt(dx * dx + dy * dy) > 5) {
+        hasDragged.current = true
+      }
+
+      if (isDraggingCanvas.current) {
+        offsetRef.current = {
+          x: offsetRef.current.x + (e.clientX - lastMousePos.current.x),
+          y: offsetRef.current.y + (e.clientY - lastMousePos.current.y),
+        }
+        lastMousePos.current = { x: e.clientX, y: e.clientY }
+        return
+      }
+
+      const activeNode = draggingNodeRef.current
+      if (!activeNode) return
+      const world = getWorldCoords(e.clientX, e.clientY)
+      if (!world) return
+      activeNode.x = world.x
+      activeNode.y = world.y
+    }
+
+    const onWindowMouseUp = () => {
+      window.removeEventListener('mousemove', onWindowMouseMove)
+      window.removeEventListener('mouseup', onWindowMouseUp)
+      endPointerDrag()
+    }
+
+    window.addEventListener('mousemove', onWindowMouseMove, { passive: true })
+    window.addEventListener('mouseup', onWindowMouseUp)
+  }, [endPointerDrag, getWorldCoords])
+
+  const visibleLinks = React.useMemo(() => {
+    const nodeIds = new Set(nodes.map((n) => n.id))
+    let pool = allLinks
+    if (focusNeighborhood) {
+      pool = filterLinksToNodeSet(allLinks, focusNeighborhood)
+    }
+    pool = pool.filter((link) => nodeIds.has(link.source) && nodeIds.has(link.target))
+    const activeId = selectedNode?.id ?? hoveredNode?.id ?? null
+    return filterLinksForDisplay(pool, showSemanticLinks, activeId)
+  }, [allLinks, nodes, focusNeighborhood, showSemanticLinks, selectedNode, hoveredNode])
+
+  renderStateRef.current = { nodes, visibleLinks, hoveredNode, selectedNode, isDark }
+  interactionRef.current = { draggingNode, hoveredNode, selectedNode }
+
+  useEffect(() => {
+    if (!visible) return
+    if (initialViewMode) setViewMode(initialViewMode)
+    else if (!highlightPaths?.length) setViewMode('focus')
+  }, [visible, initialViewMode, highlightPaths])
+
+  useEffect(() => {
+    if (hoveredNode || draggingNode) {
+      simulationPausedRef.current = true
+    }
+  }, [hoveredNode, draggingNode])
+
+  const semanticSuggestions = React.useMemo(() => {
+    if (!selectedNode) return []
+    const wikiConnected = new Set(selectedNode.connections)
+    const seen = new Set<string>()
+    const suggestions: string[] = []
+    for (const link of allLinks) {
+      if (link.kind !== 'semantic') continue
+      const otherId = link.source === selectedNode.id ? link.target : link.target === selectedNode.id ? link.source : null
+      if (!otherId || otherId === selectedNode.id || wikiConnected.has(otherId) || seen.has(otherId)) continue
+      seen.add(otherId)
+      suggestions.push(otherId)
+      if (suggestions.length >= 8) break
+    }
+    return suggestions
+  }, [selectedNode, allLinks])
+
+  const folderFilterOptions = React.useMemo(() => {
+    const legend = getGraphFolderLegend(workspaceLanguage)
+    return [
+      { label: t('all'), value: null as string | null },
+      ...legend.map((item) => ({
+        label: item.label.split('_').pop() || item.label,
+        value: item.label,
+      })),
+    ]
+  }, [workspaceLanguage, t])
+
+  const copyWikiLink = useCallback((nodeId: string) => {
+    const name = nodeId.split('/').pop() || nodeId
+    void navigator.clipboard.writeText(`[[${name}]]`)
+    message.success(t('linkCopied'))
+  }, [t])
+
+  useEffect(() => {
+    if (!visible) {
+      canvasLayoutRef.current = { cssWidth: 0, cssHeight: 0, dpr: 0 }
+      didFitViewRef.current = false
+      didCenterFocusRef.current = false
+      offsetRef.current = { x: 0, y: 0 }
+      scaleRef.current = 1
+      setScale(1)
+      setOffset({ x: 0, y: 0 })
+      setHoveredNode(null)
+      setDraggingNode(null)
+      isDraggingCanvas.current = false
+    }
+  }, [visible])
 
   useEffect(() => {
     if (visible && workspacePath) {
+      didCenterFocusRef.current = false
       loadGraphData()
     }
   }, [visible, workspacePath])
@@ -134,39 +419,104 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
   /** Reload when workspace index finishes — semantic edges need fileIndex. */
   useEffect(() => {
     if (!visible || !workspacePath) return
-    const unsubscribe = workspaceIndexService.subscribe(() => {
+    const reload = () => {
       if (workspaceIndexService.isReady()) {
         loadGraphData(true)
       }
-    })
-    return unsubscribe
+    }
+    const unsubIndex = workspaceIndexService.subscribe(reload)
+    const unsubVault = workspaceIndexService.onVaultChanged(reload)
+    return () => {
+      unsubIndex()
+      unsubVault()
+    }
   }, [visible, workspacePath])
 
   useEffect(() => {
-    if (!searchText && !filterTag) {
-      setNodes(allNodes)
-      return
+    let pool = allNodes
+
+    if (viewMode === 'orphans') {
+      pool = pool.filter((node) => isOrphanGraphNode(node))
+    } else if (focusNeighborhood) {
+      pool = pool.filter((node) => focusNeighborhood.has(node.id))
+    } else if (activityNeighborhood) {
+      pool = pool.filter((node) => activityNeighborhood.has(node.id))
     }
 
-    const filtered = allNodes.filter(node => {
-      const matchesSearch = !searchText || 
-        node.name.toLowerCase().includes(searchText.toLowerCase())
-      const matchesTag = !filterTag || 
-        node.tags.includes(filterTag)
+    if (filterFolder) {
+      const prefix = `${filterFolder}/`
+      pool = pool.filter((node) => node.id === filterFolder || node.id.startsWith(prefix))
+    }
+
+    const filtered = pool.filter((node) => {
+      const matchesSearch = !searchText ||
+        node.name.toLowerCase().includes(searchText.toLowerCase()) ||
+        node.id.toLowerCase().includes(searchText.toLowerCase())
+      const matchesTag = !filterTag || node.tags.includes(filterTag)
       return matchesSearch && matchesTag
     })
-    setNodes(filtered)
-  }, [searchText, filterTag, allNodes])
+
+    const needsClusterLayout = Boolean(focusNeighborhood || activityNeighborhood)
+    const visibleNodes = needsClusterLayout
+      ? filtered.map((node) => ({ ...node, vx: 0, vy: 0 }))
+      : filtered
+
+    if (needsClusterLayout) {
+      simulationPausedRef.current = true
+    } else if (viewMode === 'full') {
+      resumeSimulation()
+    }
+
+    setNodes(visibleNodes)
+  }, [searchText, filterTag, allNodes, focusNeighborhood, activityNeighborhood, viewMode, filterFolder, resumeSimulation])
+
+  useEffect(() => {
+    if (!selectedNode) return
+    if (!nodes.some((node) => node.id === selectedNode.id)) {
+      setSelectedNode(nodes[0] ?? null)
+    }
+  }, [nodes, selectedNode])
+
+  useEffect(() => {
+    if (!visible || !focusNodeId || nodes.length === 0) return
+    const focusNode = nodes.find((n) => n.id === focusNodeId)
+    if (focusNode && viewMode === 'focus') {
+      setSelectedNode(focusNode)
+    }
+  }, [visible, focusNodeId, nodes, viewMode])
+
+  useEffect(() => {
+    if (!visible || loading || is3DMode || nodes.length === 0) return
+    scheduleFitView()
+  }, [visible, loading, is3DMode, nodes, focusNodeId, viewMode, focusNeighborhood, activityNeighborhood, scheduleFitView])
+
+  useEffect(() => {
+    if (!visible || is3DMode || loading) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    let resizeTimer: number | undefined
+    const observer = new ResizeObserver(() => {
+      if (nodesRef.current.length === 0 || didFitViewRef.current) return
+      window.clearTimeout(resizeTimer)
+      resizeTimer = window.setTimeout(() => scheduleFitView(), 80)
+    })
+    observer.observe(canvas)
+    return () => {
+      window.clearTimeout(resizeTimer)
+      observer.disconnect()
+    }
+  }, [visible, is3DMode, loading, scheduleFitView])
 
   const loadGraphData = async (forceRefresh = false) => {
     if (!window.electronAPI) return
+    const generation = ++loadGenerationRef.current
     
     if (!forceRefresh) {
       const cached = graphCache.get(workspacePath)
       if (cached && cached.version === GRAPH_CACHE_VERSION && Date.now() - cached.timestamp < CACHE_TTL) {
         setAllNodes(cached.nodes)
-        setNodes(cached.nodes)
-        setLinks(cached.links)
+        setAllLinks(cached.links)
         fileMapRef.current = cached.fileMap
         setAllTags(cached.tags)
         setLinkDebtRanking(cached.linkDebtRanking || [])
@@ -183,6 +533,7 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
           workspacePath,
           result.files.map((f: { path: string }) => f.path),
         )
+        setWorkspaceLanguage(workspaceLanguage)
         const mdFiles = result.files.filter((f: any) =>
           !f.isDirectory &&
           f.name.endsWith('.md') &&
@@ -223,7 +574,7 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
                 vy: 0,
                 connections: [],
                 size: 14,
-                color: colors[Math.floor(Math.random() * colors.length)],
+                color: getGraphNodeColor(nodeKey, workspaceLanguage),
                 tags: parsed.tags.map(t => t.name),
                 lastModified: Date.now(),
                 inDegree: 0,
@@ -253,17 +604,30 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
           ? workspaceIndexService.getLinkDebtRanking(10)
           : []
 
-        if (workspaceIndexService.isReady()) {
+        const appendSemanticLinks = () => {
+          if (!workspaceIndexService.isReady()) return
           const files = fileIndexService.getAllFiles()
-          const semanticMap = fileIndexService.buildSemanticNeighborMap(2)
-          const semanticEdges = buildSemanticGraphLinks(files, semanticMap, 2, 5)
+          if (files.length < 2) return
+          const semanticMap = fileIndexService.buildSemanticNeighborMap(3)
+          const semanticEdges = buildSemanticGraphLinks(files, semanticMap, 3, 3)
+          const nodeKeys = nodeMap.keys()
+          const existing = new Set(
+            linkList.map((link) => `${link.source}\0${link.target}\0${link.kind ?? 'wiki'}`),
+          )
           for (const edge of semanticEdges) {
-            const sourceKey = stemToNodeKey.get(edge.source)
-            const targetKey = stemToNodeKey.get(edge.target)
-            if (!sourceKey || !targetKey) continue
+            const sourceKey = resolveStemToNodeKey(edge.source, stemToNodeKey, nodeKeys)
+            const targetKey = resolveStemToNodeKey(edge.target, stemToNodeKey, nodeKeys)
+            if (!sourceKey || !targetKey || sourceKey === targetKey) continue
+            const dedupeKey = `${sourceKey}\0${targetKey}\0semantic`
+            if (existing.has(dedupeKey)) continue
+            existing.add(dedupeKey)
             linkList.push({ source: sourceKey, target: targetKey, kind: 'semantic' })
           }
         }
+
+        appendSemanticLinks()
+
+        if (generation !== loadGenerationRef.current) return
 
         const inDegreeMap = new Map<string, number>()
         for (const link of linkList.filter((l) => l.kind !== 'semantic')) {
@@ -302,6 +666,8 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
         const nodesArray = Array.from(nodeMap.values())
         const tagsArray = Array.from(tagSet)
         
+        if (generation !== loadGenerationRef.current) return
+
         graphCache.set(workspacePath, {
           nodes: nodesArray,
           links: linkList,
@@ -313,8 +679,7 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
         })
         
         setAllNodes(nodesArray)
-        setNodes(nodesArray)
-        setLinks(linkList)
+        setAllLinks(linkList)
         setAllTags(tagsArray)
         setLinkDebtRanking(linkDebtRanking)
       }
@@ -326,55 +691,67 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
   }
 
   const simulate = useCallback(() => {
-    if (nodes.length === 0) return
-    
+    const { nodes: simNodes, visibleLinks: simLinks } = renderStateRef.current
+    const { draggingNode: dragNode, hoveredNode: hoverNode } = interactionRef.current
+    if (simNodes.length === 0) return
+    if (isDraggingCanvas.current || dragNode || hoverNode) return
+    if (simulationPausedRef.current) return
+
     const canvas = canvasRef.current
     const rect = canvas?.getBoundingClientRect()
-    const centerX = rect ? rect.width / 2 : 350
-    const centerY = rect ? rect.height / 2 : 250
-    
-    nodes.forEach(node => {
+    const viewScale = scaleRef.current || 1
+    const viewOffset = offsetRef.current
+    const centerX = rect ? (rect.width / 2 - viewOffset.x) / viewScale : 350
+    const centerY = rect ? (rect.height / 2 - viewOffset.y) / viewScale : 250
+
+    let energy = 0
+
+    simNodes.forEach(node => {
       let fx = 0, fy = 0
-      
-      nodes.forEach(other => {
+
+      simNodes.forEach(other => {
         if (node.id === other.id) return
         const dx = node.x - other.x
         const dy = node.y - other.y
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1
-        const force = 1000 / (dist * dist)
+        const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 36)
+        const force = 800 / (dist * dist)
         fx += (dx / dist) * force
         fy += (dy / dist) * force
       })
-      
-      links.filter((l) => showSemanticLinks || l.kind !== 'semantic').forEach(link => {
+
+      simLinks.forEach(link => {
+        if (link.kind === 'semantic') return
         if (link.source === node.id || link.target === node.id) {
           const otherId = link.source === node.id ? link.target : link.source
-          const other = nodes.find(n => n.id === otherId)
+          const other = simNodes.find(n => n.id === otherId)
           if (other) {
             const dx = other.x - node.x
             const dy = other.y - node.y
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1
-            const forceMultiplier = link.kind === 'semantic' ? 0.35 : 1
-            const force = (dist - 100) * 0.01 * forceMultiplier
+            const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1)
+            const force = (dist - 110) * 0.012
             fx += (dx / dist) * force
             fy += (dy / dist) * force
           }
         }
       })
-      
+
       const dx = centerX - node.x
       const dy = centerY - node.y
-      fx += dx * 0.001
-      fy += dy * 0.001
-      
-      if (draggingNode?.id !== node.id) {
-        node.vx = (node.vx + fx) * 0.9
-        node.vy = (node.vy + fy) * 0.9
-        node.x += node.vx
-        node.y += node.vy
-      }
+      fx += dx * 0.0008
+      fy += dy * 0.0008
+
+      node.vx = (node.vx + fx) * 0.88
+      node.vy = (node.vy + fy) * 0.88
+      node.x += node.vx
+      node.y += node.vy
+      energy += node.vx * node.vx + node.vy * node.vy
     })
-  }, [nodes, links, draggingNode, showSemanticLinks])
+
+    simulationFrameRef.current += 1
+    if (simulationFrameRef.current > 360 || energy < 0.25) {
+      simulationPausedRef.current = true
+    }
+  }, [])
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current
@@ -382,114 +759,77 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
     
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+
+    const { nodes: drawNodes, visibleLinks: drawLinks, hoveredNode: hoverNode, selectedNode: selectNode, isDark: dark } = renderStateRef.current
+    const viewScale = scaleRef.current
+    const viewOffset = offsetRef.current
     
     const rect = canvas.getBoundingClientRect()
-    canvas.width = rect.width * window.devicePixelRatio
-    canvas.height = rect.height * window.devicePixelRatio
-    ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
-    
-    ctx.clearRect(0, 0, rect.width, rect.height)
-    ctx.save()
-    ctx.translate(offset.x, offset.y)
-    ctx.scale(scale, scale)
-    
-    const visibleLinks = showSemanticLinks ? links : links.filter((l) => l.kind !== 'semantic')
+    if (rect.width < 1 || rect.height < 1) return
 
-    visibleLinks.forEach(link => {
-      const source = nodes.find(n => n.id === link.source)
-      const target = nodes.find(n => n.id === link.target)
-      if (source && target) {
-        const isHighlighted = hoveredNode && (
-          hoveredNode.id === link.source || 
-          hoveredNode.id === link.target
-        )
-        const isSelected = selectedNode && (
-          selectedNode.id === link.source || 
-          selectedNode.id === link.target
-        )
-        
-        ctx.beginPath()
-        ctx.moveTo(source.x, source.y)
-        ctx.lineTo(target.x, target.y)
-        
-        if (isHighlighted || isSelected) {
-          ctx.strokeStyle = '#7c3aed'
-          ctx.lineWidth = 3 / scale
-          ctx.setLineDash([])
-        } else if (link.kind === 'semantic') {
-          ctx.strokeStyle = 'rgba(167, 139, 250, 0.55)'
-          ctx.lineWidth = 1 / scale
-          ctx.setLineDash([6 / scale, 4 / scale])
-        } else {
-          ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)'
-          ctx.lineWidth = 1.5 / scale
-          ctx.setLineDash([])
-        }
-        ctx.stroke()
-        ctx.setLineDash([])
-        
-        if (link.kind === 'semantic') {
-          return
-        }
-        
-        const angle = Math.atan2(target.y - source.y, target.x - source.x)
-        const midX = (source.x + target.x) / 2
-        const midY = (source.y + target.y) / 2
-        
-        ctx.beginPath()
-        ctx.moveTo(midX, midY)
-        ctx.lineTo(
-          midX - 6 * Math.cos(angle - Math.PI / 6),
-          midY - 6 * Math.sin(angle - Math.PI / 6)
-        )
-        ctx.moveTo(midX, midY)
-        ctx.lineTo(
-          midX - 6 * Math.cos(angle + Math.PI / 6),
-          midY - 6 * Math.sin(angle + Math.PI / 6)
-        )
-        ctx.strokeStyle = isHighlighted || isSelected ? '#7c3aed' : 'rgba(148, 163, 184, 0.5)'
-        ctx.lineWidth = 1.5 / scale
-        ctx.stroke()
-      }
+    const dpr = window.devicePixelRatio || 1
+    const expectedWidth = Math.round(rect.width * dpr)
+    const expectedHeight = Math.round(rect.height * dpr)
+    if (canvas.width !== expectedWidth || canvas.height !== expectedHeight) {
+      canvas.width = expectedWidth
+      canvas.height = expectedHeight
+      canvasLayoutRef.current = { cssWidth: rect.width, cssHeight: rect.height, dpr }
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+    ctx.clearRect(0, 0, rect.width, rect.height)
+
+    const time = frameTimeRef.current
+    const focusActive = Boolean(hoverNode || selectNode)
+    const relatedIds = new Set<string>()
+    if (selectNode) {
+      relatedIds.add(selectNode.id)
+      selectNode.connections.forEach((id) => relatedIds.add(id))
+    }
+    if (hoverNode) {
+      relatedIds.add(hoverNode.id)
+      hoverNode.connections.forEach((id) => relatedIds.add(id))
+    }
+
+    drawGraphBackground(ctx, rect.width, rect.height, viewOffset.x, viewOffset.y, viewScale, time, dark)
+
+    ctx.save()
+    ctx.translate(viewOffset.x, viewOffset.y)
+    ctx.scale(viewScale, viewScale)
+    
+    drawLinks.forEach(link => {
+      const source = drawNodes.find(n => n.id === link.source)
+      const target = drawNodes.find(n => n.id === link.target)
+      if (!source || !target) return
+
+      const isHighlighted = Boolean(hoverNode && (hoverNode.id === link.source || hoverNode.id === link.target))
+      const isSelected = Boolean(selectNode && (selectNode.id === link.source || selectNode.id === link.target))
+      const isDimmed = focusActive && !isHighlighted && !isSelected
+        && !relatedIds.has(link.source) && !relatedIds.has(link.target)
+
+      drawGraphLink(ctx, source, target, link, viewScale, time, isHighlighted, isSelected, isDimmed)
     })
     
-    nodes.forEach(node => {
-      const isHovered = hoveredNode?.id === node.id
-      const isSelected = selectedNode?.id === node.id
-      const isConnected = hoveredNode && (
-        hoveredNode.connections.includes(node.id) || 
-        node.connections.includes(hoveredNode.id)
+    drawNodes.forEach(node => {
+      const isHovered = hoverNode?.id === node.id
+      const isSelected = selectNode?.id === node.id
+      const isConnected = Boolean(
+        (hoverNode && (hoverNode.connections.includes(node.id) || node.connections.includes(hoverNode.id)))
+        || (selectNode && (selectNode.connections.includes(node.id) || node.connections.includes(selectNode.id))),
       )
-      
-      ctx.beginPath()
-      ctx.arc(node.x, node.y, node.size / 2, 0, Math.PI * 2)
-      
-      if (isHovered || isSelected) {
-        ctx.fillStyle = node.color
-        ctx.shadowColor = node.color
-        ctx.shadowBlur = 20
-      } else if (isConnected) {
-        ctx.fillStyle = node.color
-        ctx.shadowBlur = 10
-      } else if (hoveredNode || selectedNode) {
-        ctx.fillStyle = '#e5e7eb'
-        ctx.shadowBlur = 0
-      } else {
-        ctx.fillStyle = node.color
-        ctx.shadowBlur = 0
-      }
-      
-      ctx.fill()
-      ctx.shadowBlur = 0
-      
-      ctx.fillStyle = isHovered || isSelected ? '#1f2937' : '#374151'
-      ctx.font = `${isHovered || isSelected ? 13 : 11}px sans-serif`
-      ctx.textAlign = 'center'
-      ctx.fillText(node.name, node.x, node.y + node.size / 2 + 15)
+      const isDimmed = focusActive && !isHovered && !isSelected && !isConnected
+
+      drawGraphNode(ctx, node, viewScale, time, {
+        isHovered,
+        isSelected,
+        isConnected,
+        isDimmed,
+        isDark: dark,
+      })
     })
     
     ctx.restore()
-  }, [nodes, links, hoveredNode, selectedNode, scale, offset, showSemanticLinks])
+  }, [])
 
   useEffect(() => {
     if (!visible || nodes.length === 0 || is3DMode) return
@@ -503,8 +843,8 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
         x: n.x,
         y: n.y,
         size: n.size,
-        screenX: rect.left + offset.x + n.x * scale,
-        screenY: rect.top + offset.y + n.y * scale,
+        screenX: rect.left + offsetRef.current.x + n.x * scaleRef.current,
+        screenY: rect.top + offsetRef.current.y + n.y * scaleRef.current,
       }))
     }
     ;(window as unknown as {
@@ -518,70 +858,43 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
       nodeCount: nodes.length,
       is3DMode,
     }
-  }, [visible, nodes, scale, offset, is3DMode])
+  }, [visible, nodes, is3DMode])
 
   useEffect(() => {
-    if (!visible || nodes.length === 0 || is3DMode) return
+    if (!visible || is3DMode || loading) return
 
-    const animate = () => {
+    const animate = (now: number) => {
+      frameTimeRef.current = now * 0.001
       simulate()
       draw()
       animationRef.current = requestAnimationFrame(animate)
     }
-    animate()
+    animationRef.current = requestAnimationFrame(animate)
     
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [visible, nodes, links, simulate, draw, is3DMode])
+  }, [visible, is3DMode, loading, simulate, draw])
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isDraggingCanvas.current || draggingNodeRef.current) return
+
     const canvas = canvasRef.current
     if (!canvas) return
     
-    const rect = canvas.getBoundingClientRect()
-    const x = (e.clientX - rect.left - offset.x) / scale
-    const y = (e.clientY - rect.top - offset.y) / scale
-    
-    const dx = e.clientX - dragStartPos.current.x
-    const dy = e.clientY - dragStartPos.current.y
-    if (Math.sqrt(dx * dx + dy * dy) > 5) {
-      hasDragged.current = true
-    }
-    
-    if (isDraggingCanvas.current) {
-      setOffset(prev => ({
-        x: prev.x + (e.clientX - lastMousePos.current.x),
-        y: prev.y + (e.clientY - lastMousePos.current.y)
-      }))
-      lastMousePos.current = { x: e.clientX, y: e.clientY }
-      return
-    }
-    
-    if (draggingNode) {
-      setNodes(prevNodes => prevNodes.map(node => 
-        node.id === draggingNode.id 
-          ? { ...node, x, y }
-          : node
-      ))
-      draggingNode.x = x
-      draggingNode.y = y
-      return
-    }
-    
-    const hovered = nodes.find(node => {
-      const nodeDx = node.x - x
-      const nodeDy = node.y - y
-      return Math.sqrt(nodeDx * nodeDx + nodeDy * nodeDy) < node.size / 2
-    })
-    
-    setHoveredNode(hovered || null)
-    canvas.style.cursor = hovered ? 'pointer' : 'default'
-  }, [nodes, draggingNode, scale, offset])
+    const world = getWorldCoords(e.clientX, e.clientY)
+    if (!world) return
+
+    const hovered = findNodeAtWorld(world.x, world.y)
+    setHoveredNode(hovered)
+    canvas.style.cursor = hovered ? 'pointer' : 'grab'
+  }, [getWorldCoords, findNodeAtWorld])
 
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button !== 0) return
+
     hasDragged.current = false
     dragStartPos.current = { x: e.clientX, y: e.clientY }
     lastClickTime.current = Date.now()
@@ -589,68 +902,52 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
     const canvas = canvasRef.current
     if (!canvas) return
     
-    const rect = canvas.getBoundingClientRect()
-    const x = (e.clientX - rect.left - offset.x) / scale
-    const y = (e.clientY - rect.top - offset.y) / scale
+    const world = getWorldCoords(e.clientX, e.clientY)
+    if (!world) return
+
+    const clickedNode = findNodeAtWorld(world.x, world.y)
     
-    const clickedNode = nodes.find(node => {
-      const dx = node.x - x
-      const dy = node.y - y
-      return Math.sqrt(dx * dx + dy * dy) < node.size / 2
-    })
-    
-    if (e.button === 0 && clickedNode) {
+    if (clickedNode) {
+      simulationPausedRef.current = true
+      draggingNodeRef.current = clickedNode
       setDraggingNode(clickedNode)
-    } else if (e.button === 0) {
+      canvas.style.cursor = 'grabbing'
+    } else {
       isDraggingCanvas.current = true
       lastMousePos.current = { x: e.clientX, y: e.clientY }
+      canvas.style.cursor = 'grabbing'
     }
-  }, [nodes, scale, offset])
+    bindWindowDragListeners()
+  }, [getWorldCoords, findNodeAtWorld, bindWindowDragListeners])
 
   const handleMouseUp = useCallback(() => {
-    setDraggingNode(null)
-    isDraggingCanvas.current = false
-  }, [])
+    endPointerDrag()
+  }, [endPointerDrag])
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (hasDragged.current) return
     
-    const canvas = canvasRef.current
-    if (!canvas) return
-    
-    const rect = canvas.getBoundingClientRect()
-    const x = (e.clientX - rect.left - offset.x) / scale
-    const y = (e.clientY - rect.top - offset.y) / scale
-    
-    const clickedNode = nodes.find(node => {
-      const dx = node.x - x
-      const dy = node.y - y
-      return Math.sqrt(dx * dx + dy * dy) < node.size / 2
-    })
+    const world = getWorldCoords(e.clientX, e.clientY)
+    if (!world) return
+
+    const clickedNode = findNodeAtWorld(world.x, world.y)
     
     if (clickedNode) {
+      simulationPausedRef.current = true
       setSelectedNode(clickedNode)
     } else {
       setSelectedNode(null)
     }
-  }, [nodes, offset, scale])
+  }, [getWorldCoords, findNodeAtWorld])
 
   const handleDoubleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault()
     e.stopPropagation()
     
-    const canvas = canvasRef.current
-    if (!canvas) return
-    
-    const rect = canvas.getBoundingClientRect()
-    const x = (e.clientX - rect.left - offset.x) / scale
-    const y = (e.clientY - rect.top - offset.y) / scale
-    
-    const clickedNode = nodes.find(node => {
-      const dx = node.x - x
-      const dy = node.y - y
-      return Math.sqrt(dx * dx + dy * dy) < node.size / 2
-    })
+    const world = getWorldCoords(e.clientX, e.clientY)
+    if (!world) return
+
+    const clickedNode = findNodeAtWorld(world.x, world.y)
     
     if (clickedNode) {
       const filePath = fileMapRef.current.get(clickedNode.id)
@@ -661,7 +958,7 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
         message.warning(t('fileNotFound'))
       }
     }
-  }, [nodes, offset, scale, onFileSelect, onClose])
+  }, [getWorldCoords, findNodeAtWorld, onFileSelect, onClose, t])
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
     e.preventDefault()
@@ -675,17 +972,16 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
     const mouseY = e.clientY - rect.top
     
     const delta = e.deltaY > 0 ? 0.9 : 1.1
-    const newScale = Math.max(0.3, Math.min(3, scale * delta))
+    const newScale = Math.max(0.3, Math.min(3, scaleRef.current * delta))
     
-    const worldX = (mouseX - offset.x) / scale
-    const worldY = (mouseY - offset.y) / scale
+    const worldX = (mouseX - offsetRef.current.x) / scaleRef.current
+    const worldY = (mouseY - offsetRef.current.y) / scaleRef.current
     
     const newOffsetX = mouseX - worldX * newScale
     const newOffsetY = mouseY - worldY * newScale
     
-    setScale(newScale)
-    setOffset({ x: newOffsetX, y: newOffsetY })
-  }, [scale, offset])
+    applyViewport(newScale, { x: newOffsetX, y: newOffsetY })
+  }, [applyViewport])
   
   const handleZoomIn = useCallback(() => {
     const canvas = canvasRef.current
@@ -694,23 +990,22 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
     
     let centerX: number, centerY: number
     if (selectedNode) {
-      centerX = selectedNode.x * scale + offset.x
-      centerY = selectedNode.y * scale + offset.y
+      centerX = selectedNode.x * scaleRef.current + offsetRef.current.x
+      centerY = selectedNode.y * scaleRef.current + offsetRef.current.y
     } else {
       centerX = rect.width / 2
       centerY = rect.height / 2
     }
     
-    const newScale = Math.min(3, scale * 1.2)
-    const worldX = (centerX - offset.x) / scale
-    const worldY = (centerY - offset.y) / scale
+    const newScale = Math.min(3, scaleRef.current * 1.2)
+    const worldX = (centerX - offsetRef.current.x) / scaleRef.current
+    const worldY = (centerY - offsetRef.current.y) / scaleRef.current
     
-    setScale(newScale)
-    setOffset({
+    applyViewport(newScale, {
       x: centerX - worldX * newScale,
-      y: centerY - worldY * newScale
+      y: centerY - worldY * newScale,
     })
-  }, [scale, offset, selectedNode])
+  }, [applyViewport, selectedNode])
   
   const handleZoomOut = useCallback(() => {
     const canvas = canvasRef.current
@@ -719,27 +1014,30 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
     
     let centerX: number, centerY: number
     if (selectedNode) {
-      centerX = selectedNode.x * scale + offset.x
-      centerY = selectedNode.y * scale + offset.y
+      centerX = selectedNode.x * scaleRef.current + offsetRef.current.x
+      centerY = selectedNode.y * scaleRef.current + offsetRef.current.y
     } else {
       centerX = rect.width / 2
       centerY = rect.height / 2
     }
     
-    const newScale = Math.max(0.3, scale / 1.2)
-    const worldX = (centerX - offset.x) / scale
-    const worldY = (centerY - offset.y) / scale
+    const newScale = Math.max(0.3, scaleRef.current / 1.2)
+    const worldX = (centerX - offsetRef.current.x) / scaleRef.current
+    const worldY = (centerY - offsetRef.current.y) / scaleRef.current
     
-    setScale(newScale)
-    setOffset({
+    applyViewport(newScale, {
       x: centerX - worldX * newScale,
-      y: centerY - worldY * newScale
+      y: centerY - worldY * newScale,
     })
-  }, [scale, offset, selectedNode])
+  }, [applyViewport, selectedNode])
   const handleReset = () => {
-    setScale(1)
-    setOffset({ x: 0, y: 0 })
     setSelectedNode(null)
+    if (viewMode === 'full') {
+      resumeSimulation()
+    } else {
+      simulationPausedRef.current = true
+    }
+    scheduleFitView()
   }
 
   return (
@@ -750,7 +1048,11 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
       footer={null}
       width={1000}
       centered
+      destroyOnClose
       wrapClassName="graph-modal"
+      afterOpenChange={(open) => {
+        if (open) window.setTimeout(() => scheduleFitView(), 280)
+      }}
     >
       <div 
         className="graph-modal-content"
@@ -776,7 +1078,19 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
               ...allTags.map(t => ({ label: `#${t}`, value: t }))
             ]}
           />
-          <Button icon={<ReloadOutlined />} onClick={() => loadGraphData(true)}>
+          <Select
+            placeholder={t('filterByFolder')}
+            value={filterFolder}
+            onChange={(value) => setFilterFolder(value)}
+            style={{ width: 140 }}
+            allowClear
+            options={folderFilterOptions}
+          />
+          <Button icon={<ReloadOutlined />} onClick={() => {
+            didFitViewRef.current = false
+            if (viewMode === 'full') resumeSimulation()
+            loadGraphData(true)
+          }}>
             {t('refresh')}
           </Button>
           <Button.Group>
@@ -784,6 +1098,21 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
             <Button icon={<ZoomOutOutlined />} onClick={handleZoomOut} />
             <Button onClick={handleReset}>{t('reset')}</Button>
           </Button.Group>
+          <Segmented
+            value={viewMode}
+            onChange={(value) => setViewMode(value as GraphViewMode)}
+            options={[
+              { label: t('viewMode.focus'), value: 'focus' },
+              { label: t('viewMode.full'), value: 'full' },
+              { label: t('viewMode.orphans'), value: 'orphans' },
+              ...(highlightPaths?.length
+                ? [{ label: t('viewMode.activity'), value: 'activity' as const }]
+                : []),
+            ]}
+          />
+          {activityDateLabel && viewMode === 'activity' && (
+            <Tag color="orange">{t('activityDay', { date: activityDateLabel })}</Tag>
+          )}
           <Tooltip title={is3DMode ? t('switchTo2D') : t('switchTo3D')}>
             <Switch
               data-testid="graph-3d-switch"
@@ -801,24 +1130,40 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
               unCheckedChildren={t('semanticOff')}
             />
           </Tooltip>
-          <Tag color="blue">{t('stats.wikiLinks')}: {links.filter((l) => l.kind !== 'semantic').length}</Tag>
-          <Tag color="purple">{t('stats.semanticLinks')}: {links.filter((l) => l.kind === 'semantic').length}</Tag>
+          <Tag color="blue">{t('stats.wikiLinks')}: {visibleLinks.filter((l) => l.kind !== 'semantic').length}</Tag>
+          <Tag color="purple">{t('stats.semanticLinks')}: {visibleLinks.filter((l) => l.kind === 'semantic').length}</Tag>
         </Space>
+        <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {getGraphFolderLegend(workspaceLanguage).map((item) => (
+            <Tag
+              key={item.label}
+              style={{
+                margin: 0,
+                border: `1px solid ${item.color}`,
+                background: `${item.color}26`,
+                color: item.color,
+                fontWeight: 600,
+              }}
+            >
+              {item.label.split('_').pop()}
+            </Tag>
+          ))}
+        </div>
       </div>
 
       {loading ? (
-        <div style={{ height: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="graph-canvas-placeholder">
           <Spin size="large" tip={t('loading')} />
         </div>
       ) : nodes.length === 0 ? (
-        <div style={{ height: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="graph-canvas-placeholder">
           <Empty description={t('noNodes')} />
         </div>
       ) : is3DMode ? (
-        <div style={{ height: 500, border: `1px solid ${isDark ? '#313244' : '#e5e7eb'}`, borderRadius: 8, overflow: 'hidden' }}>
+        <div className="graph-canvas-placeholder graph-canvas-placeholder--fill" style={{ border: `1px solid ${isDark ? '#313244' : '#e5e7eb'}`, borderRadius: 8, overflow: 'hidden' }}>
           <GraphView3D
             nodes={nodes}
-            links={showSemanticLinks ? links : links.filter((l) => l.kind !== 'semantic')}
+            links={visibleLinks}
             onNodeClick={(node) => {
               const filePath = fileMapRef.current.get(node.id)
               if (filePath) {
@@ -831,23 +1176,18 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
       ) : (
         <div 
           className="graph-canvas-container"
-          style={{ display: 'flex', gap: 12 }}
         >
           <canvas
             ref={canvasRef}
             data-testid="graph-2d-canvas"
+            className="graph-2d-canvas"
             style={{
-              width: '100%',
-              height: 500,
-              border: `1px solid ${isDark ? '#313244' : '#e5e7eb'}`, 
-              borderRadius: 8,
-              background: isDark ? '#1e1e2e' : '#fafafa',
-              flex: 1
+              border: `1px solid ${isDark ? '#313244' : '#e5e7eb'}`,
+              background: isDark ? '#0f0f1a' : '#f3f4f8',
             }}
             onMouseMove={handleMouseMove}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
             onClick={handleClick}
             onDoubleClick={handleDoubleClick}
             onWheel={handleWheel}
@@ -888,6 +1228,45 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {selectedNode.tags.map(tag => (
                       <Tag key={tag} color="orange">#{tag}</Tag>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {semanticSuggestions.length > 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ color: isDark ? '#a6adc8' : '#6b7280', marginBottom: 4 }}>{t('semanticSuggestions')}:</div>
+                  <div style={{ maxHeight: 140, overflow: 'auto' }}>
+                    {semanticSuggestions.map((neighborId) => (
+                      <div
+                        key={neighborId}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '4px 0',
+                          gap: 4,
+                        }}
+                      >
+                        <span
+                          style={{ cursor: 'pointer', flex: 1, fontSize: 12 }}
+                          onClick={() => {
+                            const node = allNodes.find((n) => n.id === neighborId)
+                            if (node) {
+                              simulationPausedRef.current = true
+                              setSelectedNode(node)
+                            }
+                          }}
+                        >
+                          {neighborId.split('/').pop()}
+                        </span>
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<CopyOutlined />}
+                          title={t('copyLink')}
+                          onClick={() => copyWikiLink(neighborId)}
+                        />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -993,7 +1372,7 @@ const GraphView: React.FC<GraphViewProps> = ({ visible, onClose, workspacePath, 
       >
         <Space split={<Divider type="vertical" />}>
           <span>{t('stats.nodes')}: {nodes.length}</span>
-            <span>{t('stats.links')}: {links.length}</span>
+            <span>{t('stats.links')}: {visibleLinks.length}</span>
           <span>{t('tips')}</span>
           <span>{t('nodeSizeHint')}</span>
         </Space>

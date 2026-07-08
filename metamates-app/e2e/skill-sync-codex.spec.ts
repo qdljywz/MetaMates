@@ -9,7 +9,9 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
-const WORKSPACE = process.env.MM_TEST_WORKSPACE || 'E:\\Trae\\Metamates\\Test\\test0407'
+const WORKSPACE = process.env.MM_TEST_WORKSPACE
+  ? path.resolve(process.env.MM_TEST_WORKSPACE)
+  : path.join(ROOT, 'inits', 'zh')
 const CODEX_SKILLS = path.join(WORKSPACE, '.codex', 'skills')
 
 async function closeElectronApp(app: Awaited<ReturnType<typeof electron.launch>>) {

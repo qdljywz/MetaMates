@@ -1,18 +1,62 @@
-# 本地参考/备份（勿入库）
+# =============================================================================
+# Metamates  monorepo — 根目录 .gitignore
+# 开源主体：metamates-app/  详见 metamates-app/docs/OPEN_SOURCE.md
+# =============================================================================
+
+# --- 个人 Vault / 测试数据（绝不开源）---
+MyMetaMates/
+Test/
+MyM2/
+
+# --- 参考副本 / 历史备份（非本仓库源码）---
 AionUi-source/
 terminal-test/
 metamates-opensource/
 metamates-opensource-backup-*/
 backup/
 
-# 个人 Vault / 测试工作区（不入库）
-MyMetaMates/
-Test/
+# --- 内部备忘（含本地路径、迭代笔记，不随开源发布）---
+PLAN.md
+VERSION.md
+project_rules.md
+功能确认.md
+错误记录.md
+clean-repo.cmd
 
-# 演示与临时产物
-*.png
+# --- 大型或非代码附件 ---
+*.pdf
+
+# --- 临时 UI 草稿（根目录）---
 hello.html
 theme-*.html
 
-# 大型或非代码附件
-*.pdf
+# --- 图片：默认忽略，保留产品资源 ---
+*.png
+!metamates-app/logo.png
+!metamates-app/build/icon.png
+!metamates-app/public/**/*.png
+!metamates-app/src/**/*.png
+
+*.jpg
+*.jpeg
+!metamates-app/public/**/*
+!metamates-app/src/**/*
+
+# --- Obsidian / 本地 PDF 等（若出现在根目录）---
+Obsidian + Claude Codebook (doc).pdf
+
+# --- Cursor IDE 本地规则（机器相关，不随开源发布）---
+.cursor/
+
+# --- 用户数据 / 密钥（若误放在仓库根目录）---
+.env
+.env.local
+.env.*.local
+conversations.db
+conversations.db.bak
+conversations.sqlite
+conversations.sqlite-wal
+conversations.sqlite-shm
+session-store.json
+*.pfx
+*.p12

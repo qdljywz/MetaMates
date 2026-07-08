@@ -92,7 +92,7 @@ export async function fetchUrlContent(rawUrl: string): Promise<UrlFetchResult> {
       signal: controller.signal,
       redirect: 'follow',
       headers: {
-        'User-Agent': 'Metamates/0.1 IntelligenceBot (+https://github.com/metamates/metamates-app)',
+        'User-Agent': 'MetaMates/0.1 IntelligenceBot (+https://github.com/qdljywz/MetaMates)',
         Accept: 'text/html,application/xhtml+xml,text/plain,application/json;q=0.9,*/*;q=0.8',
       },
     })

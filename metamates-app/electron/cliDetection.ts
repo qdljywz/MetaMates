@@ -5,8 +5,7 @@
 import { acpDetector, type DetectedCliAgent } from './acp/AcpDetector'
 import { getEnhancedEnv, invalidateEnhancedEnvCache } from './shellEnv'
 import { POTENTIAL_ACP_CLIS } from './shared/acpRegistry'
-import * as fs from 'fs'
-import * as path from 'path'
+import { resolveBundledScript } from './shared/appPaths'
 import { execSync } from 'child_process'
 
 export type { DetectedCliAgent }
@@ -103,8 +102,7 @@ export function getCachedDetectedCliAgents(): DetectedCliAgent[] {
 }
 
 export function resolveOllamaBridgePath(): string | null {
-  const bridgePath = path.join(__dirname, '..', 'scripts', 'ollama-acp-bridge.mjs')
-  return fs.existsSync(bridgePath) ? bridgePath : null
+  return resolveBundledScript('ollama-acp-bridge.mjs')
 }
 
 // Re-export registry for install panel
