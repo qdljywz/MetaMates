@@ -1,6 +1,6 @@
 ﻿---
 name: trace
-description: 溯源想法 - 追踪某个特定想法在整个库中是如何演变的轨迹
+description: 溯源想法 - 追踪某个特定想法在灵感仓库中是如何演变的轨迹
 allowed-tools: Read, Glob, Grep
 ---
 

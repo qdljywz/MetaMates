@@ -46,6 +46,6 @@ tags:
 💡 **Self-Encouragement**: "Build solid camps, fight patient battles."
 
 ---
-## 🤖 Gemini CLI Collaboration Area
-- [ ] **Command Prompt**: Type `/today` to let Gemini CLI fine-tune today's plan based on weekly goals.
-- [ ] **Command Prompt**: Type `/closeday` in the evening to let Gemini CLI extract today's progress and update Master_Control_Template.
+## 🤖 Thinking engine collaboration
+- [ ] **Command Prompt**: Type `/today` to let the AI assistant fine-tune today's plan based on weekly goals.
+- [ ] **Command Prompt**: Type `/closeday` in the evening to let the AI assistant extract today's progress and update Master_Control_Template.

@@ -1,42 +1,36 @@
 {
-  "empty": {
-    "panelLabel": "Thinking engine",
-    "title": "No AI assistant installed",
-    "valueStatement": "Without a CLI, MetaMates is only a note vault—/today, /graduate, and AI chat won't work. Install an assistant to unlock the thinking engine as your daily starting point.",
-    "stepsTitle": "Finish setup (about 2 minutes)",
-    "step1": "Click Install AI assistant and pick Gemini, Claude, or CodeBuddy",
-    "step2": "Follow the installer; sign in in the terminal or panel on first use",
-    "step3": "When done, chat here or run /today to generate today's plan",
-    "installButton": "Install AI assistant",
-    "rescan": "Already installed? Scan again",
-    "rescanning": "Detecting…",
-    "description": "Install and sign in to Gemini, Claude, or CodeBuddy — then start here. This is MetaMates’ main entry.",
-    "openSettings": "Install AI in Settings"
-  },
+  "empty": {},
   "status": {
-    "detecting": "Detecting agents…",
-    "noAgents": "No CLI agents found",
+    "detecting": "Detecting AI assistants…",
     "connecting": "Connecting to {{name}}…",
-    "connectionTimeout": "Timed out connecting to {{name}} — retry or switch agent",
+    "connectionTimeout": "Timed out connecting to {{name}} — retry or switch AI assistant",
     "connected": "Connected to {{name}}",
     "error": "Connection failed: {{error}}",
     "disconnected": "Disconnected",
-    "chatDbUnavailable": "Chat history database is unavailable (native module not loaded). Run npm run rebuild:native and restart — live chat still works, but history will not persist.",
+    "chatDbUnavailable": "Chat history cannot be saved (local database not ready). Quit MetaMates completely and reopen — you can still chat, but history may not persist.",
     "reconnected": "Reconnected",
     "authRequired": "Sign-in required",
     "ready": "{{name}} detected — focus the input to connect",
     "warmupConnecting": "Connecting to {{name}}…",
-    "reconnectHint": "Connection lost. Reconnect or switch to another agent.",
+    "reconnectHint": "Connection lost. Reconnect or switch to another AI assistant.",
+    "unknownError": "Unknown error",
     "tryAlternateAgents": "Try switching to: {{names}}",
     "quotaExceeded": "{{agent}} quota or rate limit hit",
-    "quotaExceededDetail": "⚠️ {{agent}} returned an error: {{error}}\n\nSwitch to another agent, or check this CLI's API key / plan status.",
+    "quotaExceededDetail": "⚠️ {{agent}} returned an error: {{error}}\n\nSwitch to another AI assistant, or check this assistant's API key / plan status.",
     "geminiModelDailyQuota": "{{agent}} daily limit reached for the current model",
     "geminiModelDailyQuotaDetail": "⚠️ {{agent}} reported: {{error}}\n\nThis usually means the **selected model** hit its daily free cap — not that your API key balance is empty. Switch to Auto or another model in the picker, or verify in a terminal with `gemini`.",
     "networkError": "{{agent}} network or connection error",
-    "networkErrorDetail": "⚠️ {{agent}} could not complete the request: {{error}}\n\nCheck network, proxy, or firewall; compare by running the CLI directly in a terminal.",
+    "networkErrorDetail": "⚠️ {{agent}} could not complete the request: {{error}}\n\nCheck network, proxy, or firewall; you can also run the assistant in a terminal to compare.",
     "cloudOffline": "Cannot reach {{agent}} cloud (check internet access)",
+    "emptyTurn": "The assistant finished but produced no visible reply. Check whether a tool permission was denied, then retry.",
     "planExpired": "{{agent}} plan expired",
-    "planExpiredDetail": "⚠️ {{agent}} subscription or plan expired: {{error}}\n\nRenew the service or switch to another agent.",
+    "planExpiredDetail": "⚠️ {{agent}} subscription or plan expired: {{error}}\n\nRenew the service or switch to another AI assistant.",
+    "upstreamBillingDetail": "⚠️ {{agent}} upstream account issue (**not a MetaMates bug**): {{error}}\n\nRun the assistant CLI in a terminal to verify; if the CLI fails too, renew or top up the provider account (e.g. DashScope / Alibaba Cloud).",
+    "upstreamQuotaDetail": "⚠️ {{agent}} upstream quota or rate limit (**not a MetaMates bug**): {{error}}\n\nSwitch to another AI assistant, or check API key / plan status in a terminal.",
+    "connectFailedDetail": "⚠️ Could not connect to {{agent}}: {{error}}\n\nIf the CLI works in a terminal, this is usually an upstream account, network, or proxy issue — not MetaMates.",
+    "promptFailedDetail": "⚠️ {{agent}} could not complete the request: {{error}}\n\nIf the CLI works in a terminal, this is usually an upstream service issue — not MetaMates.",
+    "authRequiredDetail": "⚠️ {{agent}} requires sign-in: {{error}}\n\nComplete `claude auth login` in a terminal or configure ~/.claude/settings.json.",
+    "agentNotReadyDetail": "Assistant not ready — message was not sent. Wait for connection or see the error below.",
     "promptFailed": "Send failed: {{error}}",
     "loadEarlier": "Load earlier messages",
     "loadEarlierWithCount": "Load earlier history ({{loaded}} / {{total}} loaded)",
@@ -45,7 +39,7 @@
     "typeWhileConnecting": "Type now — we'll connect when you send",
     "thinking": "Thinking…",
     "thinkingSlow": "{{agent}} still working ({{seconds}}s)…",
-    "thinkingVerySlow": "{{agent}} is slow ({{seconds}}s) — stop or switch agent"
+    "thinkingVerySlow": "{{agent}} is slow ({{seconds}}s) — stop or switch AI assistant"
   },
   "input": {
     "placeholder": "Type your message…",
@@ -53,21 +47,26 @@
     "placeholderWithModel": "{{agent}} — message, @ files, or drag attachments…",
     "send": "Send",
     "attachHint": "Type @ for files, drag attachments, or tap the mic for voice (up to {{max}} chars)",
-    "attachTruncated": "Attachment content was truncated to {{max}} chars; ask the agent to Read large files",
+    "attachTruncated": "Attachment content was truncated to {{max}} chars; ask the AI assistant to Read large files",
     "attachCurrent": "Attach current file {{name}}",
     "attachmentsOnly": "Attached files",
     "voiceStart": "Voice input",
     "voiceStop": "Stop voice",
-    "voiceListening": "Listening… tap the mic again when done",
+    "voiceListening": "Listening… text updates as you speak; tap again when done",
     "voiceUnsupported": "Voice input is not supported here",
     "voiceDenied": "Microphone access denied — allow it in system settings",
     "voiceError": "Speech recognition failed — try again",
-    "voiceNetwork": "Voice needs network (Electron uses Google online STT). Check connection or type instead.",
+    "voiceNetwork": "Voice needs network for browser speech recognition. Install the Offline Speech extension for offline use, or type instead.",
     "voiceServiceBlocked": "Web Speech is blocked in this environment — please type instead",
     "voiceNoSpeech": "No speech detected — try again",
     "voiceCapture": "Cannot access microphone — check system permissions",
     "voiceStartFailed": "Could not start speech recognition — try again later",
-    "voiceNativeFailed": "Windows speech recognition failed — check microphone permissions or system speech components"
+    "voiceNativeFailed": "Windows speech recognition failed — check microphone permissions or system speech components",
+    "voiceWhisperFailed": "Local speech recognition failed — try again or type instead",
+    "voiceWhisperModel": "Offline speech extension is installed but the model is missing — reinstall the extension",
+    "voiceWhisperPlugin": "Install the Offline Speech extension to use local Whisper",
+    "voiceInstallExtension": "Install extension",
+    "removeAttachment": "Remove attachment {{name}}"
   },
   "message": {
     "copy": "Copy message",
@@ -75,15 +74,15 @@
     "copyFailed": "Copy failed — select the text manually"
   },
   "sidebar": {
-    "expand": "Expand agent sidebar",
-    "collapse": "Collapse agent sidebar",
+    "expand": "Expand thinking engine sidebar",
+    "collapse": "Collapse thinking engine sidebar",
     "connected": "Connected",
     "connecting": "Connecting",
     "disconnected": "Disconnected",
     "error": "Connection error"
   },
   "workspace": {
-    "switched": "Switched to workspace {{path}} — loading conversations for this vault…"
+    "switched": "Switched to inspiration vault {{path}} — loading conversations for this vault…"
   },
   "session": {
     "active": "Session active",
@@ -94,15 +93,16 @@
     "streaming": "Replying…",
     "error": "Connection error",
     "model": "Model",
-    "mode": "Mode"
+    "mode": "Mode",
+    "modelFromCli": "Model from assistant config (read-only)"
   },
   "panel": {
-    "title": "Agent",
+    "title": "Thinking engine",
     "slashCommands": "Methodology commands",
-    "vaultReady": "Workspace ready",
-    "vaultHint": "{{agent}} reads and writes notes in your workspace — results go to files, not just chat.",
-    "vaultHintGeneric": "Connect AI and chat on the right to read and write workspace files.",
-    "workspace": "Workspace",
+    "vaultReady": "Inspiration vault ready",
+    "vaultHint": "{{agent}} reads and writes notes in your vault — results go to files, not just chat.",
+    "vaultHintGeneric": "Connect AI and chat on the right to read and write vault files.",
+    "workspace": "Inspiration vault",
     "currentFile": "Current file · {{name}}"
   },
   "actions": {
@@ -112,15 +112,15 @@
     "reconnect": "Reconnect"
   },
   "messages": {
-    "noWorkspace": "Open a workspace first",
-    "connectFirst": "Connect an Agent first",
+    "noWorkspace": "Open your inspiration vault first",
+    "connectFirst": "Connect an AI assistant first",
     "intelFailed": "Intelligence import failed",
     "intelCreated": "Intelligence note created: {{name}}",
-    "intelEnhancing": "Agent is deepening the intelligence summary…",
+    "intelEnhancing": "AI assistant is deepening the intelligence summary…",
     "intelNeedInput": "Paste a URL, path, or text — or @-attach a file"
   },
   "auth": {
-    "title": "CLI authentication",
+    "title": "Sign in to AI assistant",
     "description": "{{backend}} requires sign-in before use.",
     "inProgress": "Signing in — complete authorization in your browser…",
     "browserHint": "If the browser did not open automatically, use the link below:",
@@ -130,45 +130,51 @@
     "googleLogin": "Log in with Google",
     "apiKeyMethod": "Gemini API Key",
     "terminalLogin": "Log in via PowerShell",
+    "claudeTerminalLogin": "Log in to Claude via PowerShell",
+    "claudeTerminalLoginHint": "Run claude auth login, or set ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN in ~/.claude/settings.json env.",
     "terminalLoginHint": "On Windows: run gemini in PowerShell — your browser should open for Google sign-in.",
     "terminalLoginFailed": "Could not open PowerShell login window",
-    "deprecatedGoogleLogin": "Google personal Code Assist sign-in has changed. Use \"Gemini API key\" or run gemini in a terminal for first-time login."
+    "deprecatedGoogleLogin": "Google personal Code Assist sign-in has changed. Use \"Gemini API key\" or run gemini in a terminal for first-time login.",
+    "bannerTitle": "{{name}} needs sign-in",
+    "bannerHint": "Check connection in Settings → AI assistants, or sign in when you send a message.",
+    "openCliSettings": "AI assistant settings"
   },
   "permission": {
     "title": "Tool permission request",
     "approve": "Allow",
     "deny": "Deny",
     "later": "Later",
-    "toolRequest": "Agent wants to run a tool"
+    "dismissed": "Tool permission denied — the assistant may not complete the action or show a reply",
+    "toolRequest": "AI assistant wants to run a tool"
   },
   "yoloWarning": {
-    "title": "YOLO mode — auto-approve tools",
-    "body": "In this mode MetaMates auto-approves file read/write and command execution without asking each time. Only enable if you trust the current agent and have backed up your vault.",
-    "confirm": "Enable YOLO",
+    "title": "Auto-approve mode",
+    "body": "In this mode MetaMates auto-approves file read/write and command execution without asking each time. Only enable if you trust the current AI assistant and have backed up your vault.",
+    "confirm": "Enable auto-approve",
     "cancel": "Keep current mode",
-    "firstRunTitle": "Default YOLO mode — please confirm",
-    "firstRunBody": "MetaMates defaults to YOLO: file writes and commands are auto-approved. Choose \"Switch to Default\" if you want a prompt for each tool call.",
-    "firstRunConfirm": "I understand — keep YOLO",
+    "firstRunTitle": "Auto-approve is on — please confirm",
+    "firstRunBody": "MetaMates defaults to auto-approve: the AI assistant's file writes and commands run without a prompt each time. Choose \"Switch to Default\" if you want to confirm every tool call.",
+    "firstRunConfirm": "I understand — keep auto-approve",
     "firstRunCancel": "Switch to Default mode"
   },
   "modes": {
     "default": "Default",
-    "yolo": "YOLO",
+    "yolo": "Auto-approve",
     "plan": "Plan",
     "acceptEdits": "Accept Edits",
     "autoEdit": "Auto-Accept Edits",
     "readOnly": "Read Only",
     "fullAccess": "Full Access",
-    "agent": "Agent",
+    "agent": "Hands-on",
     "ask": "Ask",
     "build": "Build"
   },
   "toolCall": {
     "openFile": "Open file",
-    "noWorkspace": "Open a workspace first",
+    "noWorkspace": "Open your inspiration vault first",
     "fileNotFound": "File not found: {{path}}",
-    "outsideWorkspace": "This path is outside your Vault — MetaMates cannot open it here: {{path}}",
-    "outsideWorkspaceHint": "⚠️ Agent wrote outside the Vault (MetaMates only manages your Obsidian workspace): {{path}}",
+    "outsideWorkspace": "This path is outside your inspiration vault — MetaMates cannot open it here: {{path}}",
+    "outsideWorkspaceHint": "⚠️ AI assistant wrote outside your inspiration vault: {{path}}",
     "status": {
       "inProgress": "In progress",
       "completed": "Completed",
@@ -186,14 +192,15 @@
   "writeback": {
     "verified": "/{{cmd}} writeback verified",
     "verifiedOpened": "Wrote {{file}} — opened in editor",
-    "verifiedDetail": "✅ /{{cmd}} writeback verified (Act & Verify): {{paths}}",
+    "verifiedDetail": "✅ /{{cmd}} writeback verified: {{paths}}",
     "failed": "/{{cmd}} writeback incomplete",
     "failedDetail": "⚠️ /{{cmd}} expected writeback to {{paths}}, but no recent update detected: {{detail}}",
-    "detailStaleMtime": "File exists but was not updated by this /{{cmd}} run (agent may have replied in chat only)",
+    "detailStaleMtime": "File exists but was not updated by this /{{cmd}} run (AI assistant may have replied in chat only)",
     "detailEmpty": "Target file is empty",
     "detailMissing": "Target file is missing",
     "detailNoRecentNotes": "No recently created or updated notes in folder",
     "detailNotUpdated": "File was not updated",
+    "detailSeparator": "; ",
     "inboxArchived": "Moved {{count}} inbox note(s) to processed/"
   }
 }

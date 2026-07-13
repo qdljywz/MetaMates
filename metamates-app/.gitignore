@@ -20,7 +20,14 @@ node_modules/
 dist/
 dist-electron/
 release/
-release-build/
+release-build*/
+release-fresh/
+release-fresh2/
+release-out/
+release-startup/
+release-startup2/
+release-local*/
+release2/
 dist-release/
 dist-release-*/
 dist-release-new/
@@ -56,6 +63,11 @@ test-results/
 playwright-report/
 coverage/
 *-report.json
+acceptance-report.json
+e2e-packaged-*.json
+packaged-startup-probe.json
+startup-audit/
+startup-audit-summary.json
 business-logic-report.json
 overnight-verify*.json
 
@@ -98,8 +110,20 @@ e2e-results.json
 # --- 本地开发 Vault（勿入库）---
 MyM2/
 
+# --- 可选扩展（源码入库，依赖/模型/zip 不入库）---
+plugins/**/node_modules/
+plugins/**/models/
+resources/models/
+build/plugin-zips/
+*.traineddata
+
 # --- 迭代内部文档 ---
 sprints/
+docs/OVERNIGHT-RELEASE-REPORT.md
+
+# --- Agent 记忆 / 本地备份 ---
+.omc/
+backups/
 
 # --- Agent IDE 本地权限（机器相关，勿入库）---
 **/.claude/settings.local.json
@@ -109,11 +133,12 @@ sprints/
 # --- 临时 HTML 测试页 ---
 test-*.html
 
-# --- CommonJS：默认忽略，显式保留构建/预加载脚本 ---
+# --- CommonJS：默认忽略，显式保留构建/预加载/扩展入口 ---
 *.cjs
 !electron/preload.cjs
 !scripts/compile-electron.cjs
 !scripts/acp-quick-smoke.cjs
+!plugins/**/*.cjs
 
 # --- 保留示例配置 ---
 !config/*.example.*

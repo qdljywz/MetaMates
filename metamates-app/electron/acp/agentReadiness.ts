@@ -5,6 +5,7 @@
 
 import type { BackendConnection } from './AcpConnection'
 import { checkAgentHealth } from './agentHealth'
+import { getClaudeSpawnEnv } from '../claudeAuth'
 import { CLOUD_OFFLINE_ERROR, isCloudDependentBackend, isCloudReachable } from './cloudReachability'
 
 export type AgentLifecycleStatus =
@@ -29,6 +30,20 @@ export interface AgentReadinessSnapshot {
 }
 
 const HEALTH_GATED_BACKENDS = new Set(['claude', 'gemini', 'codex'])
+
+function resolveCloudProbeUrl(backend: string): string | undefined {
+  if (backend !== 'claude') return undefined
+  const baseUrl = getClaudeSpawnEnv().ANTHROPIC_BASE_URL?.trim()
+  if (!baseUrl) return undefined
+  return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`
+}
+
+/** GET probes are unreliable for custom proxies; an active session already proved CLI↔API works. */
+function shouldSkipCloudReadinessProbe(backend: string, hasSession: boolean): boolean {
+  if (hasSession) return true
+  if (backend === 'claude' && getClaudeSpawnEnv().ANTHROPIC_BASE_URL?.trim()) return true
+  return false
+}
 
 export async function evaluateAgentReadiness(
   backend: string,
@@ -93,8 +108,8 @@ export async function evaluateAgentReadiness(
     }
   }
 
-  if (isCloudDependentBackend(backend)) {
-    const cloudReachable = await isCloudReachable(backend)
+  if (isCloudDependentBackend(backend) && !shouldSkipCloudReadinessProbe(backend, hasSession)) {
+    const cloudReachable = await isCloudReachable(backend, resolveCloudProbeUrl(backend))
     if (!cloudReachable) {
       return {
         ...base,

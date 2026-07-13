@@ -21,6 +21,7 @@
   "noNodes": "没有找到笔记文件",
   "loading": "正在分析文件关系...",
   "tips": "滚轮缩放 | 左键拖动画布/节点 | 单击选择 | 双击打开",
+  "tips3d": "拖拽旋转 | 滚轮缩放 | 空闲自动缓转 | 单击选中 | 双击打开",
   "switchTo2D": "切换到2D视图",
   "switchTo3D": "切换到3D视图",
   "viewMode": {
@@ -41,8 +42,8 @@
     "semanticLinks": "语义边"
   },
   "semanticLinksToggle": "显示全部语义边（虚线）；未开启时仅显示选中节点的建议连接",
-  "semanticOn": "语义",
-  "semanticOff": "语义",
+  "semanticOn": "语义开",
+  "semanticOff": "语义关",
   "linkDebtTitle": "链接债务 Top（分数越高越需维护）",
   "fileNotFound": "文件不存在，请先创建"
 }

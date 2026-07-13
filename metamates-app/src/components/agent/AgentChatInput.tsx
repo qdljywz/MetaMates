@@ -1,7 +1,9 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { workspaceIndexService } from '../../services/workspaceIndex'
 import { useSpeechRecognition, isElectronEnvironment } from '../../hooks/useSpeechRecognition'
+import type { SpeechEnginePreference } from '../../utils/resolveSpeechBackend'
 import { mergeVoiceTranscript } from '../../utils/voiceTranscript'
 import './AgentPanel.css'
 export interface ChatAttachment {
@@ -18,6 +20,7 @@ interface AgentChatInputProps {
   currentFilePath?: string | null
   currentCommandBorder?: string
   canSubmitEmpty?: boolean
+  speechEngine?: SpeechEnginePreference
 }
 
 const MAX_CONTEXT_CHARS = 8000
@@ -31,6 +34,7 @@ const AgentChatInput = memo(({
   currentFilePath,
   currentCommandBorder,
   canSubmitEmpty = false,
+  speechEngine = 'auto',
 }: AgentChatInputProps) => {
   const { t, i18n } = useTranslation('agent')
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -40,6 +44,7 @@ const AgentChatInput = memo(({
   const [mentionIndex, setMentionIndex] = useState(0)
   const [fileCandidates, setFileCandidates] = useState<{ name: string; path: string }[]>([])
   const [voiceError, setVoiceError] = useState<string | null>(null)
+  const [voicePluginInstall, setVoicePluginInstall] = useState(false)
   const voicePrefixRef = useRef('')
   const voiceFinalRef = useRef('')
   const inputValueRef = useRef(inputValue)
@@ -85,6 +90,12 @@ const AgentChatInput = memo(({
         return 'input.voiceStartFailed'
       case 'native-failed':
         return 'input.voiceNativeFailed'
+      case 'whisper-plugin':
+        return 'input.voiceWhisperPlugin'
+      case 'whisper-model':
+        return 'input.voiceWhisperModel'
+      case 'whisper-failed':
+        return 'input.voiceWhisperFailed'
       default:
         return 'input.voiceError'
     }
@@ -92,8 +103,10 @@ const AgentChatInput = memo(({
 
   const { isListening, isSupported, start: startVoiceRecognition, stop: stopVoice } = useSpeechRecognition({
     language: i18n.language,
+    enginePreference: speechEngine,
     onTranscript: applyVoiceTranscript,
     onError: (code) => {
+      setVoicePluginInstall(code === 'whisper-plugin')
       setVoiceError(t(resolveVoiceErrorKey(code)))
     },
   })
@@ -101,7 +114,13 @@ const AgentChatInput = memo(({
   const handleVoiceClick = useCallback(() => {
     if (disabled) return
     if (!isSupported) {
-      setVoiceError(t('input.voiceUnsupported'))
+      if (speechEngine === 'whisper') {
+        setVoicePluginInstall(true)
+        setVoiceError(t('input.voiceWhisperPlugin'))
+      } else {
+        setVoicePluginInstall(false)
+        setVoiceError(t('input.voiceUnsupported'))
+      }
       return
     }
     if (isListening) {
@@ -109,11 +128,12 @@ const AgentChatInput = memo(({
       return
     }
     setVoiceError(null)
+    setVoicePluginInstall(false)
     setMentionQuery(null)
     voicePrefixRef.current = inputValue
     voiceFinalRef.current = ''
     void startVoiceRecognition()
-  }, [disabled, inputValue, isListening, isSupported, startVoiceRecognition, stopVoice, t])
+  }, [disabled, inputValue, isListening, isSupported, speechEngine, startVoiceRecognition, stopVoice, t])
 
   useEffect(() => {
     if (!workspacePath) {
@@ -261,7 +281,6 @@ const AgentChatInput = memo(({
     !currentFilePath.toLowerCase().endsWith('.pdf') &&
     !attachments.some((file) => file.path === currentFilePath)
   )
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', minWidth: 0 }}>
       {attachments.length > 0 && (
@@ -272,6 +291,7 @@ const AgentChatInput = memo(({
               <button
                 type="button"
                 onClick={() => removeAttachment(file.path)}
+                aria-label={t('input.removeAttachment', { name: file.name })}
                 style={{ marginLeft: 6, border: 'none', background: 'transparent', cursor: 'pointer', color: 'inherit' }}
               >
                 ×
@@ -373,18 +393,44 @@ const AgentChatInput = memo(({
           className="agent-panel__send"
           onClick={submit}
           disabled={disabled || (!inputValue.trim() && attachments.length === 0 && !canSubmitEmpty)}
+          aria-label={t('input.send')}
         >
           {t('input.send')}
         </button>
       </div>
 
-      <div className="agent-panel__input-hint">
+      <div
+        className={`agent-panel__input-hint${voiceError ? ' agent-panel__input-hint--error' : ''}`}
+        data-testid="agent-input-hint"
+        aria-live={voiceError ? 'assertive' : 'polite'}
+        aria-atomic="true"
+        role={voiceError ? 'alert' : undefined}
+      >
         {voiceError ? (
-          <span style={{ color: 'var(--error)' }}>{voiceError}</span>
-        ) : isListening ? (
-          t('input.voiceListening')
+          voicePluginInstall ? (
+            <span>
+              {voiceError}
+              <Button
+                type="link"
+                size="small"
+                data-testid="voice-install-extension"
+                style={{ paddingInline: 6 }}
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent('metamates:open-settings', {
+                      detail: { tab: 'agent', focusPluginId: 'offline-speech' },
+                    }),
+                  )
+                }}
+              >
+                {t('input.voiceInstallExtension')}
+              </Button>
+            </span>
+          ) : (
+            voiceError
+          )
         ) : (
-          t('input.attachHint', { max: MAX_CONTEXT_CHARS })
+          (isListening ? t('input.voiceListening') : t('input.attachHint', { max: MAX_CONTEXT_CHARS }))
         )}
       </div>
     </div>

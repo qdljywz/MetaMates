@@ -1,6 +1,12 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import type { DocumentFormat } from '../shared/importableFormats'
+import { requiresDocumentImportPlugin } from '../shared/importableFormats'
+import {
+  extractViaDocumentImportPlugin,
+  PLUGIN_NOT_INSTALLED,
+} from '../pluginRuntime/documentImportPlugin'
+import { DOCUMENT_IMPORT_PLUGIN_ID } from '../pluginRuntime/pluginManifest'
 
 export interface DocumentExtractResult {
   success: boolean
@@ -10,6 +16,8 @@ export interface DocumentExtractResult {
   metadata?: Record<string, string>
   warnings?: string[]
   error?: string
+  errorCode?: string
+  pluginId?: string
 }
 
 const MAX_EXTRACT_CHARS = 120_000
@@ -59,28 +67,6 @@ function csvToMarkdownPreview(raw: string, maxRows = 40): string {
   return table
 }
 
-let ocrWorker: import('tesseract.js').Worker | null = null
-
-/**
- * OCR 识别图片文字（懒加载 worker）
- * @param imagePath - 图片绝对路径
- */
-async function extractImageText(imagePath: string): Promise<{ text: string; warnings: string[] }> {
-  const { createWorker } = await import('tesseract.js')
-  if (!ocrWorker) {
-    ocrWorker = await createWorker('chi_sim+eng')
-  }
-  const { data } = await ocrWorker.recognize(imagePath)
-  const text = (data.text || '').trim()
-  const warnings: string[] = []
-  if (!text) {
-    warnings.push('OCR 未识别到文字，请在 Agent 面板附加图片请求视觉摘要')
-  } else if (data.confidence < 45) {
-    warnings.push(`OCR 置信度较低（${Math.round(data.confidence)}%），摘要可能不完整`)
-  }
-  return { text, warnings }
-}
-
 /**
  * 从工作区文件提取纯文本
  * @param resolvedPath - 已通过沙箱校验的绝对路径
@@ -92,6 +78,19 @@ export async function extractDocumentText(
   format: DocumentFormat,
   mimeType: string,
 ): Promise<DocumentExtractResult> {
+  if (requiresDocumentImportPlugin(format)) {
+    const pluginResult = await extractViaDocumentImportPlugin(resolvedPath, format, mimeType)
+    if (!pluginResult.success && pluginResult.error === PLUGIN_NOT_INSTALLED) {
+      return {
+        ...pluginResult,
+        errorCode: PLUGIN_NOT_INSTALLED,
+        pluginId: DOCUMENT_IMPORT_PLUGIN_ID,
+        error: PLUGIN_NOT_INSTALLED,
+      }
+    }
+    return pluginResult
+  }
+
   const warnings: string[] = []
 
   try {
@@ -121,54 +120,6 @@ export async function extractDocumentText(
         text = csvToMarkdownPreview(fs.readFileSync(resolvedPath, 'utf-8'))
         break
       }
-      case 'pdf': {
-        const { PDFParse } = await import('pdf-parse') as typeof import('pdf-parse')
-        const buffer = fs.readFileSync(resolvedPath)
-        const parser = new PDFParse({ data: buffer })
-        try {
-          const parsed = await parser.getText()
-          text = (parsed.text || '').trim()
-          if (parsed.total) {
-            warnings.push(`PDF 共 ${parsed.total} 页`)
-          }
-        } finally {
-          await parser.destroy()
-        }
-        if (!text) {
-          warnings.push('PDF 未提取到文本层，可能是扫描件；可尝试导出图片后重新导入')
-        }
-        break
-      }
-      case 'docx': {
-        const mammoth = await import('mammoth')
-        const result = await mammoth.extractRawText({ path: resolvedPath })
-        text = (result.value || '').trim()
-        if (result.messages?.length) {
-          warnings.push(...result.messages.map((m) => m.message).slice(0, 3))
-        }
-        break
-      }
-      case 'xlsx': {
-        const XLSX = await import('xlsx')
-        const workbook = XLSX.readFile(resolvedPath, { cellDates: true })
-        const chunks: string[] = []
-        for (const sheetName of workbook.SheetNames.slice(0, 5)) {
-          const sheet = workbook.Sheets[sheetName]
-          const csv = XLSX.utils.sheet_to_csv(sheet)
-          chunks.push(`## Sheet: ${sheetName}\n\n${csvToMarkdownPreview(csv, 30)}`)
-        }
-        text = chunks.join('\n\n')
-        if (workbook.SheetNames.length > 5) {
-          warnings.push(`工作簿共 ${workbook.SheetNames.length} 个工作表，仅提取前 5 个`)
-        }
-        break
-      }
-      case 'image': {
-        const ocr = await extractImageText(resolvedPath)
-        text = ocr.text
-        warnings.push(...ocr.warnings)
-        break
-      }
       default:
         return {
           success: false,
@@ -195,13 +146,14 @@ export async function extractDocumentText(
       },
       warnings: warnings.length ? warnings : undefined,
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
     return {
       success: false,
       format,
       mimeType,
       text: '',
-      error: error.message || String(error),
+      error: message,
     }
   }
 }

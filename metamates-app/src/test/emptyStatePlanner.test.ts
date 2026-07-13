@@ -22,6 +22,8 @@ function ctx(overrides: Partial<EmptyStateContext> = {}): EmptyStateContext {
     planCheckedCount: 0,
     scheduleTodayCount: 0,
     recentFiles: [],
+    engineDisplayName: '¸±ÄÔ',
+    engineNamingPromptCount: 0,
     ...overrides,
   }
 }

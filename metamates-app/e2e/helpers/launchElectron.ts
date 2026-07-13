@@ -5,12 +5,58 @@ import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { STARTUP_SPLASH_E2E_BUDGET_MS } from '../../src/utils/startupUx'
+import { resolveE2EWorkspacePath as resolveDefaultE2EWorkspace } from './e2eWorkspace'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+
+/** Packaged Windows build (release/win-unpacked/MetaMates.exe). */
+export function resolvePackagedExe(): string | null {
+  const fromEnv = process.env.METAMATES_PACKAGED_EXE?.trim()
+  const candidates = [
+    fromEnv,
+    path.join(ROOT, 'release', 'portable-green', 'win-unpacked', 'MetaMates.exe'),
+    path.join(ROOT, 'release', 'unpacked-fix', 'win-unpacked', 'MetaMates.exe'),
+    path.join(ROOT, 'release', 'win-unpacked', 'MetaMates.exe'),
+  ].filter(Boolean) as string[]
+  return candidates.find((p) => fs.existsSync(p)) ?? null
+}
+
+export function isPackagedE2E(): boolean {
+  return process.env.METAMATES_PACKAGED === '1'
+}
 
 /** Reused E2E profile — keeps YOLO ack + settings across test runs; never the user's daily profile. */
 const E2E_USER_DATA_DIR = path.join(os.tmpdir(), 'metamates-e2e-userdata')
 const SINGLE_SESSION_LOCK = path.join(os.tmpdir(), 'metamates-e2e-single-session.lock')
+
+const ephemeralUserDataByApp = new WeakMap<ElectronApplication, string>()
+
+function sleepMs(ms: number): void {
+  const end = Date.now() + ms
+  while (Date.now() < end) {
+    /* spin */
+  }
+}
+
+function removeEphemeralUserDataDir(userDataDir: string): void {
+  if (!userDataDir || !fs.existsSync(userDataDir)) return
+  if (!userDataDir.includes(`${path.sep}metamates-e2e-fresh-`)) return
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      fs.rmSync(userDataDir, { recursive: true, force: true })
+      if (!fs.existsSync(userDataDir)) {
+        console.log(`[E2E] removed fresh userData ${userDataDir}`)
+        return
+      }
+    } catch {
+      if (attempt === 5) {
+        console.warn(`[E2E] failed to remove fresh userData ${userDataDir}`)
+        return
+      }
+      sleepMs(250)
+    }
+  }
+}
 
 let e2eLaunchCount = 0
 let holdsSingleSessionLock = false
@@ -98,9 +144,7 @@ for (const signal of ['exit', 'SIGINT', 'SIGTERM'] as const) {
 }
 
 function resolveE2EWorkspace(): string {
-  const fromEnv = process.env.METAMATES_WORKSPACE?.trim()
-  if (fromEnv) return path.resolve(fromEnv)
-  return 'E:\\MyM2'
+  return resolveDefaultE2EWorkspace()
 }
 
 export function getElectronRoot(): string {
@@ -149,7 +193,11 @@ export async function expectSplashDismissedWithinBudget(app: ElectronApplication
 }
 
 /** Seed settings.json so E2E never shows first-run welcome / workspace picker. */
-export function seedE2EUserProfile(userDataDir: string, workspace: string): void {
+export function seedE2EUserProfile(
+  userDataDir: string,
+  workspace: string,
+  extra: Record<string, unknown> = {},
+): void {
   fs.mkdirSync(userDataDir, { recursive: true })
   const settingsPath = path.join(userDataDir, 'settings.json')
   const settings = {
@@ -159,8 +207,16 @@ export function seedE2EUserProfile(userDataDir: string, workspace: string): void
     language: 'zh',
     workspacePath: workspace,
     recentFiles: [],
+    engineDisplayName: 'E2E副脑',
+    /** Prevent engine-setup modal from blocking guardrails that relaunch Electron per test. */
+    engineSetupStatus: 'ready',
+    ...extra,
   }
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8')
+}
+
+export function removeE2EPluginInstall(userDataDir: string, pluginId: string): void {
+  fs.rmSync(path.join(userDataDir, 'plugins', pluginId), { recursive: true, force: true })
 }
 
 export function createE2EUserDataDir(): string {
@@ -168,33 +224,93 @@ export function createE2EUserDataDir(): string {
   return E2E_USER_DATA_DIR
 }
 
+export function createFreshE2EUserDataDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'metamates-e2e-fresh-'))
+}
+
+/**
+ * Best-effort wipe of renderer storage (may be locked on Windows if a prior Electron exited slowly).
+ */
+export function resetE2ERendererStorage(userDataDir: string): void {
+  for (const sub of ['Local Storage', 'Session Storage', 'IndexedDB']) {
+    try {
+      fs.rmSync(path.join(userDataDir, sub), {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100,
+      })
+    } catch {
+      // Locked — waitForAppShell patches localStorage after the window opens.
+    }
+  }
+}
+
 /**
  * Launch MetaMates for E2E only.
- * - Uses MyM2 (or METAMATES_WORKSPACE) for vault files
+ * - Uses isolated e2e/.workspace/vault (or METAMATES_WORKSPACE) for vault files
  * - Uses isolated userData under %TEMP% — never overwrites daily AppData settings
  * - Pre-seeds workspace + onboarding flags so no welcome wizard
  */
 export async function launchMetaMatesApp(
   workspace = resolveE2EWorkspace(),
-  options?: { noAgents?: boolean },
+  options?: {
+    noAgents?: boolean
+    speechEngine?: 'auto' | 'whisper' | 'web' | 'native'
+    noDevPlugins?: boolean
+    /** Unique userData — triggers bundled plugin auto-install on packaged builds. */
+    freshUserData?: boolean
+  },
 ): Promise<ElectronApplication> {
   acquireSingleSessionLock()
 
-  const userDataDir = createE2EUserDataDir()
-  seedE2EUserProfile(userDataDir, workspace)
+  const userDataDir = options?.freshUserData ? createFreshE2EUserDataDir() : createE2EUserDataDir()
+  if (!options?.freshUserData) {
+    resetE2ERendererStorage(userDataDir)
+  }
+  const profileExtra: Record<string, unknown> = {}
+  if (options?.speechEngine) profileExtra.speechEngine = options.speechEngine
+  seedE2EUserProfile(userDataDir, workspace, profileExtra)
+  if (options?.noDevPlugins) {
+    removeE2EPluginInstall(userDataDir, 'offline-speech')
+    removeE2EPluginInstall(userDataDir, 'document-import')
+  }
 
-  return electron.launch({
+  const packagedExe = isPackagedE2E() ? resolvePackagedExe() : null
+  if (process.env.METAMATES_PACKAGED === '1' && !packagedExe) {
+    throw new Error('METAMATES_PACKAGED=1 but release/win-unpacked/MetaMates.exe not found — run npm run electron:build:win')
+  }
+
+  const launchEnv = {
+    ...process.env,
+    METAMATES_E2E: '1',
+    METAMATES_WORKSPACE: workspace,
+    ...(packagedExe ? {} : { NODE_ENV: 'development' }),
+    ...(options?.noAgents ? { METAMATES_E2E_NO_AGENTS: '1' } : {}),
+    ...(options?.noDevPlugins ? { METAMATES_E2E_NO_DEV_PLUGINS: '1' } : {}),
+    ...(options?.freshUserData && packagedExe ? { METAMATES_E2E_ALLOW_BUNDLED_PLUGINS: '1' } : {}),
+  }
+
+  if (packagedExe) {
+    console.log(`[E2E] Packaged launch: ${packagedExe}`)
+    const launched = await electron.launch({
+      executablePath: packagedExe,
+      args: [`--user-data-dir=${userDataDir}`],
+      timeout: 120_000,
+      env: launchEnv,
+    })
+    if (options?.freshUserData) ephemeralUserDataByApp.set(launched, userDataDir)
+    return launched
+  }
+
+  const launched = await electron.launch({
     args: ['.', `--user-data-dir=${userDataDir}`],
     cwd: ROOT,
     timeout: 120_000,
-    env: {
-      ...process.env,
-      METAMATES_E2E: '1',
-      METAMATES_WORKSPACE: workspace,
-      NODE_ENV: 'development',
-      ...(options?.noAgents ? { METAMATES_E2E_NO_AGENTS: '1' } : {}),
-    },
+    env: launchEnv,
   })
+  if (options?.freshUserData) ephemeralUserDataByApp.set(launched, userDataDir)
+  return launched
 }
 
 async function pickMainWindow(app: ElectronApplication, deadlineMs: number): Promise<Page> {
@@ -225,6 +341,19 @@ export async function waitForAppShell(page: Page): Promise<void> {
 
   await page.evaluate(() => {
     localStorage.setItem('metamates-yolo-ack-v1', '1')
+    try {
+      const storageKey = 'metamates-storage'
+      const raw = localStorage.getItem(storageKey)
+      if (raw) {
+        const data = JSON.parse(raw) as { settings?: Record<string, unknown> }
+        if (data.settings) {
+          data.settings.engineSetupStatus = 'ready'
+          localStorage.setItem(storageKey, JSON.stringify(data))
+        }
+      }
+    } catch {
+      // best-effort — seeded settings.json is authoritative after resetE2ERendererStorage
+    }
   })
 
   const wizard = page.locator('[data-testid="welcome-wizard"]')
@@ -233,6 +362,19 @@ export async function waitForAppShell(page: Page): Promise<void> {
       throw new Error('Welcome wizard visible during E2E — onboarding should be skipped')
     }
   })
+
+  const engineSetup = page.locator('[data-testid="engine-setup-flow"]')
+  if (await engineSetup.isVisible({ timeout: 1500 }).catch(() => false)) {
+    const vaultOnly = page.locator('[data-testid="engine-setup-vault-only"]')
+    if (await vaultOnly.isVisible().catch(() => false)) {
+      await vaultOnly.click()
+    }
+    await engineSetup.waitFor({ state: 'hidden', timeout: 15_000 }).catch(async () => {
+      if (await engineSetup.isVisible().catch(() => false)) {
+        throw new Error('Engine setup flow visible during E2E — dismiss or set engineSetupStatus in test boot')
+      }
+    })
+  }
 
   const picker = page.locator('.ant-modal-wrap').filter({ hasText: /选择工作区|Select Workspace/i })
   if (await picker.isVisible({ timeout: 1500 }).catch(() => false)) {
@@ -258,10 +400,15 @@ export async function resolveMainWindow(
   const win = await pickMainWindow(app, 120_000)
   await win.waitForLoadState('domcontentloaded')
 
+  await waitForAppShell(win)
+
   if (requireChatInput) {
-    await win.locator('[data-testid="chat-input"]').waitFor({ state: 'visible', timeout: 60_000 })
-  } else {
-    await waitForAppShell(win)
+    await win
+      .locator(
+        '[data-testid="chat-input"], [data-testid="agent-cli-install-guide"], [data-testid="agent-toolbar"]',
+      )
+      .first()
+      .waitFor({ state: 'visible', timeout: 180_000 })
   }
 
   await win.waitForTimeout(800)
@@ -281,7 +428,7 @@ export async function waitForAgentSlashReady(page: Page, timeoutMs = 120_000): P
   return false
 }
 
-const E2E_AGENT_BACKEND = (process.env.E2E_AGENT_BACKEND || 'codebuddy').trim()
+const E2E_AGENT_BACKEND = (process.env.E2E_AGENT_BACKEND || 'claude').trim()
 const E2E_CONNECT_MS = Number.parseInt(process.env.E2E_CONNECT_MS || '180000', 10)
 
 export interface AgentWarmupResult {
@@ -432,8 +579,19 @@ export async function waitForAgentTurnIdle(
   throw new Error(`Agent turn did not settle within ${timeoutMs}ms`)
 }
 
-export async function closeElectronApp(app: ElectronApplication): Promise<void> {
-  const proc = app.process()
+export async function closeElectronApp(app: ElectronApplication | undefined | null): Promise<void> {
+  if (!app) {
+    releaseSingleSessionLock()
+    return
+  }
+
+  let proc: ReturnType<ElectronApplication['process']> | null = null
+  try {
+    proc = app.process()
+  } catch {
+    releaseSingleSessionLock()
+    return
+  }
   const pid = proc?.pid
 
   try {
@@ -473,6 +631,12 @@ export async function closeElectronApp(app: ElectronApplication): Promise<void> 
         break
       }
     }
+  }
+
+  const ephemeralUserData = ephemeralUserDataByApp.get(app)
+  if (ephemeralUserData) {
+    ephemeralUserDataByApp.delete(app)
+    removeEphemeralUserDataDir(ephemeralUserData)
   }
 
   releaseSingleSessionLock()

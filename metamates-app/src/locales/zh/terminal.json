@@ -12,13 +12,13 @@
   "disconnected": "未连接",
   "stopped": "终端已停止",
   "unknownError": "未知错误",
-  "noWorkspace": "无工作区",
+  "noWorkspace": "未打开灵感仓库",
   "ok": "确定",
   "cancel": "取消",
   "executing": "正在执行命令...",
   "quickCommands": {
     "title": "快捷命令",
-    "gemini": "Gemini CLI",
+    "gemini": "Gemini",
     "dir": "列出文件",
     "cdUp": "返回上级"
   },

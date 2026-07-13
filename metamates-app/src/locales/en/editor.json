@@ -17,9 +17,15 @@
   "saveFailed": "Save failed",
   "readFailed": "Failed to read file",
   "fileNotFound": "File not found, will create new file",
-  "electronOnly": "File operations are only available in Electron desktop app",
+  "electronOnly": "File operations are only available in the desktop app",
+  "pdf": {
+    "desktopOnly": "PDF preview is only available in the desktop app",
+    "loadError": "Unable to read PDF",
+    "loading": "Loading PDF…"
+  },
   "tabs": {
     "close": "Close",
+    "closeNamed": "Close {{name}}",
     "closeOthers": "Close Others",
     "closeAll": "Close All",
     "emptyPlaceholder": "No open tabs — pick a next step below, or talk to AI on the right",
@@ -102,29 +108,29 @@
   },
   "welcome": {
     "title": "Welcome to MetaMates",
-    "introNoWorkspace": "Built for **creators, knowledge workers, and lifelong learners**: you have a steady stream of ideas but don’t want to organize them upfront. MetaMates lets you **capture first, process later**—vault on the left, editor in the center, **engine on the right as your daily starting point**. Choose a workspace folder to begin.",
-    "introReady": "Your inspiration vault is ready. **Each day, start on the right—pick an AI, send a message, or run a command.** The engine reads Markdown in this folder and writes results back. The center editor is for reviewing and tweaking, not the only entry point.",
+    "introNoWorkspace": "Built for **creators, knowledge workers, and lifelong learners**: you have a steady stream of ideas but don’t want to organize them upfront. MetaMates lets you **capture first, process later**—inspiration vault on the left, editor in the center, **thinking engine on the right as your daily starting point**. Choose an inspiration vault folder to begin.",
+    "introReady": "Your inspiration vault is ready. **Each day, start in the thinking engine on the right—pick an AI, send a message, or run a command.** It reads Markdown in this folder and writes results back. The center editor is for reviewing and tweaking, not the only entry point.",
     "nextTitle": "Next steps",
-    "stepSetup1": "On the left, click **Open workspace** and choose a folder for your ideas (diary, inbox, and more are created on first run)",
+    "stepSetup1": "On the left, click **Open vault** and choose a folder for your ideas (diary, inbox, and more are created on first run)",
     "stepSetup2": "On the right, **connect an AI assistant**—that’s the main entry; you don’t need a long note first",
-    "stepSetup3": "Say “help me plan today” or tap **`/today`** and watch the engine write the plan to a file",
+    "stepSetup3": "Say “help me plan today” or tap **`/today`** and watch the thinking engine write the plan to a file",
     "stepReady1": "On the right, **pick an AI and describe what you want now** (triage inbox, plan the day, upgrade a spark…)",
     "stepReady2": "Try **`/today`** for a daily plan, **`/graduate`** to promote a fragment to a permanent note, or **`/intel`** to clip a link",
     "stepReady3": "Open results in the center editor; use the **calendar** on the left for today’s journal, or **`Ctrl+P`** to create or import",
     "stepAuth1": "When the panel shows **sign-in required**, follow the prompt to authenticate your assistant",
-    "stepAuth2": "After sign-in, send **`/today`** or any message to confirm the engine can read and write your vault",
-    "stepAuth3": "You can also switch or install another assistant under **Settings → AI** (top right)",
-    "stepNoAgent1": "No AI assistant detected—**without a CLI, MetaMates can only store, not transform**",
-    "stepNoAgent2": "Click **Install AI assistant** in the right Agent panel, or open **Settings → AI** to install Gemini, Claude, or CodeBuddy",
+    "stepAuth2": "After sign-in, send **`/today`** or any message to confirm the thinking engine can read and write your vault",
+    "stepAuth3": "You can also switch or install another assistant under **Settings → AI assistants** (top right)",
+    "stepNoAgent1": "No AI assistant detected—**without one, MetaMates can only store ideas, not transform them**",
+    "stepNoAgent2": "Click **Install AI assistant** in the thinking engine panel on the right, or open **Settings → AI assistants** to install Gemini, Claude, or CodeBuddy",
     "stepNoAgent3": "Once connected, chat in the right panel or use slash commands",
     "stepConnecting1": "Connecting the thinking engine—usually a few seconds",
     "stepConnecting2": "When ready, try **`/today`** or **`/context`**",
     "stepConnecting3": "Use the **microphone** next to the input for voice (mic permission required; Windows often needs network)",
-    "agentTitle": "Engine status",
-    "agentNeedsAuth": "**Sign-in required.** Complete authentication in the panel on the right before the engine can read and write your vault.",
-    "agentReady": "**Engine is ready.** Chat directly or use `/today`, `/graduate`, `/intel`, and more—results land in your notes.",
+    "agentTitle": "Thinking engine status",
+    "agentNeedsAuth": "**Sign-in required.** Complete authentication in the thinking engine panel on the right before AI can read and write your vault.",
+    "agentReady": "**Thinking engine is ready.** Chat directly or use `/today`, `/graduate`, `/intel`, and more—results land in your notes.",
     "agentConnecting": "Connecting to the thinking engine…",
-    "agentNoAgent": "No enabled AI assistant detected. **Without a CLI, MetaMates is vault-only**—click Install AI assistant on the right, or open **Settings → AI**.",
+    "agentNoAgent": "No enabled AI assistant detected. **Without one, MetaMates is vault-only**—click Install AI assistant on the right, or open **Settings → AI assistants**.",
     "commandsTitle": "Common commands (read vault → process → write back)",
     "commandsBody": "| Command | When to use it |\n|---------|----------------|\n| `/today` | Morning or start of work: pull context from the vault, generate today’s plan |\n| `/closeday` | End of day: review today, set up tomorrow |\n| `/graduate` | When an inbox fragment deserves to become a permanent note |\n| `/intel` | Clip an article or document into the vault as intelligence |\n| `/context` | Before a project session: let AI read related notes first |\n\nSee **?** (top right) for the full list.",
     "tipsTitle": "Shortcuts",
@@ -137,6 +143,7 @@
   "emptyState": {
     "eyebrow": "Thinking engine",
     "askAgent": "Talk to AI about this",
+    "askAgentNamed": "Talk to {{name}} about this",
     "refreshQuestion": "Another question",
     "footerHint": "Output lands in your vault on the left and opens here for review and tweaks.",
     "contextLine": {
@@ -144,6 +151,22 @@
       "planOpen": "{{count}} open in PLAN · next: {{task}}",
       "schedule": "{{count}} events today · next: {{time}} {{event}}",
       "ideas": "Latest ideas report: {{report}}"
+    },
+    "ideas": {
+      "summary": "Summary: {{summary}}",
+      "previewTitle": "Ideas report preview",
+      "previewOpen": "Open full report",
+      "openReport": "Open ideas report"
+    },
+    "contextFile": {
+      "summary": "Summary: {{summary}}",
+      "previewOpen": "Open full file",
+      "openPlan": "Open today's PLAN",
+      "openInboxNote": "Open inbox note",
+      "openNote": "Open this note",
+      "openIdeasReport": "Open ideas report",
+      "openJournal": "Open today's journal",
+      "openCalendar": "Open calendar file"
     },
     "questions": {
       "noWorkspace": "Which folder should hold your ideas?",
@@ -173,10 +196,25 @@
       "ideasBrewing": "“{{report}}” has ideas still in motion—which one deserves one real step today?",
       "ideasBrewingFocus": "You’ve been brewing new ideas lately. Do you need more capture, or one idea pushed past the decision line?",
       "welcomeBack": "What’s next: write, organize, or one sentence to the engine?",
-      "welcomeBackFocus": "You’re back. Maybe the problem isn’t a lack of options, but a lack of one clear focal point. Want to pick it first?"
+      "welcomeBackFocus": "You’re back. Maybe the problem isn’t a lack of options, but a lack of one clear focal point. Want to pick it first?",
+      "nameEngine": "Your thinking partner is called 2M for now — want a name that fits you better?",
+      "nameEngineGentle": "You haven’t given 2M a personal name yet. Want to pick one?"
+    },
+    "nameEngine": {
+      "placeholder": "e.g. Copilot, Sage, Mate…",
+      "confirm": "Use this name",
+      "skip": "Keep 2M for now",
+      "saved": "Got it—we’ll call it “{{name}}”",
+      "invalid": "Enter 1–12 letters or numbers",
+      "isDefault": "2M is already the default — pick a different name",
+      "presets": {
+        "copilot": "Copilot",
+        "sage": "Sage",
+        "mate": "Mate"
+      }
     },
     "prefill": {
-      "noWorkspace": "I want to open a workspace folder for my notes",
+      "noWorkspace": "I want to open an inspiration vault folder for my notes",
       "noAgent": "Help me detect and connect an available AI assistant",
       "authRequired": "Help me complete AI assistant sign-in",
       "newUser": "I’m new—run /today to create my first daily plan from the vault",
@@ -193,28 +231,31 @@
       "welcomeBack": "Based on my recent notes, what’s the one best thing to do next?"
     },
     "agentStatus": {
-      "ready": "Engine ready",
-      "connecting": "Connecting engine",
+      "ready": "{{name}} · ready",
+      "connecting": "{{name}} · connecting",
       "authRequired": "Assistant sign-in required",
       "noAgent": "No AI assistant detected",
-      "idle": "Engine idle"
+      "idle": "{{name}} · idle",
+      "readyDefault": "Engine ready",
+      "connectingDefault": "Connecting engine",
+      "idleDefault": "Engine idle"
     },
     "actions": {
       "openWorkspace": {
-        "title": "Open workspace",
+        "title": "Open vault",
         "description": "Choose the folder for diary, inbox, and project notes"
       },
       "learnEngine": {
-        "title": "What the engine can do",
-        "description": "With AI connected, chat and commands read the same vault"
+        "title": "What the thinking engine can do",
+        "description": "With an AI assistant connected, chat and commands read the same inspiration vault"
       },
       "installAgent": {
         "title": "Install an AI assistant",
-        "description": "Without a CLI you can store notes, not auto-organize or plan"
+        "description": "Without one you can only store ideas—no chat, organizing, or planning"
       },
       "authAgent": {
         "title": "Complete assistant sign-in",
-        "description": "Then the engine can read and write your files"
+        "description": "Then the thinking engine can read and write your files"
       },
       "today": {
         "title": "Generate today’s plan (/today)",

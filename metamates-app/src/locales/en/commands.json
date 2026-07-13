@@ -75,7 +75,7 @@
     },
     "soal": {
       "name": "/soal",
-      "description": "Permanently固化 habits or lessons to 2M.md"
+      "description": "Permanently record habits or lessons to 2M.md"
     },
     "dailyNote": {
       "label": "Create Daily Note",
@@ -91,7 +91,7 @@
     },
     "intel": {
       "name": "Intelligence import",
-      "description": "Capture a URL or file into an intelligence note; Agent deepens the summary"
+      "description": "Capture a URL or file into an intelligence note; the AI assistant deepens the summary"
     },
     "newFile": {
       "label": "New File",
@@ -102,7 +102,7 @@
     },
     "showTags": {
       "label": "Show All Tags",
-      "description": "View all tags in workspace"
+      "description": "View all tags in your inspiration vault"
     },
     "showGraph": {
       "label": "Show Graph View",
@@ -113,24 +113,24 @@
       "description": "Use AI to summarize the current file"
     },
     "aiAnalyze": {
-      "label": "AI: Analyze Workspace",
-      "description": "Use AI to analyze the entire workspace"
+      "label": "AI: Analyze vault",
+      "description": "Use AI to analyze your inspiration vault"
     },
     "aiSuggest": {
       "label": "AI: Smart Suggestions",
-      "description": "Get smart suggestions based on workspace"
+      "description": "Get smart suggestions based on your vault"
     },
     "aiTasks": {
       "label": "AI: Extract Tasks",
-      "description": "Extract all todo tasks from workspace"
+      "description": "Extract all todo tasks from your vault"
     },
     "settings": {
       "label": "Open Settings",
       "description": "Open application settings"
     },
     "switchWorkspace": {
-      "label": "Switch Workspace",
-      "description": "Choose a different vault folder"
+      "label": "Switch vault",
+      "description": "Choose a different folder for your notes"
     }
   },
   "keywords": {

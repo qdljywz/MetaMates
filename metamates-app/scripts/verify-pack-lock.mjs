@@ -6,10 +6,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { APP_ROOT, getReleaseRoot, RELEASE_DIR_NAME } from './lib/release-output.mjs'
 
-const APP_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
-const OUTPUT_DIRS = ['release', 'release-build']
 const ASAR_REL = path.join('win-unpacked', 'resources', 'app.asar')
 
 function isFileLocked(filePath) {
@@ -25,12 +23,8 @@ function isFileLocked(filePath) {
 }
 
 function findLockedAsarPaths() {
-  const locked = []
-  for (const dir of OUTPUT_DIRS) {
-    const asarPath = path.join(APP_ROOT, dir, ASAR_REL)
-    if (isFileLocked(asarPath)) locked.push(asarPath)
-  }
-  return locked
+  const asarPath = path.join(getReleaseRoot(APP_ROOT), ASAR_REL)
+  return isFileLocked(asarPath) ? [asarPath] : []
 }
 
 function listRelatedProcessesWindows() {
@@ -103,7 +97,7 @@ function reportFailure(lockedPaths, attemptedStop) {
 
 let locked = findLockedAsarPaths()
 if (locked.length === 0) {
-  console.log('[pack-lock] OK — release folders are not locked')
+  console.log(`[pack-lock] OK — ${RELEASE_DIR_NAME}/ is not locked`)
   process.exit(0)
 }
 

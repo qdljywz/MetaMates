@@ -5,7 +5,7 @@ import {
   titleFromSourceFileName,
 } from './intelligenceSummarize'
 import { buildIntelligenceNoteContent } from './intelligenceImport'
-import { isImportableDocument, getDocumentFormat } from '../../electron/shared/importableFormats'
+import { isImportableDocument, getDocumentFormat, requiresDocumentImportPlugin } from '../../electron/shared/importableFormats'
 import { titleFromUrl } from '../utils/intelligenceCapture'
 
 describe('importableFormats', () => {
@@ -17,6 +17,13 @@ describe('importableFormats', () => {
 
   it('不支持的扩展名应返回 null', () => {
     expect(getDocumentFormat('/a/app.exe')).toBeNull()
+  })
+
+  it('PDF 等重型格式需要文档导入扩展', () => {
+    expect(requiresDocumentImportPlugin('pdf')).toBe(true)
+    expect(requiresDocumentImportPlugin('docx')).toBe(true)
+    expect(requiresDocumentImportPlugin('markdown')).toBe(false)
+    expect(requiresDocumentImportPlugin('csv')).toBe(false)
   })
 })
 

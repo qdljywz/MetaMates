@@ -43,7 +43,9 @@ export function useEmptyStateBackgroundPlanner(workspacePath: string | undefined
         ? buildLocallyRephrasedSnapshot(ctx, cached)
         : buildEmptyStateSnapshot(ctx, history)
       if (refreshMode === 'full_rethink' && !force) {
-        const rethink = await runBackgroundEmptyStateRethink(ctx)
+        const rethink = snapshot.questionId === 'name-engine'
+          ? null
+          : await runBackgroundEmptyStateRethink(ctx)
         if (rethink?.questionText?.trim()) {
           snapshot = applyAgentRethinkResult(snapshot, rethink)
         } else if (cached) {
@@ -108,13 +110,24 @@ export function useEmptyStateDisplay(
     planUncheckedCount: 0,
     planCheckedCount: 0,
     scheduleTodayCount: 0,
+    recentIdeasPath: undefined,
+    recentIdeasSummary: undefined,
+    recentIdeasPreview: undefined,
     recentFiles: [],
   })
   const [snapshot, setSnapshot] = useState<EmptyStateSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
+  const snapshotRef = useRef<EmptyStateSnapshot | null>(null)
+  snapshotRef.current = snapshot
 
-  const applySnapshot = useCallback(async (force = false) => {
-    const ctx = await loadEmptyStateContext(workspacePath, agentHint)
+  const runApply = useCallback(async (
+    hint: WelcomeAgentHint,
+    options: { force?: boolean; silent?: boolean } = {},
+  ) => {
+    const { force = false, silent = false } = options
+    if (!silent) setLoading(true)
+
+    const ctx = await loadEmptyStateContext(workspacePath, hint)
     setContext(ctx)
 
     if (!workspacePath?.trim()) {
@@ -140,20 +153,29 @@ export function useEmptyStateDisplay(
     await writeEmptyStateCache(workspacePath, cacheEntryFromSnapshot(workspacePath, built, history))
     setSnapshot(built)
     setLoading(false)
-  }, [workspacePath, agentHint])
+  }, [workspacePath])
 
+  // Full reload when workspace changes — show spinner until first snapshot is ready.
   useEffect(() => {
-    setLoading(true)
-    void applySnapshot(false)
-  }, [applySnapshot])
+    snapshotRef.current = null
+    setSnapshot(null)
+    void runApply(agentHint)
+  }, [workspacePath, runApply])
+
+  // Agent CLI status polls every ~2s during connect — refresh copy silently, no spinner.
+  useEffect(() => {
+    if (!workspacePath?.trim() || !snapshotRef.current) return
+    void runApply(agentHint, { silent: true })
+  }, [agentHint, workspacePath, runApply])
 
   useEffect(() => {
     const onUpdate = () => {
-      void applySnapshot(false)
+      // Background cache writes fire this during agent connect — keep question visible.
+      void runApply(agentHint, { silent: !!snapshotRef.current })
     }
     window.addEventListener('metamates:empty-state-updated', onUpdate)
     return () => window.removeEventListener('metamates:empty-state-updated', onUpdate)
-  }, [applySnapshot])
+  }, [agentHint, runApply])
 
   const refreshNow = useCallback(() => {
     setLoading(true)

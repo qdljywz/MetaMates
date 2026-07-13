@@ -29,9 +29,9 @@ export class ReadFileTool extends BaseTool {
     if (!window.electronAPI) {
       return {
         success: false,
-        error: 'Electron API 不可用',
-        displayText: '❌ 无法读取文件：Electron API 不可用',
-        llmContent: 'Error: Electron API not available',
+        error: '桌面版不可用',
+        displayText: '❌ 无法读取文件：请在桌面版中使用此功能',
+        llmContent: 'Error: desktop app API not available',
       }
     }
 
@@ -102,9 +102,9 @@ export class WriteFileTool extends BaseTool {
     if (!window.electronAPI) {
       return {
         success: false,
-        error: 'Electron API 不可用',
-        displayText: '❌ 无法写入文件：Electron API 不可用',
-        llmContent: 'Error: Electron API not available',
+        error: '桌面版不可用',
+        displayText: '❌ 无法写入文件：请在桌面版中使用此功能',
+        llmContent: 'Error: desktop app API not available',
       }
     }
 
@@ -175,9 +175,9 @@ export class AppendFileTool extends BaseTool {
     if (!window.electronAPI) {
       return {
         success: false,
-        error: 'Electron API 不可用',
-        displayText: '❌ 无法追加文件：Electron API 不可用',
-        llmContent: 'Error: Electron API not available',
+        error: '桌面版不可用',
+        displayText: '❌ 无法追加文件：请在桌面版中使用此功能',
+        llmContent: 'Error: desktop app API not available',
       }
     }
 
@@ -246,9 +246,9 @@ export class DeleteFileTool extends BaseTool {
     if (!window.electronAPI) {
       return {
         success: false,
-        error: 'Electron API 不可用',
-        displayText: '❌ 无法删除文件：Electron API 不可用',
-        llmContent: 'Error: Electron API not available',
+        error: '桌面版不可用',
+        displayText: '❌ 无法删除文件：请在桌面版中使用此功能',
+        llmContent: 'Error: desktop app API not available',
       }
     }
 
@@ -310,8 +310,8 @@ export class ListFilesTool extends BaseTool {
     if (!window.electronAPI || !context.workspacePath) {
       return {
         success: false,
-        error: '工作区未设置',
-        displayText: '❌ 请先打开工作区',
+        error: '灵感仓库未打开',
+        displayText: '❌ 请先打开灵感仓库',
         llmContent: 'Error: Workspace not set',
       }
     }
@@ -382,7 +382,7 @@ export class SearchContentTool extends BaseTool {
       return {
         success: false,
         error: '没有可搜索的文件',
-        displayText: '❌ 工作区没有文件可搜索',
+        displayText: '❌ 灵感仓库中没有文件可搜索',
         llmContent: 'Error: No files to search',
       }
     }
@@ -478,8 +478,8 @@ export class MoveFileTool extends BaseTool {
     if (!window.electronAPI || !context.workspacePath) {
       return {
         success: false,
-        error: '工作区未设置',
-        displayText: '❌ 请先打开工作区',
+        error: '灵感仓库未打开',
+        displayText: '❌ 请先打开灵感仓库',
         llmContent: 'Error: Workspace not set',
       }
     }
@@ -581,8 +581,8 @@ export class RenameFileTool extends BaseTool {
     if (!window.electronAPI || !context.workspacePath) {
       return {
         success: false,
-        error: '工作区未设置',
-        displayText: '❌ 请先打开工作区',
+        error: '灵感仓库未打开',
+        displayText: '❌ 请先打开灵感仓库',
         llmContent: 'Error: Workspace not set',
       }
     }
@@ -674,8 +674,8 @@ export class BatchCreateFilesTool extends BaseTool {
     if (!window.electronAPI || !context.workspacePath) {
       return {
         success: false,
-        error: '工作区未设置',
-        displayText: '❌ 请先打开工作区',
+        error: '灵感仓库未打开',
+        displayText: '❌ 请先打开灵感仓库',
         llmContent: 'Error: Workspace not set',
       }
     }

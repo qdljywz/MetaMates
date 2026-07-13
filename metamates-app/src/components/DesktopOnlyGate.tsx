@@ -13,18 +13,9 @@ const DesktopOnlyGate: React.FC = () => {
   const { t } = useTranslation('desktop')
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        padding: 24,
-        background: '#18181b',
-      }}
-    >
+    <div className="desktop-only-gate">
       <Result
-        icon={<DesktopOutlined style={{ color: '#ff8c28' }} />}
+        icon={<DesktopOutlined style={{ color: 'var(--accent)' }} />}
         title={t('title')}
         subTitle={
           <>

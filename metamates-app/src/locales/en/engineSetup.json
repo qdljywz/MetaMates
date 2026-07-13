@@ -1,0 +1,60 @@
+{
+  "title": "Enable the thinking engine",
+  "subtitle": "MetaMates is built around chat and slash commands on the right. Pick one assistant—about 2 minutes to install and sign in.",
+  "steps": {
+    "pick": "Choose assistant",
+    "install": "Install",
+    "auth": "Sign in",
+    "done": "Done"
+  },
+  "pick": {
+    "recommended": "Recommended",
+    "others": "Other assistants",
+    "hint": "Pick one as your daily default—you can add more later in Settings."
+  },
+  "install": {
+    "title": "Install {{name}}",
+    "hint": "MetaMates installs the assistant locally—no terminal required.",
+    "installing": "Installing…",
+    "installed": "Installed",
+    "notInstalled": "Not installed",
+    "button": "Install {{name}}",
+    "retry": "Retry install",
+    "failed": "Installation failed"
+  },
+  "auth": {
+    "title": "Sign in to {{name}}",
+    "hint": "After install, sign in so the thinking engine can read and write your vault.",
+    "checking": "Checking sign-in status…",
+    "ready": "Sign-in looks good—you can start chatting.",
+    "needsAuth": "Sign-in still required.",
+    "openClaudeLogin": "Open Claude sign-in window",
+    "openGeminiLogin": "Open Gemini sign-in window",
+    "codebuddyHint": "CodeBuddy often works right after install. If not, check Settings → AI assistants.",
+    "codexHint": "After installing Codex, confirm sign-in and connection under Settings → AI assistants.",
+    "rescan": "Check again",
+    "connecting": "Connecting thinking engine…",
+    "connected": "Connected to {{name}}"
+  },
+  "done": {
+    "title": "Thinking engine is ready",
+    "subtitle": "Chat on the right, or try /today for a daily plan—results land in your vault.",
+    "firstMessageHint": "Try: “Run /today to generate my plan from the vault.”"
+  },
+  "actions": {
+    "next": "Next",
+    "back": "Back",
+    "continue": "Continue",
+    "enterApp": "Enter MetaMates",
+    "vaultOnly": "Vault only for now",
+    "vaultOnlyHint": "No chat or /today, /graduate, etc. You can enable the engine later from the right panel or Settings."
+  },
+  "vaultReminder": {
+    "message": "You chose vault-only for now. Enable the thinking engine to chat and use /today and other commands.",
+    "action": "Enable thinking engine",
+    "dismiss": "Dismiss reminder"
+  },
+  "errors": {
+    "noElectron": "This feature is only available in the desktop app"
+  }
+}

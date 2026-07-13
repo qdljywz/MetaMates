@@ -37,7 +37,7 @@ const ToolCallDiffView = memo(({ diff, theme, isDark }: ToolCallDiffViewProps) =
           textAlign: 'left',
         }}
       >
-        <span style={{ color: theme.info, fontSize: 12, fontWeight: 600 }}>
+        <span className="agent-tool-call__diff-label">
           {t('toolCall.diffTitle', { file: diff.fileName })}
         </span>
         {diff.insertions > 0 && (

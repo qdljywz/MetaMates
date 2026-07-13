@@ -89,6 +89,7 @@ describe('emptyState refresh strategy', () => {
 
   it('prefers plan-open-tasks over large inbox backlog', () => {
     const ctx = makeContext({
+      engineDisplayName: '副脑',
       inboxCount: 25,
       todayPlanExists: true,
       planUncheckedCount: 3,

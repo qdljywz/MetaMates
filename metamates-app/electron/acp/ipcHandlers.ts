@@ -16,11 +16,14 @@ import {
 } from '../cliDetection'
 import { acpDetector } from './AcpDetector'
 import { getGeminiSpawnEnv, isGeminiAuthenticated, openGeminiInteractiveLogin, persistGeminiApiKey } from '../geminiAuth'
+import { openClaudeInteractiveLogin } from '../claudeAuth'
+import { resolveAgentRuntimeForRenderer, resolveAllAgentRuntimesForRenderer } from '../agentCliConfig'
 import { normalizeSkillFilePaths } from '../shared/skillPaths'
 import { resolveSkillPaths } from '../shared/skillLayouts'
 import { detectWorkspaceLanguage } from '../workspaceLayout'
 import { resolveToolFilePathFromUpdate } from '../shared/sessionUpdatePipeline'
 import { sanitizeAcpToolUpdate, type ToolCallUpdatePayload } from '../shared/acpToolCallOutput'
+import { shouldHideAgentRethinkLeak } from '../shared/emptyStateRethinkLeak'
 import { toWorkspaceRelativePath } from '../shared/pathSafety'
 import {
   ensureSkillsForDetectedBackend,
@@ -33,14 +36,18 @@ import { invalidateCloudReachability } from './cloudReachability'
 import { checkAgentHealth, classifySessionFailure } from './agentHealth'
 import { setConnectionStatusWindow, pushConnectionStatus } from './connectionStatus'
 import { DEFAULT_AGENT_MODE } from '../shared/agentMode'
-import { buildAgentLogoInfo } from '../shared/agentLogos'
-import { resolvePublicAssetsPath } from '../shared/appPaths'
+import { resolveAgentLogoInfoFromDisk } from '../shared/agentLogosDisk'
+import { resolveAgentAssetsDir } from '../shared/appPaths'
 import { setCurrentWorkspacePath, getCurrentWorkspacePath } from '../shared/workspaceState'
+import { vaultApiServer } from '../vaultApi/server'
+import { ensureWindowsFirewallRule } from '../vaultApi/firewall'
 
 let detectedAgents: AgentConfig[] = []
 let currentBackendId: string | null = null
 let currentWorkspacePath = process.cwd()
 let mainWindow: BrowserWindow | null = null
+/** Resolves when CLI detection finishes — select-backend / warmup must await this. */
+let agentDetectionPromise: Promise<AgentConfig[]> = Promise.resolve([])
 const connectionPool = new Map<string, BackendConnection>()
 const warmupInFlight = new Map<string, Promise<void>>()
 let warmupGeneration = 0
@@ -48,6 +55,34 @@ let warmupAllScheduled = false
 let startupWarmupStarted = false
 
 const WARMUP_TIMEOUT_MS = 90_000
+
+/** Claude session/new fails if vault MCP is injected while Vault API is still down. */
+async function ensureVaultApiForAgentSession(): Promise<void> {
+  const settings = readAppSettings()
+  if (!settings.vaultApiEnabled) return
+  const workspace = getCurrentWorkspacePath()?.trim()
+  if (!workspace) return
+  if (vaultApiServer.getStatus().running) return
+
+  const port = Number(settings.vaultApiPort) || 17333
+  const bindLan = !!settings.vaultApiLanAccess
+  const calendarIcsPath = typeof settings.calendarIcsPath === 'string' ? settings.calendarIcsPath : undefined
+
+  if (bindLan) {
+    const fw = await ensureWindowsFirewallRule(port)
+    if (!fw.ok && !fw.skipped) {
+      console.warn('[ACP] Vault API firewall rule not added:', fw.error)
+    }
+  }
+
+  const result = await vaultApiServer.start(workspace, port, { calendarIcsPath, bindLan })
+  if (!result.success) {
+    console.warn('[ACP] Vault API start before agent session failed:', result.error)
+  } else {
+    console.log('[ACP] Vault API ready for agent MCP on port', result.port)
+  }
+}
+
 const pendingBackendReady = new Map<string, Array<{
   success: boolean
   sessionId?: string
@@ -58,13 +93,43 @@ const pendingBackendReady = new Map<string, Array<{
   authMethods?: Array<{ id: string; name?: string }>
 }>>()
 
+function extractHistoryTextContent(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (content && typeof content === 'object') {
+    const record = content as { content?: unknown; text?: unknown; display?: unknown }
+    if (typeof record.display === 'string') return record.display
+    if (typeof record.text === 'string') return record.text
+    if (typeof record.content === 'string') return record.content
+    if (record.content && typeof record.content === 'object') {
+      const nested = record.content as { content?: unknown; text?: unknown }
+      if (typeof nested.text === 'string') return nested.text
+      if (typeof nested.content === 'string') return nested.content
+    }
+  }
+  return ''
+}
+
+function isHiddenHistoryMessage(msg: sessionDb.Message): boolean {
+  if (msg.position === 'right') {
+    const display = extractHistoryTextContent(msg.content)
+    if (/^\[\s*background-empty-state\s*\]/i.test(display.trim())) return true
+    return false
+  }
+  if (msg.type === 'text' || msg.position === 'left') {
+    const text = extractHistoryTextContent(msg.content)
+    return shouldHideAgentRethinkLeak(text)
+  }
+  return false
+}
+
 /** Backfill toolFilePath on stored tool cards so "Open file" works for older history. */
 function enrichHistoryMessages(
   messages: sessionDb.Message[],
   workspacePath: string,
 ): sessionDb.Message[] {
-  if (!workspacePath?.trim()) return messages
-  return messages.map((msg) => {
+  const visible = messages.filter((msg) => !isHiddenHistoryMessage(msg))
+  if (!workspacePath?.trim()) return visible
+  return visible.map((msg) => {
     if (msg.type !== 'acp_tool_call') return msg
     const content = msg.content as { update?: Record<string, unknown> } | undefined
     const update = content?.update
@@ -338,6 +403,7 @@ async function waitForBackendWarmup(backendId: string, timeoutMs: number): Promi
 
 /** Pre-spawn last-used CLI before the window opens (AionUi-style). */
 async function warmupStartupAgents(): Promise<void> {
+  await agentDetectionPromise
   const settings = readAppSettings()
   const enabled = getEnabledDetectedAgents()
   if (enabled.length === 0) return
@@ -361,7 +427,10 @@ function warmupBackendSilently(backendId: string): void {
 }
 
 /** Wait for spawn + session — single connection path for warmup, switch, and send-prompt. */
-async function ensureBackendSession(backendId: string): Promise<{
+async function ensureBackendSession(
+  backendId: string,
+  options?: { resume?: boolean },
+): Promise<{
   success: boolean
   sessionId?: string
   mode?: string
@@ -376,13 +445,13 @@ async function ensureBackendSession(backendId: string): Promise<{
   const conn = getConnection(backendId)
   if (!conn) return { success: false, error: `Unknown backend: ${backendId}` }
 
+  await ensureVaultApiForAgentSession()
+
   if (conn.child && conn.sessionId) {
     const readiness = await evaluateAgentReadiness(backendId, conn)
     if (!readiness.ready) {
       return {
-        success: false,
-        error: readiness.error || 'Agent not ready',
-        authRequired: readiness.needsAuth,
+        ...enrichEnsureSessionFailure(backendId, readiness.error || 'Agent not ready', readiness.needsAuth),
         authMethods: readiness.needsAuth ? conn.getAuthMethods() : undefined,
       }
     }
@@ -393,17 +462,18 @@ async function ensureBackendSession(backendId: string): Promise<{
     if (!conn.child) {
       const connectResult = await conn.connect()
       if (!connectResult.success) {
-        const classified = classifySessionFailure(backendId, connectResult.error || 'Connection failed')
+        const failure = enrichEnsureSessionFailure(
+          backendId,
+          connectResult.error || 'Connection failed',
+        )
         return {
-          success: false,
-          error: classified.error,
-          authRequired: classified.authRequired,
-          authMethods: classified.authRequired ? conn.getAuthMethods() : undefined,
+          ...failure,
+          authMethods: failure.authRequired ? conn.getAuthMethods() : undefined,
         }
       }
     }
     if (!conn.sessionId) {
-      await conn.createSession()
+      await conn.createSession(options?.resume !== false)
     }
   } catch (error: any) {
     const classified = classifySessionFailure(
@@ -411,11 +481,12 @@ async function ensureBackendSession(backendId: string): Promise<{
       error.message || 'Session failed',
       !!error.authRequired,
     )
+    const billing = classifyAcpError(error)
     return {
       success: false,
       error: classified.error,
-      quotaExceeded: !!error.quotaExceeded,
-      authRequired: classified.authRequired,
+      quotaExceeded: billing.quotaExceeded || !!error.quotaExceeded,
+      authRequired: classified.authRequired && !billing.quotaExceeded,
       authMethods: classified.authRequired
         ? error.authMethods || conn.getAuthMethods()
         : undefined,
@@ -427,9 +498,11 @@ async function ensureBackendSession(backendId: string): Promise<{
     if (!readiness.ready) {
       void pushConnectionStatus(backendId, conn)
       return {
-        success: false,
-        error: readiness.error || 'Agent not ready for prompts',
-        authRequired: readiness.needsAuth,
+        ...enrichEnsureSessionFailure(
+          backendId,
+          readiness.error || 'Agent not ready for prompts',
+          readiness.needsAuth,
+        ),
         authMethods: readiness.needsAuth ? conn.getAuthMethods() : undefined,
       }
     }
@@ -438,6 +511,26 @@ async function ensureBackendSession(backendId: string): Promise<{
   }
 
   return { success: false, error: 'Session not ready' }
+}
+
+function enrichEnsureSessionFailure(
+  backendId: string,
+  errorMessage: string,
+  authRequiredFlag = false,
+): {
+  success: false
+  error: string
+  quotaExceeded?: boolean
+  authRequired?: boolean
+} {
+  const classified = classifySessionFailure(backendId, errorMessage, authRequiredFlag)
+  const billing = classifyAcpError(new Error(errorMessage))
+  return {
+    success: false,
+    error: classified.error,
+    quotaExceeded: billing.quotaExceeded,
+    authRequired: classified.authRequired && !billing.quotaExceeded,
+  }
 }
 
 function assignMainWindowFromEvent(event: IpcMainInvokeEvent, backendId: string): BackendConnection {
@@ -453,22 +546,8 @@ function assignMainWindowFromEvent(event: IpcMainInvokeEvent, backendId: string)
   return conn
 }
 
-function getAssetsPath(): string {
-  return resolvePublicAssetsPath()
-}
-
 function getLogoInfo(backendId: string, name: string): { type: 'file' | 'initial'; src?: string; initial?: string; bgColor?: string } {
-  const logoFile = `${backendId}.svg`
-  const assetsPath = getAssetsPath()
-  const logoPath = path.join(assetsPath, logoFile)
-
-  try {
-    if (fs.existsSync(logoPath)) {
-      return buildAgentLogoInfo(backendId, { name, assetFileExists: true })
-    }
-  } catch {}
-
-  return buildAgentLogoInfo(backendId, { name, assetFileExists: false })
+  return resolveAgentLogoInfoFromDisk(backendId, resolveAgentAssetsDir(), { name })
 }
 
 const GEMINI_AUTH_METHODS = [
@@ -570,15 +649,28 @@ export async function registerAcpIpcHandlers(): Promise<void> {
   }
 
   setCurrentWorkspacePath(currentWorkspacePath)
-  detectedAgents = await detectInstalledClis(true)
-  console.log(`[DETECT] Found ${detectedAgents.length} installed CLIs`)
+
+  const agentDetectionDelayMs = process.env.METAMATES_E2E === '1' ? 400 : 2_500
+  agentDetectionPromise = new Promise<AgentConfig[]>((resolve) => {
+    setTimeout(() => {
+      void detectInstalledClis(true).then((agents) => {
+        detectedAgents = agents
+        console.log(`[DETECT] Found ${detectedAgents.length} installed CLIs`)
+        resolve(agents)
+      })
+    }, agentDetectionDelayMs)
+  })
 
   ipcMain.handle('get-detected-agents', async () => {
     if (process.env.METAMATES_E2E_NO_AGENTS === '1') return []
+    await agentDetectionPromise
     return getEnabledDetectedAgents()
   })
 
-  ipcMain.handle('get-all-installed-agents', async () => detectedAgents)
+  ipcMain.handle('get-all-installed-agents', async () => {
+    await agentDetectionPromise
+    return detectedAgents
+  })
 
   ipcMain.handle('set-cli-agent-enabled', async (_event, backendId: string, enabled: boolean) => {
     try {
@@ -671,9 +763,10 @@ export async function registerAcpIpcHandlers(): Promise<void> {
       assignMainWindowFromEvent(event, backendId)
       currentBackendId = backendId
       if (options?.freshSession) {
+        await sessionStore.clearSession(backendId, getCurrentWorkspacePath())
         disconnectBackend(backendId)
       }
-      return ensureBackendSession(backendId)
+      return ensureBackendSession(backendId, { resume: !options?.freshSession })
     },
   )
 
@@ -688,6 +781,7 @@ export async function registerAcpIpcHandlers(): Promise<void> {
       success: result.success,
       error: result.error,
       authRequired: result.authRequired,
+      quotaExceeded: result.quotaExceeded,
       authMethods: result.authMethods,
       sessionId: result.sessionId,
       cached: result.success && !!result.sessionId,
@@ -701,15 +795,17 @@ export async function registerAcpIpcHandlers(): Promise<void> {
     assignMainWindowFromEvent(event, targetId)
     currentBackendId = targetId
     if (resume === false) {
+      await sessionStore.clearSession(targetId, getCurrentWorkspacePath())
       disconnectBackend(targetId)
     }
-    return ensureBackendSession(targetId)
+    return ensureBackendSession(targetId, { resume })
   })
 
-  ipcMain.handle('send-prompt', async (_event, text: string, presetContext?: string, attachments?: Array<{ path: string; name: string }>, displayContent?: string) => {
+  ipcMain.handle('send-prompt', async (event, text: string, presetContext?: string, attachments?: Array<{ path: string; name: string }>, displayContent?: string) => {
     console.log('[MAIN] send-prompt:', text.substring(0, 50))
     const backendId = currentBackendId
     if (!backendId) return { success: false, error: 'No backend selected' }
+    assignMainWindowFromEvent(event, backendId)
 
     let conn = getCurrentConnection()
     if (!conn?.sessionId) {
@@ -750,8 +846,8 @@ export async function registerAcpIpcHandlers(): Promise<void> {
       return {
         success: false,
         error: error.message,
-        quotaExceeded: !!error.quotaExceeded,
-        authRequired: !!error.authRequired,
+        quotaExceeded: classified.quotaExceeded || !!error.quotaExceeded,
+        authRequired: classified.authRequired || !!error.authRequired,
       }
     }
   })
@@ -802,13 +898,13 @@ export async function registerAcpIpcHandlers(): Promise<void> {
   ipcMain.handle('get-session-info', async (_event, backendId?: string) => {
     const targetId = backendId || currentBackendId
     if (!targetId) return null
-    return sessionStore.getSession(targetId)
+    return sessionStore.getSession(targetId, getCurrentWorkspacePath())
   })
 
   ipcMain.handle('clear-session', async (_event, backendId?: string) => {
     const targetId = backendId || currentBackendId
     if (!targetId) return { success: true }
-    await sessionStore.clearSession(targetId)
+    await sessionStore.clearSession(targetId, getCurrentWorkspacePath())
     return { success: true }
   })
 
@@ -851,8 +947,10 @@ export async function registerAcpIpcHandlers(): Promise<void> {
     return { success: true }
   })
 
-  ipcMain.handle('select-backend', (event, backendId: string) => {
+  ipcMain.handle('select-backend', async (event, backendId: string) => {
     console.log('[MAIN] select-backend (instant):', backendId)
+
+    await agentDetectionPromise
 
     if (!isCliAgentEnabled(backendId, readAppSettings())) {
       return { success: false, error: 'Agent is disabled in settings' }
@@ -1075,6 +1173,28 @@ export async function registerAcpIpcHandlers(): Promise<void> {
     return openGeminiInteractiveLogin()
   })
 
+  ipcMain.handle('acp-get-claude-preferred-model', () => {
+    const runtime = resolveAgentRuntimeForRenderer('claude')
+    return {
+      modelId: runtime.display.effectiveModel,
+      useEnvModel: !runtime.capabilities.canSwitchModel && !!runtime.display.effectiveModel,
+    }
+  })
+
+  ipcMain.handle('acp-get-agent-runtime', (_event, backend: string) => {
+    return resolveAgentRuntimeForRenderer(String(backend || ''))
+  })
+
+  ipcMain.handle('acp-get-all-agent-runtimes', () => {
+    const backends = getEnabledDetectedAgents().map((a) => a.backend)
+    return resolveAllAgentRuntimesForRenderer(backends)
+  })
+
+  ipcMain.handle('acp-open-claude-terminal-login', () => {
+    console.log('[MAIN] acp-open-claude-terminal-login')
+    return openClaudeInteractiveLogin()
+  })
+
   ipcMain.handle('get-mcp-servers-config', () => {
     return getMcpServersForSettings()
   })
@@ -1119,5 +1239,8 @@ export async function registerAcpIpcHandlers(): Promise<void> {
     return enabled
   })
 
+  void agentDetectionPromise.then(() => {
+    console.log('[ACP] CLI detection finished for startup')
+  })
   console.log('[ACP] IPC handlers registered')
 }

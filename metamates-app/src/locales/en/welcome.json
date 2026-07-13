@@ -3,43 +3,29 @@
     "welcome": {
       "title": "Welcome to MetaMates",
       "subtitle": "For people with too many sparks and too little time to organize",
-      "description": "You don’t need a note-taking system first. Two parts, one loop:",
-      "desktopNote": "Fragments go into the vault on the left; **chat with AI on the right is your daily starting point**—results land in files, data stays on your machine.",
+      "description": "You don't need a note-taking system first. Two parts, one loop:",
+      "desktopNote": "Fragments go into the inspiration vault on the left; **the thinking engine on the right is your daily starting point**—results land in files, data stays on your machine.",
       "features": {
         "agent": "Thinking engine — chat on the right is the main entry; one sentence to start",
-        "commands": "Methodology commands — `/today`, `/graduate`, etc.: read vault, process, write back",
+        "commands": "Methodology commands — 15 slash commands like `/today`, `/graduate`: read vault, process, write back",
         "vault": "Inspiration vault — diary, inbox, project notes as local Markdown",
         "capture": "Mobile capture — drop ideas into the vault Inbox from your phone"
       }
     },
     "workspace": {
       "title": "Choose your inspiration vault",
-      "description": "Pick a local folder for fragments, diary, and project notes. AI reads and writes here. On first run we create inbox, diary, and more—**messy first, organized later**.",
+      "description": "Pick a local folder for fragments, diary, and project notes. The thinking engine reads and writes here. On first run we create inbox, diary, and more—**messy first, organized later**.",
       "selectButton": "Choose folder",
       "selected": "Selected",
       "required": "Please choose a folder first",
       "initialized": "Folder is ready",
-      "skillsSynced": "Synced {{count}} workspace template item(s) (memory index & skills)",
+      "skillsSynced": "Synced {{count}} command template item(s) (memory index & methodology guides)",
       "desktopOnly": "This step is for the desktop app only"
     },
-    "agent": {
-      "title": "Connect the thinking engine",
-      "description": "This is the key step. Once connected, **the right panel is your main UI**—no long note required. Say what you want; AI reads the vault and writes results.",
-      "detecting": "Looking for AI assistants…",
-      "found": "Found {{count}} assistant(s)",
-      "none": "No AI assistant found. Without a CLI, MetaMates is vault-only—no chat or /today commands. Please install one to continue.",
-      "installButton": "Install AI assistant",
-      "skipHint": "Skip for now and connect from the panel on the right",
-      "connected": "Connected to {{name}}",
-      "connectLater": "After entering the app, start chatting in the AI panel on the right"
-    },
     "complete": {
-      "title": "You’re ready to work",
-      "subtitle": "Pick an AI on the right and say what you want to do now—or tap `/today` for today’s plan.",
-      "noAgentSubtitle": "No AI assistant detected yet. Without a CLI, MetaMates is vault-only—no chat or /today commands. We recommend installing one first.",
-      "noAgentHint": "Install Gemini, Claude, or CodeBuddy below—about 2 minutes to enable the thinking engine.",
-      "installButton": "Install AI assistant",
-      "startButton": "Start chatting"
+      "title": "Your vault is ready",
+      "subtitle": "Next: enable the thinking engine—pick an AI assistant, about 2 minutes to install and sign in.",
+      "startButton": "Enable thinking engine"
     }
   },
   "buttons": {

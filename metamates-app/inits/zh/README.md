@@ -1,19 +1,19 @@
 # MetaMates 工作区
 
-> **私人灵感仓库** — 本地 Markdown 文件夹，由 [MetaMates](https://github.com/qdljywz/MetaMates) 桌面应用读写。碎片、日记、剪藏先放这里；**右侧引擎**（AI 对话 + slash 命令）读过仓库后，把计划与洞察写回这些文件。
+> **私人灵感仓库** — 本地 Markdown 文件夹，由 [MetaMates](https://github.com/qdljywz/MetaMates) 桌面应用读写。碎片、日记、剪藏先放这里；**右侧思考引擎**（AI 对话 + slash 命令）读过仓库后，把计划与洞察写回这些文件。
 
 ---
 
 ## 在 MetaMates 里怎么用
 
 1. **打开工作区**：在 MetaMates 中选择本文件夹（首启向导会自动从 `inits/zh` 模板复制结构）。
-2. **从引擎开始**：右侧选 AI，发消息或点 `/today` 等命令——这是主入口。
-3. **看成品**：引擎写回的文件可在中间编辑器打开；日历可打开当日日记/PLAN。
+2. **从思考引擎开始**：右侧选 AI 助手，发消息或点 `/today` 等命令——这是主入口。
+3. **看成品**：思考引擎写回的文件可在中间编辑器打开；日历可打开当日日记/PLAN。
 4. **手机剪藏**：开启 Vault API 后，内容写入 `01_日记与计划/Inbox/`。
-5. **时区**：在 MetaMates **设置**中配置 IANA 时区（如 `Asia/Shanghai`），日记、PLAN 与 Agent 日期以此为准。
-6. **空态引导**：关掉所有编辑器标签后，中间「思考引擎」会根据 PLAN、日程、Ideas 与 Inbox 积压提出贴合当前处境的问题。
+5. **时区**：在 MetaMates **设置**中配置 IANA 时区（如 `Asia/Shanghai`），日记、PLAN 与 AI 助手日期以此为准。
+6. **空态引导**：关掉所有编辑器标签后，中间空态会根据 PLAN、日程、Ideas 与 Inbox 积压提出贴合当前处境的问题，并引导你打开右侧思考引擎。
 
-每个 CLI **保持一条持续对话**；切换 Agent 不会丢失各自的历史。
+每位 AI 助手 **保持一条持续对话**；切换助手不会丢失各自的历史。
 
 ---
 
@@ -49,20 +49,20 @@
 | `2M.md` | 进化层：用户 DNA、战术协议、学习日志 |
 | `AI_Commands_Prompt.md` | 15 条方法论 slash 命令说明 |
 | `GEMINI.md` / `Claude.md` / `CodeBuddy.md` | 各 CLI 协作协议 |
-| `.claude/skills/`、`.codebuddy/skills/`、`.gemini/skills/` | 各 Agent 读取的 Skill 文件 |
+| `.claude/skills/`、`.codebuddy/skills/`、`.gemini/skills/` | 各 AI 助手读取的 Skill 文件 |
 
 ---
 
 ## 方法论命令（15）
 
-在 MetaMates **右侧 Agent 面板**使用（无需手动敲完整 prompt）：
+在 MetaMates **右侧思考引擎**使用（无需手动敲完整 prompt）：
 
 - **日常**：`/context` `/today` `/closeday` `/schedule` `/sync`
 - **思考**：`/trace` `/connect` `/challenge` `/ghost`
 - **灵感**：`/ideas` `/graduate` `/drift` `/emerge` `/intel`
 - **规划**：`/soal` → 更新本目录下的 `2M.md`
 
-> `/intel`：粘贴链接或文档路径，桌面端抓取后 Agent 深化摘要，写入 `04_情报与连接/`。
+> `/intel`：粘贴链接或文档路径，桌面端抓取后由 AI 助手深化摘要，写入 `04_情报与连接/`。
 
 ---
 
@@ -75,4 +75,4 @@
 
 ---
 
-**工作区模板版本**：1.4 · 与 MetaMates 桌面应用同步 · 2026-07-07
+**工作区模板版本**：1.5 · 与 MetaMates 桌面应用同步 · 2026-07-10

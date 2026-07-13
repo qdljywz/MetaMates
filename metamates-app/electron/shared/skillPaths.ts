@@ -3,7 +3,7 @@
 import {
   getIntelligenceReferenceDirRelative,
   getUserMemoryIndexRelative,
-} from './intelligencePaths'
+} from './intelligencePathLayout'
 
 export type WorkspaceLanguage = 'zh' | 'en'
 

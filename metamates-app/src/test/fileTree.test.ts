@@ -1,14 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockFiles = [
-  { name: '01_日记与计划', isDirectory: true, path: 'e:\\Trae\\MetaMates\\MyMetaMates\\01_日记与计划', mtime: 3000 },
-  { name: '原子点子', isDirectory: true, path: 'e:\\Trae\\MetaMates\\MyMetaMates\\原子点子', mtime: 2000 },
-  { name: '每日笔记', isDirectory: true, path: 'e:\\Trae\\MetaMates\\MyMetaMates\\每日笔记', mtime: 1000 },
-  { name: 'test.md', isDirectory: false, path: 'e:\\Trae\\MetaMates\\MyMetaMates\\test.md', mtime: 500 },
+  { name: '01_日记与计划', isDirectory: true, path: 'c:\\MetaMatesVault\\01_日记与计划', mtime: 3000 },
+  { name: '原子点子', isDirectory: true, path: 'c:\\MetaMatesVault\\原子点子', mtime: 2000 },
+  { name: '每日笔记', isDirectory: true, path: 'c:\\MetaMatesVault\\每日笔记', mtime: 1000 },
+  { name: 'test.md', isDirectory: false, path: 'c:\\MetaMatesVault\\test.md', mtime: 500 },
 ]
 
 const mockSubFiles = [
-  { name: '2026-03-16 PLAN.md', isDirectory: false, path: 'e:\\Trae\\MetaMates\\MyMetaMates\\01_日记与计划\\2026-03-16 PLAN.md', mtime: Date.now() },
+  { name: '2026-03-16 PLAN.md', isDirectory: false, path: 'c:\\MetaMatesVault\\01_日记与计划\\2026-03-16 PLAN.md', mtime: Date.now() },
 ]
 
 describe('文件树功能模拟测试', () => {
@@ -45,7 +45,7 @@ describe('文件树功能模拟测试', () => {
   })
 
   it('应该正确处理 loadData 回调', async () => {
-    const nodePath = 'e:\\Trae\\MetaMates\\MyMetaMates\\01_日记与计划'
+    const nodePath = 'c:\\MetaMatesVault\\01_日记与计划'
     const isLeaf = false
     
     if (isLeaf) {
@@ -72,13 +72,13 @@ describe('文件树功能模拟测试', () => {
 
   it('应该正确更新 treeData', () => {
     const prevData = [
-      { key: 'e:\\Trae\\MetaMates\\MyMetaMates\\01_日记与计划', title: '01_日记与计划', isLeaf: false },
-      { key: 'e:\\Trae\\MetaMates\\MyMetaMates\\原子点子', title: '原子点子', isLeaf: false },
+      { key: 'c:\\MetaMatesVault\\01_日记与计划', title: '01_日记与计划', isLeaf: false },
+      { key: 'c:\\MetaMatesVault\\原子点子', title: '原子点子', isLeaf: false },
     ]
     
-    const nodePath = 'e:\\Trae\\MetaMates\\MyMetaMates\\01_日记与计划'
+    const nodePath = 'c:\\MetaMatesVault\\01_日记与计划'
     const children = [
-      { key: 'e:\\Trae\\MetaMates\\MyMetaMates\\01_日记与计划\\2026-03-16 PLAN.md', title: '2026-03-16 PLAN.md', isLeaf: true },
+      { key: 'c:\\MetaMatesVault\\01_日记与计划\\2026-03-16 PLAN.md', title: '2026-03-16 PLAN.md', isLeaf: true },
     ]
     
     const updateNode = (nodes: any[]): any[] => {
@@ -105,18 +105,18 @@ describe('文件树功能模拟测试', () => {
   it('应该正确处理子文件夹的展开', () => {
     const prevData = [
       { 
-        key: 'e:\\Trae\\MetaMates\\MyMetaMates\\01_日记与计划', 
+        key: 'c:\\MetaMatesVault\\01_日记与计划', 
         title: '01_日记与计划', 
         isLeaf: false,
         children: [
-          { key: 'e:\\Trae\\MetaMates\\MyMetaMates\\01_日记与计划\\subfolder', title: 'subfolder', isLeaf: false },
+          { key: 'c:\\MetaMatesVault\\01_日记与计划\\subfolder', title: 'subfolder', isLeaf: false },
         ]
       },
     ]
     
-    const nodePath = 'e:\\Trae\\MetaMates\\MyMetaMates\\01_日记与计划\\subfolder'
+    const nodePath = 'c:\\MetaMatesVault\\01_日记与计划\\subfolder'
     const children = [
-      { key: 'e:\\Trae\\MetaMates\\MyMetaMates\\01_日记与计划\\subfolder\\file.md', title: 'file.md', isLeaf: true },
+      { key: 'c:\\MetaMatesVault\\01_日记与计划\\subfolder\\file.md', title: 'file.md', isLeaf: true },
     ]
     
     const updateNode = (nodes: any[]): any[] => {

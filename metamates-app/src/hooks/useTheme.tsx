@@ -1,13 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react'
 import { storageService } from '../services/storage'
+import { readThemeBootstrapSync, applyThemeBootstrapToDocument } from '../utils/themeBootstrap'
 
 type ThemeMode = 'light' | 'dark' | 'system'
 type ColorScheme = 'default' | 'nordic' | 'cyberpunk' | 'forest' | 'vintage'
+type LightPalette = 'paper' | 'cold'
 
 interface ThemeColors {
   primary: string
   background: string
   surface: string
+  elevated: string
   text: string
   textSecondary: string
   border: string
@@ -19,13 +22,29 @@ interface ThemeColors {
 
 interface Theme {
   mode: 'light' | 'dark'
+  lightPalette?: LightPalette
   colors: ThemeColors
 }
 
-const lightColors: ThemeColors = {
+const paperLightColors: ThemeColors = {
   primary: '#ff7a00',
-  background: '#fafafa',
+  background: '#f0eeea',
+  surface: '#f7f6f2',
+  elevated: '#fcfaf6',
+  text: '#18181b',
+  textSecondary: '#3f3f46',
+  border: 'rgba(0, 0, 0, 0.06)',
+  success: '#16a34a',
+  warning: '#ca8a04',
+  error: '#dc2626',
+  info: '#00b4a6',
+}
+
+const coldLightColors: ThemeColors = {
+  primary: '#ff7a00',
+  background: '#fafaf9',
   surface: '#ffffff',
+  elevated: '#ffffff',
   text: '#18181b',
   textSecondary: '#3f3f46',
   border: 'rgba(0, 0, 0, 0.06)',
@@ -39,6 +58,7 @@ const darkColors: ThemeColors = {
   primary: '#ff8c28',
   background: '#18181b',
   surface: '#1c1c1f',
+  elevated: '#202024',
   text: '#fafafa',
   textSecondary: '#d4d4d8',
   border: 'rgba(255, 255, 255, 0.06)',
@@ -48,12 +68,23 @@ const darkColors: ThemeColors = {
   info: '#00d4c4',
 }
 
+function resolveLightColors(palette: LightPalette): ThemeColors {
+  return palette === 'cold' ? coldLightColors : paperLightColors
+}
+
+function readCssPrefersDark(): boolean {
+  return typeof window !== 'undefined'
+    && window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
 interface ThemeContextType {
   theme: Theme
   themeMode: ThemeMode
   colorScheme: ColorScheme
+  lightPalette: LightPalette
   setThemeMode: (mode: ThemeMode) => void
   setColorScheme: (scheme: ColorScheme) => void
+  setLightPalette: (palette: LightPalette) => void
   toggleTheme: () => void
 }
 
@@ -67,21 +98,48 @@ export function useTheme(): ThemeContextType {
   return context
 }
 
+function readInitialThemeMode(): ThemeMode {
+  try {
+    const raw = localStorage.getItem('metamates-storage')
+    if (!raw) return 'dark'
+    const settings = (JSON.parse(raw) as { settings?: { theme?: string } }).settings
+    const mode = settings?.theme
+    if (mode === 'light' || mode === 'dark' || mode === 'system') return mode
+  } catch {
+    /* ignore */
+  }
+  return 'dark'
+}
+
+function readInitialLightPalette(): LightPalette {
+  try {
+    const raw = localStorage.getItem('metamates-storage')
+    if (!raw) return 'paper'
+    const settings = (JSON.parse(raw) as { settings?: { lightPalette?: string } }).settings
+    return settings?.lightPalette === 'cold' ? 'cold' : 'paper'
+  } catch {
+    return 'paper'
+  }
+}
+
 interface ThemeProviderProps {
   children: ReactNode
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps): React.ReactElement {
-  const [themeMode, setThemeMode] = useState<ThemeMode>('dark')
+  const boot = readThemeBootstrapSync()
+  const [themeMode, setThemeMode] = useState<ThemeMode>(readInitialThemeMode)
   const [colorScheme, setColorScheme] = useState<ColorScheme>('default')
+  const [lightPalette, setLightPalette] = useState<LightPalette>(readInitialLightPalette)
+  const [osPrefersDark, setOsPrefersDark] = useState(readCssPrefersDark)
   const [initialized, setInitialized] = useState(false)
+  const skipHydrationSaveRef = useRef(true)
 
-  const [theme, setTheme] = useState<Theme>(() => {
-    return {
-      mode: 'dark',
-      colors: darkColors
-    }
-  })
+  const [theme, setTheme] = useState<Theme>(() => ({
+    mode: boot.mode,
+    lightPalette: boot.mode === 'light' ? boot.lightPalette : undefined,
+    colors: boot.mode === 'dark' ? darkColors : resolveLightColors(boot.lightPalette),
+  }))
 
   useEffect(() => {
     const loadThemeSettings = async () => {
@@ -89,16 +147,19 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.ReactElem
         const settings = await storageService.getSettings()
         const mode = (settings.theme as ThemeMode) || 'dark'
         const scheme = (settings.colorScheme as ColorScheme) || 'default'
-        
+        const palette = settings.lightPalette === 'cold' ? 'cold' : 'paper'
+
         if (mode !== 'light' && mode !== 'dark' && mode !== 'system') {
           setThemeMode('dark')
         } else {
           setThemeMode(mode)
         }
         setColorScheme(scheme)
+        setLightPalette(palette)
       } catch {
         setThemeMode('dark')
         setColorScheme('default')
+        setLightPalette('paper')
       }
       setInitialized(true)
     }
@@ -106,43 +167,87 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.ReactElem
   }, [])
 
   useEffect(() => {
-    const updateTheme = () => {
-      const mode = themeMode === 'system'
-        ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-        : themeMode
+    if (!initialized) return
+    if (document.documentElement.hasAttribute('data-boot')) return
+    window.electronAPI?.setNativeThemeSource?.(themeMode).catch(() => {})
+  }, [themeMode, initialized])
 
-      setTheme({
-        mode,
-        colors: mode === 'dark' ? darkColors : lightColors
+  useEffect(() => {
+    if (themeMode !== 'system') return
+
+    const api = window.electronAPI
+    if (api?.getNativeColorScheme) {
+      api.getNativeColorScheme()
+        .then((scheme) => setOsPrefersDark(scheme.shouldUseDarkColors))
+        .catch(() => setOsPrefersDark(readCssPrefersDark()))
+
+      const unsubscribe = api.onNativeColorSchemeChanged?.((scheme) => {
+        setOsPrefersDark(scheme.shouldUseDarkColors)
       })
-
-      document.documentElement.setAttribute('data-theme', mode)
-      document.documentElement.setAttribute('data-color-scheme', colorScheme)
-      document.body.style.background = mode === 'dark' ? darkColors.background : lightColors.background
-      document.body.style.color = mode === 'dark' ? darkColors.text : lightColors.text
+      return unsubscribe
     }
-
-    updateTheme()
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    mediaQuery.addEventListener('change', updateTheme)
+    const onChange = () => setOsPrefersDark(mediaQuery.matches)
+    mediaQuery.addEventListener('change', onChange)
+    return () => mediaQuery.removeEventListener('change', onChange)
+  }, [themeMode])
 
-    return () => {
-      mediaQuery.removeEventListener('change', updateTheme)
+  const applyTheme = useCallback(() => {
+    if (typeof document !== 'undefined' && document.documentElement.hasAttribute('data-boot')) {
+      applyThemeBootstrapToDocument()
+      return
     }
-  }, [themeMode, colorScheme])
+
+    const mode = themeMode === 'system'
+      ? (osPrefersDark ? 'dark' : 'light')
+      : themeMode
+
+    const colors = mode === 'dark' ? darkColors : resolveLightColors(lightPalette)
+
+    setTheme({
+      mode,
+      lightPalette: mode === 'light' ? lightPalette : undefined,
+      colors,
+    })
+
+    document.documentElement.setAttribute('data-theme', mode)
+    document.documentElement.setAttribute('data-color-scheme', colorScheme)
+    if (mode === 'light') {
+      document.documentElement.setAttribute('data-light-palette', lightPalette)
+    } else {
+      document.documentElement.removeAttribute('data-light-palette')
+    }
+    document.body.style.background = colors.background
+    document.body.style.color = colors.text
+  }, [themeMode, colorScheme, lightPalette, osPrefersDark])
+
+  useEffect(() => {
+    applyTheme()
+  }, [applyTheme])
+
+  useEffect(() => {
+    const syncAfterBoot = () => applyTheme()
+    window.addEventListener('metamates:boot-finished', syncAfterBoot)
+    return () => window.removeEventListener('metamates:boot-finished', syncAfterBoot)
+  }, [applyTheme])
 
   useEffect(() => {
     if (!initialized) return
+    if (skipHydrationSaveRef.current) {
+      skipHydrationSaveRef.current = false
+      return
+    }
     try {
-      storageService.saveSettings({ 
-        theme: themeMode === 'system' ? 'dark' : themeMode,
-        colorScheme 
+      storageService.saveSettings({
+        theme: themeMode,
+        colorScheme,
+        lightPalette,
       })
     } catch (error) {
       console.error('Failed to save theme settings:', error)
     }
-  }, [themeMode, colorScheme, initialized])
+  }, [themeMode, colorScheme, lightPalette, initialized])
 
   const toggleTheme = () => {
     const modes: ThemeMode[] = ['light', 'dark', 'system']
@@ -152,33 +257,20 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.ReactElem
   }
 
   return (
-    <ThemeContext.Provider value={{ 
-      theme, 
-      themeMode, 
+    <ThemeContext.Provider value={{
+      theme,
+      themeMode,
       colorScheme,
-      setThemeMode, 
+      lightPalette,
+      setThemeMode,
       setColorScheme,
-      toggleTheme 
+      setLightPalette,
+      toggleTheme,
     }}>
       {children}
     </ThemeContext.Provider>
   )
 }
 
-export function getThemeStyles(theme: Theme): Record<string, string> {
-  return {
-    '--primary-color': theme.colors.primary,
-    '--background-color': theme.colors.background,
-    '--surface-color': theme.colors.surface,
-    '--text-color': theme.colors.text,
-    '--text-secondary-color': theme.colors.textSecondary,
-    '--border-color': theme.colors.border,
-    '--success-color': theme.colors.success,
-    '--warning-color': theme.colors.warning,
-    '--error-color': theme.colors.error,
-    '--info-color': theme.colors.info,
-  }
-}
-
-export { lightColors, darkColors }
-export type { Theme, ThemeColors, ThemeMode, ColorScheme }
+export { paperLightColors as lightColors, coldLightColors, darkColors }
+export type { Theme, ThemeColors, ThemeMode, ColorScheme, LightPalette }

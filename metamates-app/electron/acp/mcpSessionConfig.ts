@@ -1,9 +1,10 @@
 import * as fs from 'fs'
 import { readAppSettings } from '../appSettings'
 import { getNodeLikeRuntime, resolveBundledScript } from '../shared/appPaths'
+import { vaultApiServer } from '../vaultApi/server'
 
+/** Stdio MCP entry for ACP session/new — do NOT set type (claude-agent-acp ignores type:'stdio'). */
 export interface AcpSessionMcpServerStdio {
-  type: 'stdio'
   name: string
   command: string
   args?: string[]
@@ -28,7 +29,6 @@ function envRecordToAcp(env?: Record<string, string>): Array<{ name: string; val
 function userServerToAcp(server: UserMcpServerConfig): AcpSessionMcpServerStdio | null {
   if (!server.enabled || !server.command?.trim()) return null
   return {
-    type: 'stdio',
     name: server.name || server.id,
     command: server.command.trim(),
     args: server.args?.length ? server.args : undefined,
@@ -42,7 +42,6 @@ function buildVaultMcpServer(port: number): AcpSessionMcpServerStdio | null {
 
   const runtime = getNodeLikeRuntime()
   return {
-    type: 'stdio',
     name: 'metamates-vault',
     command: runtime.command,
     args: [bridgePath],
@@ -66,9 +65,13 @@ export function buildMetaMatesMcpServers(): AcpSessionMcpServerStdio[] {
   }
 
   if (settings.vaultApiEnabled) {
-    const port = Number(settings.vaultApiPort) || 17333
-    const vaultServer = buildVaultMcpServer(port)
-    if (vaultServer) servers.push(vaultServer)
+    const vaultStatus = vaultApiServer.getStatus()
+    if (!vaultStatus.running) {
+      console.warn('[MCP] Vault API not running — omitting metamates-vault from session/new (avoids Claude ACP crash)')
+    } else {
+      const vaultServer = buildVaultMcpServer(vaultStatus.port)
+      if (vaultServer) servers.push(vaultServer)
+    }
   }
 
   return servers

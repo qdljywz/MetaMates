@@ -133,7 +133,8 @@ const ToolCallCard = memo(({
       >
         <span style={{ fontSize: 16 }}>{KIND_ICON[resolvedKind]}</span>
         <span
-          style={{ color: theme.info, fontWeight: 600, flex: 1, minWidth: 0 }}
+          className="agent-tool-call__title"
+          style={{ fontWeight: 600, flex: 1, minWidth: 0 }}
           title={fullTitle}
         >
           {displayTitle}

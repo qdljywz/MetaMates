@@ -13,6 +13,14 @@ export type DocumentFormat =
   | 'xlsx'
   | 'image'
 
+/** Built into the main app (no optional plugin). */
+export type CoreDocumentFormat = 'text' | 'markdown' | 'html' | 'csv' | 'json'
+
+/** Requires the document-import plugin package. */
+export type ExtendedDocumentFormat = 'pdf' | 'docx' | 'xlsx' | 'image'
+
+const EXTENDED_FORMATS = new Set<ExtendedDocumentFormat>(['pdf', 'docx', 'xlsx', 'image'])
+
 const EXT_TO_FORMAT: Record<string, DocumentFormat> = {
   '.txt': 'text',
   '.log': 'text',
@@ -38,6 +46,8 @@ const EXT_TO_FORMAT: Record<string, DocumentFormat> = {
   '.tiff': 'image',
 }
 
+export const SUPPORTED_IMPORT_EXTENSIONS = Object.freeze(Object.keys(EXT_TO_FORMAT))
+
 /**
  * @param filePath - 文件路径
  * @returns 文档格式，不支持则 null
@@ -54,6 +64,15 @@ export function getDocumentFormat(filePath: string): DocumentFormat | null {
  */
 export function isImportableDocument(filePath: string): boolean {
   return getDocumentFormat(filePath) !== null
+}
+
+export function requiresDocumentImportPlugin(format: DocumentFormat): format is ExtendedDocumentFormat {
+  return EXTENDED_FORMATS.has(format as ExtendedDocumentFormat)
+}
+
+export function isCoreImportableDocument(filePath: string): boolean {
+  const format = getDocumentFormat(filePath)
+  return format !== null && !requiresDocumentImportPlugin(format)
 }
 
 /** 文件选择对话框过滤器 */

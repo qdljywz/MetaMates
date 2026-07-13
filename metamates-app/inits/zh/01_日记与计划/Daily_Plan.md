@@ -46,6 +46,6 @@ tags:
 💡 **自勉**: “结硬寨，打呆仗。”
 
 ---
-## 🤖 Gemini CLI 协作区
-- [ ] **指令提示**: 输入 `/today`，让 Gemini CLI 根据周目标微调今日计划。
-- [ ] **指令提示**: 晚间输入 `/closeday`，让 Gemini CLI 提取今日进展并更新 Master_Control_Template。
+## 🤖 思考引擎协作区
+- [ ] **指令提示**: 输入 `/today`，让 AI 助手根据周目标微调今日计划。
+- [ ] **指令提示**: 晚间输入 `/closeday`，让 AI 助手提取今日进展并更新 Master_Control_Template。

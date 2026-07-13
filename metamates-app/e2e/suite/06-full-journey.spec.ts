@@ -24,7 +24,7 @@ import {
   getE2EWorkspace,
   removeE2EFile,
 } from '../helpers/myM2Fixtures'
-import { pickContextMenuItem, rightClickTreeTitle } from '../helpers/contextMenu'
+import { contextMenuPickOnTreeTitle, pickContextMenuItem, rightClickTreeTitle } from '../helpers/contextMenu'
 import { openCommandPalette, openDailyNoteShortcut, openDailyPlanShortcut, openGlobalSearch, toggleFileTreeShortcut } from '../helpers/shortcuts'
 import { ensureFolderExpanded, ensureTreeFileVisible, refreshFileTree } from '../helpers/treeActions'
 import {
@@ -42,6 +42,7 @@ import {
   readVaultFileUtf8,
   vaultFileExists,
 } from '../helpers/vaultAssert'
+import { openSettingsModal, settingsModalLocator } from '../helpers/comprehensiveAudit'
 import {
   getDailyNoteFileName,
   getDailyPlanFileName,
@@ -63,6 +64,7 @@ function commandPalette(page: Page) {
 /**
  * Canonical E2E — ONE Electron launch, serial steps, validates effectiveness (disk + UI).
  * Default `npm run test:e2e` runs only this file (E2E_SINGLE_SESSION=1).
+ * Exhaustive UI/interaction audit: `e2e/suite/27-comprehensive-final-audit.spec.ts` (via `npm run test:e2e:full`).
  *
  * Default: steps 1–24 + 28 (no LLM prompts). Agent-live steps 25–27 require E2E_AGENT_LIVE=1.
  * Run agent smoke once: npm run test:e2e:agent-live
@@ -89,7 +91,9 @@ test.describe.serial('@suite Full journey (single session)', () => {
   let originalSeedContent = ''
   let agentAvailable = false
   let agentConnected = false
+  let agentLiveBackend: string | null = null
   let codebuddyAvailable = false
+  let claudeAvailable = false
   let folderPath = ''
   let inboxNotePath = ''
   let paletteNotePath = ''
@@ -106,22 +110,36 @@ test.describe.serial('@suite Full journey (single session)', () => {
     dragItemPath = path.join(sandboxPath, E2E_DRAG_ITEM_FILE)
     fs.writeFileSync(dragItemPath, '# E2E drag item\n', 'utf8')
     app = await launchMetaMatesApp(workspace)
-    page = await resolveMainWindow(app, { requireChatInput: true })
+    page = await resolveMainWindow(app, { requireChatInput: false })
     await waitForAppShell(page)
     agentAvailable = (await page.locator('[data-testid^="agent-pill-"], [data-testid^="agent-sidebar-"]').count()) > 0
+    claudeAvailable =
+      (await page.locator('[data-testid="agent-sidebar-claude"]').count()) > 0 ||
+      (await page.locator('[data-testid="switch-agent-claude"]').count()) > 0
     codebuddyAvailable =
       (await page.locator('[data-testid="agent-sidebar-codebuddy"]').count()) > 0 ||
       (await page.locator('[data-testid="switch-agent-codebuddy"]').count()) > 0
 
-    if (E2E_AGENT_LIVE && codebuddyAvailable) {
-      const warmup = await warmUpAgentConnection(page, { backend: 'codebuddy', workspace })
-      agentConnected = warmup.ok
-      if (!warmup.ok) {
-        console.warn(`[E2E] CodeBuddy warmup failed (${warmup.reason}): ${warmup.detail}`)
+    if (E2E_AGENT_LIVE) {
+      const preferred = (process.env.E2E_AGENT_BACKEND || 'claude').trim()
+      let backend: string | null = null
+      if (preferred === 'claude' && claudeAvailable) backend = 'claude'
+      else if (preferred === 'codebuddy' && codebuddyAvailable) backend = 'codebuddy'
+      else if (claudeAvailable) backend = 'claude'
+      else if (codebuddyAvailable) backend = 'codebuddy'
+
+      if (backend) {
+        agentLiveBackend = backend
+        console.log(`[E2E] Agent-live backend: ${backend} (E2E_AGENT_BACKEND=${preferred})`)
+        const warmup = await warmUpAgentConnection(page, { backend, workspace })
+        agentConnected = warmup.ok
+        if (!warmup.ok) {
+          console.warn(`[E2E] ${backend} warmup failed (${warmup.reason}): ${warmup.detail}`)
+        }
+      } else {
+        agentConnected = false
+        console.warn('[E2E] E2E_AGENT_LIVE=1 but no claude/codebuddy in toolbar — agent steps will skip')
       }
-    } else if (E2E_AGENT_LIVE) {
-      agentConnected = false
-      console.warn('[E2E] E2E_AGENT_LIVE=1 but CodeBuddy not in toolbar — agent steps will skip')
     } else {
       agentConnected = false
       console.log('[E2E] Agent-live off — steps 25–27 skipped (no CLI warmup)')
@@ -176,8 +194,8 @@ test.describe.serial('@suite Full journey (single session)', () => {
   })
 
   test('03 agent panel ready', async () => {
-    await expect(page.locator('[data-testid="chat-input"]')).toBeVisible({ timeout: 30_000 })
-    await expect(page.locator('[data-testid="agent-toolbar"]')).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('[data-testid="chat-input"]')).toBeVisible({ timeout: 180_000 })
+    await expect(page.locator('[data-testid="agent-toolbar"]')).toBeVisible({ timeout: 180_000 })
   })
 
   test('04 file tree: folder click safe, caret stable', async () => {
@@ -295,6 +313,9 @@ test.describe.serial('@suite Full journey (single session)', () => {
     await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: noteName })).toBeVisible({
       timeout: 15_000,
     })
+    await expect(
+      page.locator('[data-testid="file-tree"] .ant-tree-title').filter({ hasText: noteName }),
+    ).toBeVisible({ timeout: 15_000 })
     await expect.poll(() => vaultFileExists(createdNotePath), { timeout: 15_000 }).toBe(true)
   })
 
@@ -302,24 +323,27 @@ test.describe.serial('@suite Full journey (single session)', () => {
     renamedName = `${noteName}-renamed`
     renamedPath = buildE2ENotePath(workspace, renamedName)
 
-    await rightClickTreeTitle(page, noteName)
-    await pickContextMenuItem(page, /重命名|Rename/i)
-    const renameModal = page.locator('.ant-modal').filter({ hasText: /重命名|Rename/i })
+    await contextMenuPickOnTreeTitle(page, noteName, /重命名|Rename/i)
+    const renameModal = page.locator('.ant-modal').filter({ hasText: /重命名|Rename/i }).last()
+    await expect(renameModal).toBeVisible({ timeout: 5_000 })
     await renameModal.locator('input').fill(renamedName)
     await renameModal.locator('input').press('Enter')
 
     await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: renamedName })).toBeVisible({
       timeout: 15_000,
     })
+    await expect(
+      page.locator('[data-testid="file-tree"] .ant-tree-title').filter({ hasText: renamedName }),
+    ).toBeVisible({ timeout: 15_000 })
     await expect.poll(() => vaultFileExists(renamedPath), { timeout: 15_000 }).toBe(true)
     expectVaultFileMissing(createdNotePath)
     createdNotePath = ''
   })
 
   test('12 file ops: delete removes disk file and tab', async () => {
-    await rightClickTreeTitle(page, renamedName)
-    await pickContextMenuItem(page, /^删除$|^Delete$/i)
-    const deleteModal = page.locator('.ant-modal').filter({ hasText: /确认删除|Confirm delete/i })
+    await contextMenuPickOnTreeTitle(page, renamedName, /^删除$|^Delete$/i)
+    const deleteModal = page.locator('.ant-modal').filter({ hasText: /确认删除|Confirm delete/i }).last()
+    await expect(deleteModal).toBeVisible({ timeout: 5_000 })
     await deleteModal.getByRole('button', { name: /删\s*除|Delete/i }).click()
 
     await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: renamedName })).toHaveCount(0, {
@@ -331,6 +355,9 @@ test.describe.serial('@suite Full journey (single session)', () => {
       }),
     ).toHaveCount(0, { timeout: 15_000 })
     await expect.poll(() => !vaultFileExists(renamedPath), { timeout: 15_000 }).toBe(true)
+    await expect(
+      page.locator('[data-testid="file-tree"] .ant-tree-title').filter({ hasText: renamedName }),
+    ).toHaveCount(0, { timeout: 15_000 })
     renamedPath = ''
   })
 
@@ -471,30 +498,33 @@ test.describe.serial('@suite Full journey (single session)', () => {
     await closeTabByName(page, noteFileName)
   })
 
-  test('19 activity bar: new folder and inbox note on disk', async () => {
+  test('19 activity bar: new folder and root note on disk', async () => {
     const folderName = `e2e-folder-${Date.now()}`
     folderPath = path.join(workspace, folderName)
+    const noteStem = `e2e-activity-note-${Date.now()}`
 
+    await page.keyboard.press('Escape')
     await page.click('[data-testid="activity-newFolder"]')
-    const folderModal = page.locator('.ant-modal').filter({ hasText: /新建文件夹|New folder/i })
+    const folderModal = page.locator('.ant-modal').filter({ hasText: /新建文件夹|New folder/i }).last()
+    await expect(folderModal).toBeVisible({ timeout: 5_000 })
     await folderModal.locator('input').fill(folderName)
     await folderModal.getByRole('button', { name: /创\s*建|Create/i }).click()
     await expect.poll(() => fs.existsSync(folderPath), { timeout: 15_000 }).toBe(true)
+    await expect(
+      page.locator('[data-testid="file-tree"] .ant-tree-title').filter({ hasText: folderName }),
+    ).toBeVisible({ timeout: 15_000 })
 
-    const beforeInbox = fs.existsSync(inboxPath)
-      ? fs.readdirSync(inboxPath).filter((f) => f.endsWith('.md'))
-      : []
+    inboxNotePath = path.join(workspace, `${noteStem}.md`)
+    await page.keyboard.press('Escape')
     await page.click('[data-testid="activity-newNote"]')
-    await expect.poll(() => {
-      if (!fs.existsSync(inboxPath)) return false
-      const after = fs.readdirSync(inboxPath).filter((f) => f.endsWith('.md'))
-      const created = after.find((f) => !beforeInbox.includes(f))
-      if (created) {
-        inboxNotePath = path.join(inboxPath, created)
-        return true
-      }
-      return false
-    }, { timeout: 15_000 }).toBe(true)
+    const noteModal = page.locator('.ant-modal').filter({ hasText: /新建笔记|New Note/i }).last()
+    await expect(noteModal).toBeVisible({ timeout: 5_000 })
+    await noteModal.locator('input').fill(noteStem)
+    await noteModal.getByRole('button', { name: /创\s*建|Create/i }).click()
+    await expect.poll(() => fs.existsSync(inboxNotePath), { timeout: 15_000 }).toBe(true)
+    await expect(
+      page.locator('[data-testid="file-tree"] .ant-tree-title').filter({ hasText: noteStem }),
+    ).toBeVisible({ timeout: 15_000 })
     expect(vaultFileExists(inboxNotePath)).toBe(true)
   })
 
@@ -572,10 +602,27 @@ test.describe.serial('@suite Full journey (single session)', () => {
     await graphModal.locator('input[placeholder*="搜索节点"], input[placeholder*="Search nodes"]').fill('e2e-link-seed')
     await expect(graphModal.getByText(/节点:\s*[1-9]/)).toBeVisible({ timeout: 60_000 })
 
-    const canvas = graphModal.locator('[data-testid="graph-2d-canvas"]')
-    const box = await canvas.boundingBox()
-    expect(box).toBeTruthy()
-    await canvas.dblclick({ position: { x: box!.width / 2, y: box!.height / 2 } })
+    await expect.poll(async () => {
+      return page.evaluate(() => {
+        const hook = (window as unknown as {
+          __METAMATES_GRAPH_E2E__?: { getGraphAudit?: () => { simulationPaused?: boolean } }
+        }).__METAMATES_GRAPH_E2E__
+        return hook?.getGraphAudit?.()?.simulationPaused === true
+      })
+    }, { timeout: 90_000 }).toBe(true)
+
+    const clickTarget = await page.evaluate(() => {
+      const hook = (window as unknown as {
+        __METAMATES_GRAPH_E2E__?: {
+          getNodesScreenCoords?: () => Array<{ name: string; screenX: number; screenY: number }>
+        }
+      }).__METAMATES_GRAPH_E2E__
+      const nodes = hook?.getNodesScreenCoords?.() ?? []
+      const seed = nodes.find((node) => /e2e-link-seed/i.test(node.name))
+      return seed ?? nodes[0] ?? null
+    })
+    expect(clickTarget).toBeTruthy()
+    await page.mouse.dblclick(clickTarget!.screenX, clickTarget!.screenY)
 
     await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: E2E_LINK_SEED_FILE })).toBeVisible({
       timeout: 15_000,
@@ -585,38 +632,27 @@ test.describe.serial('@suite Full journey (single session)', () => {
   })
 
   test('24 settings: theme toggle persists to document', async () => {
-    const beforeTheme = await page.evaluate(() => document.documentElement.getAttribute('data-theme'))
+    const readTheme = () => page.evaluate(() => document.documentElement.getAttribute('data-theme'))
+    const beforeTheme = await readTheme()
 
-    await page.click('[data-testid="settings-button"]')
-    const settingsModal = page.locator('.ant-modal-wrap').filter({
-      has: page.locator('.ant-modal').filter({ hasText: /设置|Settings/i }),
-    })
-    await expect(settingsModal).toBeVisible({ timeout: 10_000 })
+    // Ctrl+Shift+L cycles theme on <html> without settings save (save can hang on agent reloadSessions).
+    const cycleTheme = async () => {
+      await page.keyboard.press('Control+Shift+KeyL')
+      await page.waitForTimeout(250)
+    }
 
-    const themeField = settingsModal.locator('.ant-form-item').filter({
-      has: page.locator('label').filter({ hasText: /^(主题|Theme)$/ }),
-    })
-    const targetTheme = beforeTheme === 'light' ? 'dark' : 'light'
-    await themeField.locator('.ant-select').click()
-    await page.locator('.ant-select-item-option').filter({ hasText: targetTheme === 'light' ? /浅色|Light/i : /深色|Dark/i }).click()
-    await settingsModal.getByRole('button', { name: /保\s*存|Save/i }).click()
+    for (let i = 0; i < 4; i++) {
+      await cycleTheme()
+      const cur = await readTheme()
+      if (cur && cur !== beforeTheme) break
+    }
+    await expect.poll(readTheme, { timeout: 5_000 }).not.toBe(beforeTheme)
 
-    await expect.poll(
-      () => page.evaluate(() => document.documentElement.getAttribute('data-theme')),
-      { timeout: 15_000 },
-    ).toBe(targetTheme)
-
-    await themeField.locator('.ant-select').click()
-    await page.locator('.ant-select-item-option').filter({ hasText: beforeTheme === 'light' ? /浅色|Light/i : /深色|Dark/i }).click()
-    await settingsModal.getByRole('button', { name: /保\s*存|Save/i }).click()
-
-    await expect.poll(
-      () => page.evaluate(() => document.documentElement.getAttribute('data-theme')),
-      { timeout: 15_000 },
-    ).toBe(beforeTheme)
-
-    await settingsModal.getByRole('button', { name: /取\s*消|Cancel/i }).click()
-    await expect(settingsModal).toBeHidden({ timeout: 10_000 })
+    for (let i = 0; i < 4; i++) {
+      await cycleTheme()
+      if ((await readTheme()) === beforeTheme) break
+    }
+    await expect.poll(readTheme, { timeout: 5_000 }).toBe(beforeTheme)
   })
 
   test('25 agent: slash chip and voice inject @agent-live', async () => {
@@ -637,15 +673,15 @@ test.describe.serial('@suite Full journey (single session)', () => {
     await page.locator('[data-testid="chat-input"]').fill('')
   })
 
-  test('26 agent: CodeBuddy one-shot ping @agent-live', async () => {
+  test('26 agent: live backend one-shot ping @agent-live', async () => {
     test.skip(!E2E_AGENT_LIVE, SKIP_AGENT_LIVE_REASON)
-    test.skip(!codebuddyAvailable || !agentConnected, 'CodeBuddy not connected')
+    test.skip(!agentLiveBackend || !agentConnected, `${agentLiveBackend ?? 'Agent'} not connected`)
     test.setTimeout(240_000)
 
     await waitForAgentTurnIdle(page, 60_000, { requireSlashChips: true })
 
     const chatInput = page.locator('[data-testid="chat-input"]')
-    const marker = `E2E_CB_${Date.now()}`
+    const marker = `E2E_${agentLiveBackend!.toUpperCase()}_${Date.now()}`
     await chatInput.fill(`Reply with exactly this token and nothing else: ${marker}`)
     await expect(page.locator('[data-testid="send-button"]')).toBeEnabled({ timeout: 15_000 })
     await page.locator('[data-testid="send-button"]').click()

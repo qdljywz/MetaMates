@@ -1,7 +1,8 @@
 {
   "viewBox": 128,
   "pointCount": 28,
-  "pathLength": 613,
+  "pathLength": 612,
+  "pathLengthClosed": 613,
   "bounds": {
     "minX": 8,
     "minY": 7,

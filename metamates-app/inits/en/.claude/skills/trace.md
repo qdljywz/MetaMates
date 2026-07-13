@@ -1,12 +1,12 @@
 ---
 name: trace
-description: Trace Idea - Track the evolution of a specific idea across the entire vault
+description: Trace Idea - Track the evolution of a specific idea across the inspiration vault
 ---
 
 Please perform the following tasks:
 
 1. **Receive Topic**: User inputs a topic or keyword.
-2. **Vault-wide Search**: Search for all mentions of the topic in the MetaMates vault.
+2. **Vault-wide Search**: Search for all mentions of the topic in the inspiration vault.
 3. **Trace Timeline**: Organize the evolution of the idea in chronological order.
 4. **Analyze Evolution**: Identify how the idea developed from one note to another.
 5. **Output Trace Map**

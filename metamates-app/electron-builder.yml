@@ -11,6 +11,7 @@ electronLanguages:
 npmRebuild: true
 
 directories:
+  # Single output folder for all builds (local, CI, overnight). Do not override with -c.directories.output elsewhere.
   output: release
   buildResources: build
 
@@ -59,10 +60,16 @@ extraResources:
     to: scripts/vault-mcp-bridge.mjs
   - from: scripts/ollama-acp-bridge.mjs
     to: scripts/ollama-acp-bridge.mjs
-  - from: public/assets
-    to: assets
+  - from: docs/user-manual.html
+    to: docs/user-manual.html
+  - from: plugins
+    to: plugins
     filter:
-      - "**/*"
+      - "**/manifest.json"
+  - from: build/plugin-zips
+    to: plugin-zips
+    filter:
+      - "*.zip"
 
 win:
   target:

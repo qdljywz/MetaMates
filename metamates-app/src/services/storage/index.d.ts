@@ -1,6 +1,7 @@
 export interface AppSettings {
     theme: 'dark' | 'light' | 'system';
     colorScheme?: 'default' | 'nordic' | 'cyberpunk' | 'forest' | 'vintage';
+    lightPalette?: 'paper' | 'cold';
     fontSize: number;
     autoSave: boolean;
     language?: 'zh' | 'en';
@@ -14,6 +15,7 @@ export interface AppSettings {
     ollamaBaseUrl?: string;
     ollamaModel?: string;
     mobileReaderEnabled?: boolean;
+    speechEngine?: 'auto' | 'whisper' | 'web' | 'native';
     mcpServers?: Array<{
         id: string;
         name: string;
@@ -23,6 +25,23 @@ export interface AppSettings {
         env?: Record<string, string>;
         builtin?: boolean;
     }>;
+    acpPreferences?: Record<string, { mode?: string; modelId?: string }>;
+    cliAgentEnabled?: Record<string, boolean>;
+    lastAgentBackend?: string;
+    cachedAgentToolbar?: Array<{
+        backend: string;
+        name: string;
+        cliPath?: string;
+        acpArgs?: string[];
+        logo?: { type: 'file' | 'initial'; src?: string; initial?: string; bgColor?: string };
+    }>;
+    geminiApiKey?: string;
+    engineDisplayName?: string;
+    engineNamingSkippedAt?: number;
+    engineNamingPromptCount?: number;
+    engineSetupStatus?: 'pending' | 'vault_only' | 'ready';
+    engineSetupSkippedAt?: number;
+    preferredAssistant?: string;
     recentFiles: string[];
     lastOpenedFile?: string;
 }

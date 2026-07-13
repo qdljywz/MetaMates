@@ -1,7 +1,9 @@
 import { getTodayDateString } from '../constants/paths'
+import { normalizeEmptyStateQuestionText } from '../../electron/shared/emptyStateRethinkLeak'
 import type { EmptyStateContext, EmptyStateSuggestion } from './editorEmptyState'
 import { buildEmptyStateSuggestions, formatRecentFileLabel } from './editorEmptyState'
 import { inboxQuestionPriority, isNoiseRecentFile } from './emptyStateContextSignals'
+import { hasCustomEngineDisplayName, shouldPromptEngineNaming } from './engineDisplayName'
 
 export const EMPTY_STATE_REFRESH_MS = 10 * 60 * 1000
 export const EMPTY_STATE_HISTORY_MAX = 24
@@ -115,6 +117,10 @@ const QUESTION_VARIANTS: Record<string, string[]> = {
     'emptyState.questions.welcomeBack',
     'emptyState.questions.welcomeBackFocus',
   ],
+  'name-engine': [
+    'emptyState.questions.nameEngine',
+    'emptyState.questions.nameEngineGentle',
+  ],
 }
 
 function normalizeWorkspaceKey(workspacePath: string): string {
@@ -137,6 +143,7 @@ export function buildContextFingerprint(ctx: EmptyStateContext, beijingDate = ge
     String(ctx.scheduleTodayCount),
     ctx.recentFocusLabel ?? '',
     ctx.recentIdeasLabel ?? '',
+    hasCustomEngineDisplayName({ engineDisplayName: ctx.engineDisplayName }) ? 'named' : 'unnamed',
     recentSig,
   ].join('::')
 }
@@ -238,7 +245,11 @@ function pickQuestion(
   return lessFatigued ?? sorted[0]!
 }
 
-export function buildQuestionCandidates(ctx: EmptyStateContext): QuestionCandidate[] {
+export function buildQuestionCandidates(
+  ctx: EmptyStateContext,
+  history: EmptyStateHistoryItem[] = [],
+  now = Date.now(),
+): QuestionCandidate[] {
   const recentName = ctx.recentFocusLabel
     ?? (ctx.recentFiles[0] ? formatRecentFileLabel(ctx.recentFiles[0].name) : '')
 
@@ -275,7 +286,30 @@ export function buildQuestionCandidates(ctx: EmptyStateContext): QuestionCandida
     ]
   }
 
+  const namingPrompt = shouldPromptEngineNaming(
+    {
+      hasWorkspace: ctx.hasWorkspace,
+      agentHint: ctx.agentHint,
+      engineDisplayName: ctx.engineDisplayName,
+      engineNamingSkippedAt: ctx.engineNamingSkippedAt,
+      engineNamingPromptCount: ctx.engineNamingPromptCount,
+    },
+    history,
+    now,
+  )
+
   const candidates: QuestionCandidate[] = []
+
+  if (namingPrompt.show) {
+    candidates.push({
+      id: 'name-engine',
+      questionKey: namingPrompt.firstTime
+        ? 'emptyState.questions.nameEngine'
+        : 'emptyState.questions.nameEngineGentle',
+      prefillKey: 'emptyState.prefill.nameEngine',
+      priority: namingPrompt.firstTime ? 98 : 55,
+    })
+  }
 
   if (!ctx.isReturningUser) {
     candidates.push({
@@ -422,7 +456,7 @@ export function buildEmptyStateSnapshot(
   const now = options?.now ?? Date.now()
   const fingerprint = buildContextFingerprint(ctx, beijingDate)
   const significantFingerprint = buildSignificantContextFingerprint(ctx, beijingDate)
-  const candidates = buildQuestionCandidates(ctx)
+  const candidates = buildQuestionCandidates(ctx, history, now)
   const picked = pickQuestion(candidates, history)
   const suggestions = buildEmptyStateSuggestions(ctx)
   const primaryAction = suggestions.find((s) => s.primary) ?? suggestions[0]
@@ -492,11 +526,12 @@ export function applyAgentRethinkResult(
   snapshot: EmptyStateSnapshot,
   rethink: { questionText?: string; contextLineText?: string } | null,
 ): EmptyStateSnapshot {
-  if (!rethink?.questionText?.trim()) return snapshot
+  const questionText = normalizeEmptyStateQuestionText(rethink?.questionText)
+  if (!questionText) return snapshot
   return {
     ...snapshot,
-    questionText: rethink.questionText.trim(),
-    contextLineText: rethink.contextLineText?.trim(),
+    questionText,
+    contextLineText: rethink?.contextLineText?.trim(),
   }
 }
 
@@ -532,7 +567,7 @@ export function snapshotFromCacheEntry(
   return {
     questionId: entry.questionId,
     questionKey: entry.questionKey,
-    questionText: entry.questionText,
+    questionText: normalizeEmptyStateQuestionText(entry.questionText),
     questionParams: entry.questionParams,
     questionVariant: entry.questionVariant ?? 0,
     prefillKey: entry.prefillKey,

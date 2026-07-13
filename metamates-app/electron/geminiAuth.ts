@@ -159,6 +159,30 @@ function hasEnvApiKey(): boolean {
   return false
 }
 
+export function getGeminiAuthHint(): string {
+  if (!isCliCommandAvailable('gemini')) {
+    return '未找到 Gemini CLI（请安装 @google/gemini-cli）'
+  }
+  return 'Gemini 未配置 API Key 或未登录。可在 MetaMates 设置 → Agent 查看状态，或运行 gemini 完成 Google 登录。'
+}
+
+export function describeGeminiAuthSource(): {
+  method: 'env' | 'oauth' | 'metamates-key' | 'missing'
+  provenanceAuth: string | null
+} {
+  if (readStoredGeminiApiKey()) {
+    return { method: 'metamates-key', provenanceAuth: 'MetaMates settings' }
+  }
+  const dotEnv = readGeminiDotEnv()
+  if (isValidGeminiApiKey(dotEnv.GEMINI_API_KEY) || isValidGeminiApiKey(dotEnv.GOOGLE_API_KEY)) {
+    return { method: 'env', provenanceAuth: '~/.gemini/.env' }
+  }
+  if (hasWindowsGeminiCliCredential() || hasLegacyOAuthFile() || hasGoogleAccountHint()) {
+    return { method: 'oauth', provenanceAuth: 'gemini auth login' }
+  }
+  return { method: 'missing', provenanceAuth: null }
+}
+
 /**
  * Whether Gemini CLI has usable credentials on this machine.
  * Matches current Gemini CLI: API key in Credential Manager, ~/.gemini/.env, or legacy oauth file.

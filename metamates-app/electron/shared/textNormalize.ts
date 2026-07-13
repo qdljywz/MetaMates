@@ -45,7 +45,14 @@ export function sanitizeAgentStreamChunk(raw: string): string {
 
 /** Full agent bubble sanitization (trimmed display). */
 export function sanitizeAgentDisplayText(raw: string): string {
-  return sanitizeAgentStreamChunk(raw.trim())
+  const trimmed = raw.trim()
+  if (!trimmed) return ''
+  // Background empty-state rethink JSON must never appear in chat bubbles.
+  if (/^\[\s*background-empty-state\s*\]/i.test(trimmed)) return ''
+  if (/^\{\s*["']questionText/i.test(trimmed) || /\{\s*["']questionText[^"']*["']\s*:\s*["']/i.test(trimmed)) {
+    return ''
+  }
+  return sanitizeAgentStreamChunk(trimmed)
 }
 
 export function extractAcpTextChunk(content: unknown): string {

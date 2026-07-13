@@ -59,6 +59,7 @@ const TOOLS = [
     },
   },
   {
+    name: 'read_note',
     description: 'Read a markdown note by absolute or workspace-relative path',
     inputSchema: {
       type: 'object',

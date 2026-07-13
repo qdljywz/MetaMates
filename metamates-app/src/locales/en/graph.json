@@ -21,6 +21,7 @@
   "noNodes": "No note files found",
   "loading": "Analyzing file relationships...",
   "tips": "Scroll to zoom | Left-drag canvas/node | Click to select | Double-click to open",
+  "tips3d": "Drag to rotate | Scroll to zoom | Auto-rotate when idle | Click to select | Double-click to open",
   "switchTo2D": "Switch to 2D View",
   "switchTo3D": "Switch to 3D View",
   "viewMode": {
@@ -41,8 +42,8 @@
     "semanticLinks": "Semantic edges"
   },
   "semanticLinksToggle": "Show all semantic edges; when off, only for the selected node",
-  "semanticOn": "Sem",
-  "semanticOff": "Sem",
+  "semanticOn": "Sem on",
+  "semanticOff": "Sem off",
   "linkDebtTitle": "Link debt top (higher = needs attention)",
   "fileNotFound": "File not found, please create first"
 }

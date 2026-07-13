@@ -24,14 +24,16 @@ const AgentSlashBar = memo(({
 
   return (
     <>
-      {currentCommand && (
-        <div className="agent-panel__command-active">
-          <span>/{currentCommand.name} — {tCmd(`commands.${currentCommand.name}.description`)}</span>
-          <button type="button" onClick={onClearCommand} style={{ border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: 12 }}>
-            {t('actions.cancel')}
-          </button>
-        </div>
-      )}
+      <div className="agent-panel__command-slot">
+        {currentCommand && (
+          <div className="agent-panel__command-active">
+            <span>/{currentCommand.name} — {tCmd(`commands.${currentCommand.name}.description`)}</span>
+            <button type="button" onClick={onClearCommand} style={{ border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', fontSize: 12 }}>
+              {t('actions.cancel')}
+            </button>
+          </div>
+        )}
+      </div>
       <div className="agent-panel__slash-bar" role="toolbar" aria-label={t('panel.slashCommands')}>
         {slashCommands.map((cmd) => (
           <button

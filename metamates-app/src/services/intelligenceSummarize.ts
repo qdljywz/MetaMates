@@ -17,7 +17,7 @@ export function summarizeExtractedText(text: string): ExtractedSummary {
   const normalized = text.replace(/\r\n/g, '\n').trim()
   if (!normalized) {
     return {
-      overview: '未能从源文件提取到可读文本，请使用 Agent 附加原文件进行视觉/人工摘要。',
+      overview: '未能从源文件提取到可读文本。请在思考引擎中 @ 附加原文件，请 AI 助手协助摘要。',
       keyPoints: [],
       dataSection: '',
     }

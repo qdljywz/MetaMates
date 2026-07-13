@@ -1,6 +1,8 @@
 export interface AppSettings {
   theme: 'dark' | 'light' | 'system'
   colorScheme?: 'default' | 'nordic' | 'cyberpunk' | 'forest' | 'vintage'
+  /** Light-mode canvas palette (applies when resolved theme is light). */
+  lightPalette?: 'paper' | 'cold'
   fontSize: number
   autoSave: boolean
   language?: 'zh' | 'en'
@@ -14,6 +16,8 @@ export interface AppSettings {
   ollamaBaseUrl?: string
   ollamaModel?: string
   mobileReaderEnabled?: boolean
+  /** Voice input backend preference (auto = local Whisper first). */
+  speechEngine?: 'auto' | 'whisper' | 'web' | 'native'
   mcpServers?: Array<{
     id: string
     name: string
@@ -38,6 +42,17 @@ export interface AppSettings {
   }>
   /** API key entered in MetaMates settings / auth modal (optional; OS keychain preferred). */
   geminiApiKey?: string
+  /** User-chosen label for the right-side thinking engine panel. */
+  engineDisplayName?: string
+  /** Timestamp when user skipped the engine-naming empty-state prompt. */
+  engineNamingSkippedAt?: number
+  /** How many times the naming prompt was shown (including skips). */
+  engineNamingPromptCount?: number
+  /** Thinking-engine onboarding: pending | vault_only | ready */
+  engineSetupStatus?: 'pending' | 'vault_only' | 'ready'
+  engineSetupSkippedAt?: number
+  /** Preferred AI assistant backend from engine setup funnel */
+  preferredAssistant?: string
   recentFiles: string[]
   lastOpenedFile?: string
 }

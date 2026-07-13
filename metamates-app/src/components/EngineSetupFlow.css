@@ -1,0 +1,62 @@
+.engine-setup-modal .ant-modal-body {
+  padding-top: 20px;
+}
+
+.engine-setup__header {
+  display: flex;
+  align-items: flex-start;
+}
+
+.engine-setup__body {
+  min-height: 200px;
+}
+
+.engine-setup__card {
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.engine-setup__card--recommended {
+  border-color: rgba(255, 140, 40, 0.35);
+}
+
+.engine-setup__card--selected {
+  border-color: rgba(255, 140, 40, 0.75);
+  background: rgba(255, 140, 40, 0.06);
+}
+
+.engine-setup__card-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.engine-setup__others {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.engine-setup__footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+}
+
+.engine-setup__footer-main {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.engine-setup__vault-only {
+  text-align: center;
+}
+
+.engine-setup__done {
+  text-align: center;
+  padding: 12px 0 8px;
+}

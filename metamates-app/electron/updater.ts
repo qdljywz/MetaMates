@@ -1,4 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
+import * as fs from 'fs'
+import * as path from 'path'
 import { autoUpdater } from 'electron-updater'
 import { allowImmediateQuit, runAppShutdown } from './processLifecycle'
 
@@ -16,7 +18,13 @@ let getMainWindow: (() => BrowserWindow | null) | null = null
 function sendStatus(payload: UpdaterStatusPayload): void {
   const win = getMainWindow?.()
   if (!win || win.isDestroyed()) return
-  win.webContents.send('updater-status', payload)
+  const contents = win.webContents
+  if (contents.isDestroyed()) return
+  try {
+    contents.send('updater-status', payload)
+  } catch {
+    // Frame may be mid-navigation during startup splash handoff.
+  }
 }
 
 function wireAutoUpdaterEvents(): void {
@@ -39,6 +47,14 @@ export function registerUpdaterHandlers(resolveMainWindow: () => BrowserWindow |
   getMainWindow = resolveMainWindow
 
   ipcMain.handle('get-app-version', async () => app.getVersion())
+  ipcMain.handle('get-runtime-info', async () => ({ isPackaged: app.isPackaged }))
+
+  const updateConfigPath = path.join(process.resourcesPath, 'app-update.yml')
+  if (!fs.existsSync(updateConfigPath)) {
+    ipcMain.handle('updater-check', async () => ({ ok: true, skipped: true }))
+    ipcMain.handle('updater-quit-and-install', async () => ({ ok: false, error: 'no-update-channel' }))
+    return
+  }
 
   if (!app.isPackaged) {
     ipcMain.handle('updater-check', async () => ({ ok: true, dev: true }))

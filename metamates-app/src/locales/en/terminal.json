@@ -3,27 +3,27 @@
   "placeholder": "Enter command...",
   "clear": "Clear",
   "cleared": "Terminal cleared",
-  "restart": "Restart Terminal",
-  "start": "Start Terminal",
-  "stop": "Stop Terminal",
-  "starting": "Starting terminal",
+  "restart": "Restart terminal",
+  "start": "Start terminal",
+  "stop": "Stop terminal",
+  "starting": "Starting terminal…",
   "startFailed": "Failed to start terminal",
   "connected": "Connected",
   "disconnected": "Disconnected",
   "stopped": "Terminal stopped",
   "unknownError": "Unknown error",
-  "noWorkspace": "No workspace",
+  "noWorkspace": "No inspiration vault open",
   "ok": "OK",
   "cancel": "Cancel",
-  "executing": "Executing command...",
+  "executing": "Running command…",
   "quickCommands": {
-    "title": "Quick Commands",
-    "gemini": "Gemini CLI",
-    "dir": "List Files",
-    "cdUp": "Go Up"
+    "title": "Quick commands",
+    "gemini": "Gemini",
+    "dir": "List files",
+    "cdUp": "Go up"
   },
   "modes": {
-    "ai": "AI Chat",
+    "ai": "AI chat",
     "terminal": "Terminal"
   }
 }

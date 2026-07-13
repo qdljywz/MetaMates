@@ -11,7 +11,13 @@ import { spawnSync } from 'node:child_process'
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const initsZh = path.join(appRoot, 'inits', 'zh')
-const workspace = path.resolve(process.argv[2]?.trim() || 'E:\\MyM2')
+const workspaceArg = process.argv[2]?.trim()
+if (!workspaceArg) {
+  console.error('Usage: node scripts/sync-inits-to-workspace.mjs <workspacePath>')
+  console.error('Example: node scripts/sync-inits-to-workspace.mjs E:\\MyM2')
+  process.exit(1)
+}
+const workspace = path.resolve(workspaceArg)
 
 const COMMAND_IDS = [
   'context', 'today', 'closeday', 'schedule',

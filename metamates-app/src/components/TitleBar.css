@@ -27,6 +27,11 @@
 .title-bar-logo:hover { transform: scale(1.05); }
 .title-bar-logo svg, .title-bar-logo img { width: 24px; height: 24px; }
 
+.title-bar-brand-name {
+  font-size: 16px;
+  font-weight: 600;
+}
+
 .title-bar-center {
   display: flex;
   align-items: center;

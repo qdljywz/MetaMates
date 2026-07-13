@@ -1,7 +1,7 @@
 # MetaMates
 
-> **本地优先的个人知识操作系统** — Markdown Vault 是主场，Agent 是执行层。  
-> Local-first personal knowledge OS — your vault is home; agents execute in the same workspace.
+> **私人灵感仓库 + 思考引擎** — 本地 Markdown 工作区承载碎片与计划，右侧 AI 助手读写同一文件夹；15 条 slash 命令把成品写回笔记，而不是消失在聊天里。  
+> Private inspiration vault + thinking engine — local Markdown workspace; AI assistants on the right read and write the same folder.
 
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
@@ -11,7 +11,7 @@
 
 ## 一句话 / One-liner
 
-**MetaMates** 是安装在本机的 **Electron 桌面应用**（不是网页）：用 Obsidian 式 Markdown 工作区承载思考与规划，通过 **ACP** 连接 Gemini / Claude / CodeBuddy 等 CLI，让 AI **读写同一文件夹**——`/today`、`/trace` 等命令把结果写回笔记，而不是消失在聊天里。
+**MetaMates = 私人灵感仓库 + 思考引擎。** 安装在本机的 **Electron 桌面应用**（不是网页）：灵感丢进本地 Markdown 仓库，右侧和 AI 对话或跑 `/today`、`/trace` 等 15 条命令——成品写回笔记，不消失在聊天里。
 
 ---
 
@@ -19,9 +19,9 @@
 
 | ✅ 我们是 | ❌ 我们不是 |
 |-----------|------------|
-| 本地 Vault + 多 CLI Agent 一体 | 纯 Chat 客户端 |
-| 编辑器中轴 + 右侧 Agent 执行层 | 三栏「聊天 App」布局 |
-| 每个 CLI 一条持续对话 | 多会话 / 对话树 |
+| **私人灵感仓库** + **思考引擎**（本地 Markdown，AI 读写同一文件夹） | 纯 Chat 客户端 |
+| 右侧思考引擎为主入口 + 中间编辑器看成品 | 三栏「聊天 App」布局 |
+| 每个 AI 助手一条持续对话 | 多会话 / 对话树 |
 | 数据在本地 Markdown | 强制云同步 SaaS |
 
 详细定位见 [docs/POSITIONING.md](docs/POSITIONING.md) · 桌面架构见 [docs/DESKTOP_APP.md](docs/DESKTOP_APP.md)
@@ -32,11 +32,8 @@
 
 | 模块 | 说明 |
 |------|------|
-| **Vault** | `[[双链]]`、`#标签`、全文 + 语义搜索、关系图谱、多标签编辑、自动保存 |
-| **思考引擎空态** | 无编辑器标签时，根据 PLAN / 日程 / Ideas / Inbox 提出处境化问题；支持本地轮换与后台 Agent 重判 |
-| **日记日历** | 点击日期创建/打开 `YYYY-MM-DD.md` 与 `YYYY-MM-DD PLAN.md` |
-| **Agent 执行层** | 右侧选 CLI、slash 命令 chips、工具调用卡片；输出跳回编辑器 |
-| **方法论命令** | 15 条 slash（见下），对应工作区 Skills |
+| **灵感仓库** | `[[双链]]`、`#标签`、全文 + 语义搜索、关系图谱、多标签编辑、自动保存 |
+| **思考引擎** | 右侧选 AI 助手、15 条 slash 命令、工具调用卡片；输出写回仓库 |
 | **Vault API** | 手机 `/mobile` 只读 + `POST /api/capture` 写入 Inbox |
 | **MCP / Ollama** | 可选扩展本机 Agent 能力 |
 
@@ -46,8 +43,9 @@
 
 ```text
 ┌──────────┬─────────────────────────┬──────────────────┐
-│ 文件树    │  编辑器（Vault 主场）     │  Agent 执行层     │
-│ 日历/搜索 │  Markdown · 双链 · 标签  │  CLI + slash 命令 │
+│ 灵感仓库  │  编辑器（查看与修改成品） │  思考引擎（主入口）│
+│ 文件树    │  Markdown · 双链 · 标签  │  AI 对话 + slash │
+│ 日历/搜索 │                         │  命令            │
 └──────────┴─────────────────────────┴──────────────────┘
 ```
 
@@ -78,9 +76,9 @@
 
 1. 从 [GitHub Releases](https://github.com/qdljywz/MetaMates/releases) 下载安装包，或自行 `npm run electron:build:win` / `:mac`
 2. 运行 **MetaMates**（**桌面窗口**，不是浏览器）
-3. 首启向导：选择/初始化工作区文件夹
-4. 安装并连接至少一个 CLI Agent
-5. 在中间写笔记，在右侧运行 `/today` 等命令
+3. 首启向导：选择/初始化灵感仓库文件夹
+4. 安装并连接至少一个 AI 助手（Gemini / Claude / CodeBuddy 等）
+5. 在右侧思考引擎发消息或运行 `/today` 等命令；中间编辑器查看写回的成品
 
 ### 开发者
 
@@ -91,7 +89,7 @@ npm run start          # Electron 开发（推荐）
 # npm run dev         # 仅 Vite 浏览器预览，无文件系统与 Agent
 ```
 
-默认验证工作区为 `inits/zh`（可通过 `METAMATES_WORKSPACE` 覆盖）。
+默认验证工作区为 `e2e/.workspace/vault`（首次从 `inits/zh` 自动复制；见 `e2e/E2E_WORKSPACE.md`）。可通过 `METAMATES_WORKSPACE` 覆盖。
 
 ```bash
 npm run check:opensource
@@ -141,9 +139,12 @@ React 19 · TypeScript · Electron 33 · CodeMirror 6 · ACP (JSON-RPC) · SQLit
 |------|------|
 | [用户指南](docs/USER_GUIDE.md) | 操作说明 |
 | [产品定位](docs/POSITIONING.md) | 边界与路线图 |
+| [扩展架构](docs/PLUGINS.md) | document-import / offline-speech |
 | [个人版范围](docs/PERSONAL_SCOPE.md) | 做 / 不做 |
-| [开源文件清单](docs/OPEN_SOURCE.md) | 应公开 / 应 ignore |
-| [打包指南](docs/PACKAGING.md) | Windows / macOS 安装包 |
+| [开源文件清单](docs/OPEN_SOURCE.md) | 应公开 / 应 ignore（monorepo） |
+| [打包指南](docs/PACKAGING.md) | Windows / macOS · portable-green |
+| [发版清单](docs/RELEASE_CHECKLIST.md) | tag / Release 前检查 |
+| [UX 回归护栏](docs/UX_REGRESSION_GUARDRAILS.md) | UX-01～38，贡献者测试约定 |
 | [SECURITY.md](SECURITY.md) | 漏洞报告 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献流程 |
 | [API](docs/API.md) · [IPC](docs/IPC_Protocol.md) | 开发者参考 |
@@ -156,4 +157,4 @@ MIT — 见 [LICENSE](LICENSE)
 
 ---
 
-*MetaMates · 更新 2026-07-07*
+*MetaMates · 首发开源 v0.1.0 · 2026-07-13*

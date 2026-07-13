@@ -32,6 +32,8 @@ const TitleBar: React.FC = () => {
   const { theme } = useTheme()
   const [isMaximized, setIsMaximized] = useState(false)
   const [settingsVisible, setSettingsVisible] = useState(false)
+  const [settingsTabKey, setSettingsTabKey] = useState<'general' | 'agent' | 'advanced'>('general')
+  const [settingsFocusPluginId, setSettingsFocusPluginId] = useState<string | undefined>(undefined)
   const [helpVisible, setHelpVisible] = useState(false)
 
   useEffect(() => {
@@ -45,9 +47,14 @@ const TitleBar: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    const openSettings = () => setSettingsVisible(true)
-    window.addEventListener('metamates:open-settings', openSettings)
-    return () => window.removeEventListener('metamates:open-settings', openSettings)
+    const openSettings = (event: Event) => {
+      const detail = (event as CustomEvent<{ tab?: 'general' | 'agent' | 'advanced'; focusPluginId?: string }>).detail
+      if (detail?.tab) setSettingsTabKey(detail.tab)
+      setSettingsFocusPluginId(detail?.focusPluginId)
+      setSettingsVisible(true)
+    }
+    window.addEventListener('metamates:open-settings', openSettings as EventListener)
+    return () => window.removeEventListener('metamates:open-settings', openSettings as EventListener)
   }, [])
 
   const handleMinimize = async () => {
@@ -85,14 +92,8 @@ const TitleBar: React.FC = () => {
           />
         </div>
         <Space style={{ marginLeft: 8 }}>
-          <Text strong style={{ 
-            fontSize: '16px',
-            background: 'linear-gradient(90deg, #ff7a00, #00b4a6)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
-          }}>{t('app.name')}</Text>
-          <Text type="secondary" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('app.subtitle')}</Text>
+          <Text strong className="title-bar-brand-name brand-gradient-text">{t('app.name')}</Text>
+          <Text type="secondary" style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{t('app.subtitle')}</Text>
         </Space>
       </div>
       <div className="title-bar-center">
@@ -100,22 +101,34 @@ const TitleBar: React.FC = () => {
           <Tooltip title={t('help')}>
             <QuestionCircleOutlined 
               data-testid="help-button"
+              role="button"
+              tabIndex={0}
+              aria-label={t('help')}
               style={{ color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}
               onClick={() => setHelpVisible(true)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setHelpVisible(true) } }}
             />
           </Tooltip>
           <Tooltip title={t('settings.title')}>
             <SettingOutlined 
               data-testid="settings-button"
+              role="button"
+              tabIndex={0}
+              aria-label={t('settings.title')}
               style={{ color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}
               onClick={() => setSettingsVisible(true)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSettingsVisible(true) } }}
             />
           </Tooltip>
-          <Tooltip title="GitHub">
+          <Tooltip title={t('github')}>
             <GithubOutlined 
               data-testid="github-button"
+              role="button"
+              tabIndex={0}
+              aria-label={t('github')}
               style={{ color: 'var(--text-muted)', cursor: 'pointer', fontSize: '14px' }}
               onClick={() => openExternal(GITHUB_REPO)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openExternal(GITHUB_REPO) } }}
             />
           </Tooltip>
         </Space>
@@ -129,6 +142,7 @@ const TitleBar: React.FC = () => {
             onClick={handleMinimize}
             className="title-bar-btn"
             data-testid="minimize-button"
+            aria-label={t('window.minimize')}
           />
         </Tooltip>
         <Tooltip title={isMaximized ? t('window.restore') : t('window.maximize')}>
@@ -139,6 +153,7 @@ const TitleBar: React.FC = () => {
             onClick={handleMaximize}
             className="title-bar-btn"
             data-testid="maximize-button"
+            aria-label={isMaximized ? t('window.restore') : t('window.maximize')}
           />
         </Tooltip>
         <Tooltip title={t('window.close')}>
@@ -149,13 +164,19 @@ const TitleBar: React.FC = () => {
             onClick={handleClose}
             className="title-bar-btn title-bar-btn-close"
             data-testid="close-button"
+            aria-label={t('window.close')}
           />
         </Tooltip>
       </div>
       
       <SettingsModal 
         visible={settingsVisible} 
-        onClose={() => setSettingsVisible(false)} 
+        initialTabKey={settingsTabKey}
+        focusPluginId={settingsFocusPluginId}
+        onClose={() => {
+          setSettingsVisible(false)
+          setSettingsFocusPluginId(undefined)
+        }} 
       />
       <HelpModal 
         visible={helpVisible} 

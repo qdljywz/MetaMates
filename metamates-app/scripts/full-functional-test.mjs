@@ -222,6 +222,13 @@ if (!fs.existsSync(WORKSPACE)) {
 } else {
   record('Vault API', '工作区存在', true, WORKSPACE)
   try {
+    const probeRel = '01_日记与计划/Inbox/_functional_probe.md'
+    const probeAbs = path.join(WORKSPACE, ...probeRel.split('/'))
+    fs.mkdirSync(path.dirname(probeAbs), { recursive: true })
+    if (!fs.existsSync(probeAbs)) {
+      fs.writeFileSync(probeAbs, '# functional probe\n', 'utf8')
+    }
+
     const { vaultApiServer } = require(path.join(ROOT, 'dist-electron/vaultApi/server.cjs'))
     await vaultApiServer.stop().catch(() => {})
     const start = await vaultApiServer.start(WORKSPACE, VAULT_PORT)
@@ -251,7 +258,9 @@ if (!fs.existsSync(WORKSPACE)) {
       const ollama = await httpGet(`http://127.0.0.1:${VAULT_PORT}/api/ollama/status`)
       record('Vault API', 'GET /api/ollama/status', ollama.status === 200)
 
-      const sampleFile = listData.files?.find((f) => f.name?.endsWith('.md'))
+      const sampleFile =
+        listData.files?.find((f) => f.name?.endsWith('.md')) ??
+        { path: probeRel, name: '_functional_probe.md' }
       if (sampleFile) {
         const fileRes = await httpGet(
           `http://127.0.0.1:${VAULT_PORT}/api/file?path=${encodeURIComponent(sampleFile.path)}`

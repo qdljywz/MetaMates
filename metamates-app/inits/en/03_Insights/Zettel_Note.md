@@ -27,6 +27,6 @@ tags:
 
 ---
 
-## 🤖 Gemini CLI Collaboration Area
-- [ ] **Command Prompt**: Type `/connect` to let Gemini CLI find other notes in the vault related to this argument and uncover potential links.
-- [ ] **Command Prompt**: Type `/challenge` to let Gemini CLI stress-test this argument, pointing out logical loopholes or over-assumptions.
+## 🤖 Thinking engine collaboration
+- [ ] **Command Prompt**: Type `/connect` to let the AI assistant find other notes in the vault related to this argument and uncover potential links.
+- [ ] **Command Prompt**: Type `/challenge` to let the AI assistant stress-test this argument, pointing out logical loopholes or over-assumptions.

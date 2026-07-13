@@ -3,6 +3,7 @@
  */
 
 import type { IResponseMessage } from '../../../electron/shared/responseMessage'
+import { shouldHideAgentRethinkLeak } from '../../../electron/shared/emptyStateRethinkLeak'
 import { composeChatBubble, normalizeHistoryBubble, type ChatBubble } from '../agent-bridge/composeChatBubble'
 
 export type AgentMessage = ChatBubble & {
@@ -100,6 +101,10 @@ export function applyStreamMessage(
   }
 
   if (bubble.type === 'agent' && !bubble.content?.trim()) {
+    return { messages: list, sideEffects }
+  }
+
+  if (shouldHideAgentRethinkLeak(bubble.content)) {
     return { messages: list, sideEffects }
   }
 

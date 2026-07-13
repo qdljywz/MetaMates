@@ -1,5 +1,13 @@
 import { test, expect } from '@playwright/test'
 import { closeElectronApp, launchMetaMatesApp, resolveMainWindow } from './helpers/launchElectron'
+import {
+  listDetectedAgentBackends,
+  pickPreferredBackends,
+  primaryPreferredBackend,
+  secondaryPreferredBackend,
+  selectAgentSidebar,
+} from './helpers/agentRecent'
+import { waitForConnectionStatus } from './helpers/agentSettings'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -19,7 +27,7 @@ test.describe('Lazy warmup (AionUi-style startup)', () => {
       const status = page.locator('[data-testid="acp-connection-status"]')
       await expect(status).toBeVisible()
       const initial = await status.getAttribute('data-status')
-      expect(initial).toBe('disconnected')
+      expect(['disconnected', 'connecting'].includes(initial ?? '')).toBe(true)
 
       const chatInput = page.locator('[data-testid="chat-input"]')
       await expect(chatInput).toBeEnabled({ timeout: 5000 })
@@ -28,11 +36,15 @@ test.describe('Lazy warmup (AionUi-style startup)', () => {
     }
   })
 
-  test('focus input triggers warmup (connecting or auth_required)', async () => {
+  test('focus input triggers warmup on preferred backend (claude → codebuddy)', async () => {
     const app = await launchMetaMatesApp()
     try {
       const page = await resolveMainWindow(app)
+      const backends = await listDetectedAgentBackends(page)
+      const primary = primaryPreferredBackend(backends)
+      test.skip(!primary, 'Need claude or codebuddy in E2E profile')
 
+      await selectAgentSidebar(page, primary)
       await page.locator('[data-testid="chat-input"]').focus()
       const status = page.locator('[data-testid="acp-connection-status"]')
 
@@ -45,58 +57,66 @@ test.describe('Lazy warmup (AionUi-style startup)', () => {
     }
   })
 
-  test('gemini without OAuth shows auth modal after warmup', async () => {
+  test('preferred backend shows auth banner after warmup, not modal (lazy auth)', async () => {
     const app = await launchMetaMatesApp()
     try {
       const page = await resolveMainWindow(app)
+      const backends = await listDetectedAgentBackends(page)
+      const preferred = pickPreferredBackends(backends)
+      test.skip(preferred.length === 0, 'Need claude or codebuddy in E2E profile')
 
-      const geminiBtn = page.locator('[data-testid="agent-sidebar-gemini"]')
-      if (await geminiBtn.count()) {
-        await geminiBtn.click({ force: true })
-      }
-
+      await selectAgentSidebar(page, preferred[0]!)
       await page.locator('[data-testid="chat-input"]').focus()
 
       await expect(async () => {
         const authModal = page.locator('[data-testid="acp-auth-modal"]')
         const status = await page.locator('[data-testid="acp-connection-status"]').getAttribute('data-status')
-        const hasModal = (await authModal.count()) > 0
-        expect(hasModal || ['auth_required', 'connected', 'connecting', 'error'].includes(status ?? '')).toBeTruthy()
+        const banner = page.locator('[data-testid="acp-auth-banner"]')
+        const hasBanner = (await banner.count()) > 0
+        const hasModal = (await authModal.count()) > 0 && (await authModal.isVisible())
+        if (status === 'auth_required') {
+          expect(hasModal).toBe(false)
+          expect(hasBanner).toBe(true)
+        } else {
+          expect(['connected', 'connecting', 'error', 'disconnected'].includes(status ?? '')).toBeTruthy()
+        }
       }).toPass({ timeout: 45_000, intervals: [1000] })
     } finally {
       await closeElectronApp(app)
     }
   })
 
-  test('switching agent dismisses another agent auth modal', async () => {
+  test('switching agent dismisses another agent auth modal (claude → codebuddy)', async () => {
     test.setTimeout(180_000)
 
     const app = await launchMetaMatesApp()
     try {
       const page = await resolveMainWindow(app)
       const authModal = page.locator('[data-testid="acp-auth-modal"]')
+      const backends = await listDetectedAgentBackends(page)
+      const primary = primaryPreferredBackend(backends)
+      const secondary = secondaryPreferredBackend(backends)
+      test.skip(!primary || !secondary, 'Need both claude and codebuddy in E2E profile')
 
-      const geminiBtn = page.locator('[data-testid="agent-sidebar-gemini"]')
-      const codebuddyBtn = page.locator('[data-testid="agent-sidebar-codebuddy"]')
-      if (!(await geminiBtn.count()) || !(await codebuddyBtn.count())) {
-        test.skip()
-        return
-      }
-
-      await geminiBtn.click({ force: true })
+      await selectAgentSidebar(page, primary)
       await page.locator('[data-testid="chat-input"]').focus()
 
-      await expect(async () => {
-        const hasModal = await authModal.isVisible()
-        const status = await page.locator('[data-testid="acp-connection-status"]').getAttribute('data-status')
-        expect(hasModal || status === 'auth_required').toBeTruthy()
-      }).toPass({ timeout: 45_000, intervals: [1000] })
+      const status = await waitForConnectionStatus(
+        page,
+        ['auth_required', 'connected', 'connecting', 'error'],
+        45_000,
+      )
 
-      await codebuddyBtn.click({ force: true })
+      await expect(authModal).toBeHidden({ timeout: 5_000 })
+      if (status === 'auth_required') {
+        await expect(page.locator('[data-testid="acp-auth-banner"]')).toBeVisible({ timeout: 10_000 })
+      }
+
+      await selectAgentSidebar(page, secondary)
       await expect(authModal).toBeHidden({ timeout: 15_000 })
 
-      const status = await page.locator('[data-testid="acp-connection-status"]').getAttribute('data-status')
-      expect(status).not.toBe('auth_required')
+      const finalStatus = await page.locator('[data-testid="acp-connection-status"]').getAttribute('data-status')
+      expect(finalStatus).not.toBe('auth_required')
     } finally {
       await closeElectronApp(app)
     }

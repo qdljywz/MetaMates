@@ -143,6 +143,25 @@ export async function runVoiceElectronJourney(workspace, externalRecord) {
     const rendererVal = await chatInput.inputValue()
     rec('转写', '渲染层注入 → 输入框', rendererVal.includes('渲染层语音注入'), rendererVal.slice(0, 40))
 
+    await dismissBlockingModals(win)
+    const voiceStillActive = await voiceBtn.evaluate((el) =>
+      el.classList.contains('agent-panel__voice--active'),
+    ).catch(() => false)
+    if (voiceStillActive) {
+      await voiceBtn.click({ timeout: 5000 }).catch(() => {})
+      await sleep(800)
+    }
+    await win.evaluate(async () => {
+      await window.electronAPI?.speech?.stop?.()
+    })
+    await chatInput.evaluate(async (el) => {
+      const textarea = el
+      const deadline = Date.now() + 8000
+      while (textarea.disabled && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+    })
+
     await chatInput.fill('')
     const nativeStarted = await win.evaluate(async () => {
       const api = window.electronAPI?.speech
@@ -162,6 +181,13 @@ export async function runVoiceElectronJourney(workspace, externalRecord) {
     const finVal = await chatInput.inputValue()
     await win.evaluate(async () => {
       await window.electronAPI?.speech?.stop?.()
+    })
+    await chatInput.evaluate(async (el) => {
+      const textarea = el
+      const deadline = Date.now() + 8000
+      while (textarea.disabled && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
     })
     rec(
       '转写',
@@ -189,7 +215,7 @@ export async function runVoiceElectronJourney(workspace, externalRecord) {
       await voiceBtn.click({ timeout: 8000 })
       await sleep(1500)
       const liveActive = await voiceBtn.evaluate((el) => el.classList.contains('agent-panel__voice--active'))
-      rec('实麦', '启动 System.Speech 听写', liveActive, liveActive ? '请对着麦克风说话…' : '未进入 listening')
+      rec('实麦', '启动 Whisper 录音', liveActive, liveActive ? '请对着麦克风说话…' : '未进入 listening')
       if (liveActive) {
         const deadline = Date.now() + LIVE_VOICE_TIMEOUT_MS
         let transcript = ''

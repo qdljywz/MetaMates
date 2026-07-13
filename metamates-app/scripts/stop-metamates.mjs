@@ -28,8 +28,12 @@ function runPowerShell(script) {
 function isMetaMatesProcessLine(name, commandLine) {
   const exe = (name || '').toLowerCase()
   const cmd = (commandLine || '').replace(/\\/g, '/')
+  const releaseRoot = path.join(appRoot, 'release').replace(/\\/g, '/')
 
-  if (/^metamates\.exe$/i.test(name || '')) return true
+  if (/^metamates\.exe$/i.test(name || '')) {
+    // Only repo release/dev builds — never kill unrelated MetaMates installs elsewhere.
+    return cmd.includes(releaseRoot) || cmd.includes(appRootNorm)
+  }
 
   const underAppRoot =
     cmd.includes(appRootNorm) ||
@@ -71,11 +75,17 @@ function isMetaMatesProcessLine(name, commandLine) {
 
 function stopWindows() {
   const psFilter = appRootNorm.replace(/'/g, "''")
+  const psFilterWin = appRootWin.replace(/'/g, "''")
   runPowerShell(`
 $appRoot = '${psFilter}'
-$appRootWin = '${appRootWin.replace(/'/g, "''")}'
+$appRootWin = '${psFilterWin}'
 function Test-MetaMatesProcess([string]$name, [string]$cmd) {
-  if ($name -match '^MetaMates\\.exe$') { return $true }
+  $releaseRoot = ($appRootWin + '\\\\release') -replace '\\\\','/'
+  if ($name -match '^MetaMates\\.exe$') {
+    if (-not $cmd) { return $false }
+    $norm = $cmd -replace '\\\\','/'
+    return ($norm -match [regex]::Escape($appRoot)) -or ($norm -match [regex]::Escape($releaseRoot))
+  }
   if (-not $cmd) { return $false }
   $norm = $cmd -replace '\\\\','/'
   $underRoot = ($norm -match [regex]::Escape($appRoot)) -or ($cmd -match [regex]::Escape($appRootWin))
@@ -132,6 +142,7 @@ function stopUnix() {
 }
 
 console.log(`MetaMates stop — app root: ${appRoot}`)
+console.log('Note: MetaMates.exe is stopped only when launched from this repo (release/ or dev).')
 console.log('Note: this script only stops MetaMates dev/build processes — not Cursor or other Electron apps.')
 if (process.platform === 'win32') {
   stopWindows()

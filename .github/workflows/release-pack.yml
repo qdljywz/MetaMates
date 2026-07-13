@@ -52,8 +52,17 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Pack document-import extension
+        run: npm run plugin:document-import:pack
+
+      - name: Download Whisper model and pack offline-speech extension
+        run: npm run whisper:download-model && npm run plugin:offline-speech:pack
+
       - name: Fresh-user session DB smoke
         run: npm run verify:fresh-user
+
+      - name: Verify offline-speech plugin smoke
+        run: npm run verify:offline-speech-dev
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -63,6 +72,8 @@ jobs:
             metamates-app/release/*.exe
             metamates-app/release/*.blockmap
             metamates-app/release/latest.yml
+            metamates-app/release/MetaMates-document-import-*.zip
+            metamates-app/release/MetaMates-offline-speech-*.zip
           if-no-files-found: error
 
       - name: Publish GitHub Release (Windows)
@@ -76,6 +87,8 @@ jobs:
             metamates-app/release/MetaMates-${{ steps.pkg.outputs.version }}-win-x64.exe
             metamates-app/release/MetaMates-${{ steps.pkg.outputs.version }}-win-x64.exe.blockmap
             metamates-app/release/latest.yml
+            metamates-app/release/MetaMates-document-import-${{ steps.pkg.outputs.version }}-win-x64.zip
+            metamates-app/release/MetaMates-offline-speech-${{ steps.pkg.outputs.version }}-win-x64.zip
 
   pack-mac:
     if: inputs.platform == 'mac' || inputs.platform == 'all'

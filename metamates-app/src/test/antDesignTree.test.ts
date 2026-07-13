@@ -1,13 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 describe('Ant Design Tree loadData 行为测试', () => {
   it('应该正确理解 node 对象结构', () => {
     const mockNode = {
-      key: 'e:\\Trae\\MetaMates\\MyMetaMates\\Daily Note&Plan',
+      key: 'c:\\MetaMatesVault\\Daily Note&Plan',
       props: {
         isLeaf: false,
         dataRef: {
-          key: 'e:\\Trae\\MetaMates\\MyMetaMates\\Daily Note&Plan',
+          key: 'c:\\MetaMatesVault\\Daily Note&Plan',
           title: 'Daily Note&Plan',
         }
       }
@@ -16,7 +16,7 @@ describe('Ant Design Tree loadData 行为测试', () => {
     const nodePath = mockNode.key
     const isLeaf = mockNode.props?.isLeaf ?? (mockNode as any).isLeaf
 
-    expect(nodePath).toBe('e:\\Trae\\MetaMates\\MyMetaMates\\Daily Note&Plan')
+    expect(nodePath).toBe('c:\\MetaMatesVault\\Daily Note&Plan')
     expect(isLeaf).toBe(false)
     
     console.log('✅ node 对象结构正确：key 和 isLeaf 都能正确获取')

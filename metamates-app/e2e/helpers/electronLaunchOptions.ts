@@ -1,12 +1,11 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { resolveE2EWorkspacePath } from './e2eWorkspace'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 export function resolveE2EWorkspace(): string {
-  const fromEnv = process.env.METAMATES_WORKSPACE?.trim()
-  if (fromEnv) return path.resolve(fromEnv)
-  return 'E:\\MyM2'
+  return resolveE2EWorkspacePath()
 }
 
 /** Shared launch options so every spec opens the same vault with E2E bootstrap. */

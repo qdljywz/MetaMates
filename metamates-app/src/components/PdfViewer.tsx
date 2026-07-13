@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { Spin, Empty } from 'antd'
+import { useTranslation } from 'react-i18next'
 
 interface PdfViewerProps {
   filePath: string
 }
 
 const PdfViewer: React.FC<PdfViewerProps> = ({ filePath }) => {
+  const { t } = useTranslation('editor')
   const [dataUrl, setDataUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -18,7 +20,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ filePath }) => {
 
     const load = async () => {
       if (!window.electronAPI?.readFileBase64) {
-        setError('PDF 预览仅在桌面端可用')
+        setError(t('pdf.desktopOnly'))
         setLoading(false)
         return
       }
@@ -28,7 +30,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ filePath }) => {
         const mime = result.mimeType || 'application/pdf'
         setDataUrl(`data:${mime};base64,${result.data}`)
       } else {
-        setError(result.error || '无法读取 PDF')
+        setError(result.error || t('pdf.loadError'))
       }
       setLoading(false)
     }
@@ -37,12 +39,12 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ filePath }) => {
     return () => {
       cancelled = true
     }
-  }, [filePath])
+  }, [filePath, t])
 
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1, minHeight: 0 }}>
-        <Spin tip="加载 PDF..." />
+        <Spin tip={t('pdf.loading')} />
       </div>
     )
   }
@@ -60,7 +62,7 @@ const PdfViewer: React.FC<PdfViewerProps> = ({ filePath }) => {
       <iframe
         title={filePath}
         src={dataUrl || undefined}
-        style={{ width: '100%', height: '100%', border: 'none', background: '#1c1c1f' }}
+        style={{ width: '100%', height: '100%', border: 'none', background: 'var(--canvas-surface)' }}
       />
     </div>
   )

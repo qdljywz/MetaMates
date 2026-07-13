@@ -159,7 +159,6 @@ export const COMMANDS: Command[] = [
     id: '/soal',
     name: '进化固化',
     description: '将习惯或教训永久固化到 2M.md 核心进化层',
-    shortcut: 'Ctrl+Shift+O',
     category: 'planning',
     requiresContext: true,
     executeDirectly: true,
@@ -169,7 +168,7 @@ export const COMMANDS: Command[] = [
   {
     id: '/intel',
     name: '情报导入',
-    description: '抓取网页或文档，生成情报笔记并由 Agent 深化摘要与关联',
+    description: '抓取网页或文档，生成情报笔记并由 AI 助手深化摘要与关联',
     category: 'inspiration',
     requiresContext: false,
     executeDirectly: false,

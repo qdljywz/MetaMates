@@ -136,12 +136,20 @@ async function livePromptSmoke(backend, cliPath, acpArgs, spawnEnv) {
   const { applyGeminiChildEnvOverrides, getGeminiSpawnEnv } = await import(
     pathToFileURL(path.join(ROOT, 'dist-electron/geminiAuth.cjs')).href
   )
+  const { applyClaudeChildEnvOverrides, buildClaudeSessionNewPayload, getClaudeSpawnEnv } =
+    await import(pathToFileURL(path.join(ROOT, 'dist-electron/claudeAuth.cjs')).href)
+  const { resolveAgentRuntime } = await import(
+    pathToFileURL(path.join(ROOT, 'dist-electron/agentCliConfig.cjs')).href
+  )
   const P = await loadPipeline()
 
-  const envExtra = backend === 'gemini' ? getGeminiSpawnEnv() : undefined
+  const envExtra =
+    backend === 'gemini' ? getGeminiSpawnEnv() : backend === 'claude' ? getClaudeSpawnEnv() : undefined
   let { command, args, options } = createSpawnConfigFromResolved(cliPath, acpArgs, WORKSPACE, envExtra)
   if (backend === 'gemini' && options.env) {
     options.env = applyGeminiChildEnvOverrides(options.env)
+  } else if (backend === 'claude' && options.env) {
+    options.env = applyClaudeChildEnvOverrides(options.env)
   }
 
   const conn = await spawnAcp(command, args, options)
@@ -156,14 +164,29 @@ async function livePromptSmoke(backend, cliPath, acpArgs, spawnEnv) {
       protocolVersion: 1,
       clientCapabilities: { fs: { readTextFile: true, writeTextFile: true } },
     }, 60000)
-    const session = await jsonRpc(conn, 'session/new', { cwd: WORKSPACE, mcpServers: [] }, 60000)
+    const sessionPayload =
+      backend === 'claude'
+        ? buildClaudeSessionNewPayload(WORKSPACE, [])
+        : { cwd: WORKSPACE, mcpServers: [] }
+    const session = await jsonRpc(conn, 'session/new', sessionPayload, 60000)
     if (!session?.sessionId) {
       record(`实连:${backend} session/new`, false, 'no sessionId')
       return
     }
     record(`实连:${backend} session/new`, true, session.sessionId.slice(0, 12))
 
-    if (backend === 'gemini') {
+    if (backend === 'claude') {
+      const runtime = resolveAgentRuntime('claude')
+      const cliModel = runtime.display.effectiveModel
+      if (cliModel) {
+        try {
+          await jsonRpc(conn, 'session/set_model', { sessionId: session.sessionId, modelId: cliModel }, 30000)
+          record(`实连:${backend} 模型 CLI`, true, cliModel)
+        } catch (modelErr) {
+          record(`实连:${backend} 模型 CLI`, false, modelErr.message?.slice(0, 80) || 'set_model failed')
+        }
+      }
+    } else if (backend === 'gemini') {
       const available = session?.models?.availableModels || session?.models?.models || []
       const auto = available.find((m) => /auto/i.test(m.modelId || m.id || '') || /auto/i.test(m.name || ''))
       const autoId = auto?.modelId || auto?.id || 'auto'

@@ -14,13 +14,14 @@ import {
 import { useTranslation } from 'react-i18next'
 import { useAppContext } from '../store/AppContext'
 import type { OpenTab } from '../store/appStore'
-import { useTheme } from '../hooks/useTheme'
 import { getWorkspaceLanguage } from '../constants/paths'
-import { isImportableDocument } from '../../electron/shared/importableFormats'
+import { getDocumentFormat, isImportableDocument, SUPPORTED_IMPORT_EXTENSIONS } from '../../electron/shared/importableFormats'
 import { importDocumentAsIntelligence } from '../services/intelligenceImport'
+import { detectPluginInstallRequired } from '../utils/pluginInstallPrompt'
+import { openPluginInstallToast } from '../utils/openPluginInstallToast'
 import { workspaceIndexService } from '../services/workspaceIndex'
 import { treePathsEqual } from '../utils/fileTreeExpand'
-import { maybeCloseTab } from '../utils/tabClose'
+import { maybeCloseTab, confirmAllDirtyTabsClosed } from '../utils/tabClose'
 import ContextMenu from './ContextMenu'
 
 const TabBar: React.FC = () => {
@@ -28,8 +29,6 @@ const TabBar: React.FC = () => {
   const { t: tCommon } = useTranslation('common')
   const { t: tSidebar, i18n } = useTranslation('sidebar')
   const { state, dispatch } = useAppContext()
-  const { theme } = useTheme()
-  const isDark = theme.mode === 'dark'
 
   const [contextTab, setContextTab] = useState<OpenTab | null>(null)
   const [menuVisible, setMenuVisible] = useState(false)
@@ -50,13 +49,25 @@ const TabBar: React.FC = () => {
 
   const handleTabClose = async (e: React.MouseEvent, path: string) => {
     e.stopPropagation()
-    const ok = await maybeCloseTab(state.openTabs, path, tEditor, tCommon)
+    const autoSave = state.settings.autoSave !== false
+    const ok = await maybeCloseTab(state.openTabs, path, tEditor, tCommon, { autoSave })
     if (!ok) return
     dispatch({ type: 'CLOSE_TAB', payload: path })
     if (state.openTabs.length === 1 && treePathsEqual(state.currentFile ?? '', path)) {
       dispatch({ type: 'SET_CURRENT_FILE', payload: null })
     }
   }
+
+  const closeTabWithGuard = useCallback(async (path: string) => {
+    const autoSave = state.settings.autoSave !== false
+    const ok = await maybeCloseTab(state.openTabs, path, tEditor, tCommon, { autoSave })
+    if (!ok) return false
+    dispatch({ type: 'CLOSE_TAB', payload: path })
+    if (treePathsEqual(state.currentFile ?? '', path)) {
+      dispatch({ type: 'SET_CURRENT_FILE', payload: null })
+    }
+    return true
+  }, [dispatch, state.currentFile, state.openTabs, state.settings.autoSave, tCommon, tEditor])
 
   const handleTabContextMenu = (e: React.MouseEvent, tab: OpenTab) => {
     e.preventDefault()
@@ -86,8 +97,7 @@ const TabBar: React.FC = () => {
     if (state.currentFile === oldPath) {
       dispatch({ type: 'SET_CURRENT_FILE', payload: newPath })
     }
-    await workspaceIndexService.signalVaultTreeChange(oldPath)
-    await workspaceIndexService.signalVaultTreeChange(newPath)
+    await workspaceIndexService.signalVaultItemRenamed(oldPath, newPath)
     message.success(tSidebar('messages.renameSuccess'))
     setRenameOpen(false)
     closeMenu()
@@ -105,7 +115,7 @@ const TabBar: React.FC = () => {
     if (state.currentFile === filePath) {
       dispatch({ type: 'SET_CURRENT_FILE', payload: null })
     }
-    await workspaceIndexService.signalVaultTreeChange(filePath)
+    await workspaceIndexService.signalVaultItemDeleted(filePath)
     message.info(result.alreadyGone ? tSidebar('messages.deleteAlreadyGone') : tSidebar('messages.deleteSuccess'))
     setDeleteOpen(false)
     closeMenu()
@@ -127,6 +137,11 @@ const TabBar: React.FC = () => {
       )
       if (result.error === 'canceled') return
       if (!result.success || !result.notePath) {
+        const pluginPrompt = detectPluginInstallRequired(result)
+        if (pluginPrompt.required) {
+          openPluginInstallToast(tSidebar, pluginPrompt.pluginId)
+          return
+        }
         message.error(result.error || tSidebar('messages.importIntelligenceFailed'))
         return
       }
@@ -135,11 +150,40 @@ const TabBar: React.FC = () => {
         payload: { path: result.notePath, name: result.noteName || 'intel.md', isDirty: false },
       })
       message.success(tSidebar('messages.importIntelligenceSuccess', { name: result.noteName }))
+      if (result.inboxArchivedCount && result.inboxArchivedCount > 0) {
+        message.success(tSidebar('messages.inboxArchivedAfterIntel', { count: result.inboxArchivedCount }))
+      }
     } finally {
       hide()
       setImportLoading(false)
     }
   }, [state.workspacePath, dispatch, tSidebar, closeMenu, i18n.language])
+
+  const closeOthersWithGuard = useCallback(async (keepPath: string) => {
+    const autoSave = state.settings.autoSave !== false
+    const others = state.openTabs.filter((item) => !treePathsEqual(item.path, keepPath))
+    if (others.some((item) => item.isDirty)) {
+      const ok = await confirmAllDirtyTabsClosed(others, tEditor, tCommon, {
+        autoSave,
+        currentFile: state.currentFile,
+      })
+      if (!ok) return false
+    }
+    dispatch({ type: 'CLOSE_OTHER_TABS', payload: keepPath })
+    return true
+  }, [dispatch, state.currentFile, state.openTabs, state.settings.autoSave, tCommon, tEditor])
+
+  const closeAllWithGuard = useCallback(async () => {
+    const autoSave = state.settings.autoSave !== false
+    const ok = await confirmAllDirtyTabsClosed(state.openTabs, tEditor, tCommon, {
+      autoSave,
+      currentFile: state.currentFile,
+    })
+    if (!ok) return false
+    dispatch({ type: 'CLOSE_ALL_TABS' })
+    dispatch({ type: 'SET_CURRENT_FILE', payload: null })
+    return true
+  }, [dispatch, state.currentFile, state.openTabs, state.settings.autoSave, tCommon, tEditor])
 
   const contextMenuItems = useMemo((): MenuProps['items'] => {
     if (!contextTab) return []
@@ -152,8 +196,9 @@ const TabBar: React.FC = () => {
         label: tEditor('tabs.close'),
         icon: <CloseOutlined />,
         onClick: () => {
-          dispatch({ type: 'CLOSE_TAB', payload: tab.path })
-          closeMenu()
+          void closeTabWithGuard(tab.path).then((closed) => {
+            if (closed) closeMenu()
+          })
         },
       },
       {
@@ -161,16 +206,18 @@ const TabBar: React.FC = () => {
         label: tEditor('tabs.closeOthers'),
         disabled: state.openTabs.length <= 1,
         onClick: () => {
-          dispatch({ type: 'CLOSE_OTHER_TABS', payload: tab.path })
-          closeMenu()
+          void closeOthersWithGuard(tab.path).then((closed) => {
+            if (closed) closeMenu()
+          })
         },
       },
       {
         key: 'closeAll',
         label: tEditor('tabs.closeAll'),
         onClick: () => {
-          dispatch({ type: 'CLOSE_ALL_TABS' })
-          closeMenu()
+          void closeAllWithGuard().then((closed) => {
+            if (closed) closeMenu()
+          })
         },
       },
       { type: 'divider' },
@@ -195,17 +242,31 @@ const TabBar: React.FC = () => {
       },
     ]
 
-    if (isImportableDocument(tab.path)) {
-      items.push({
-        key: 'importIntelligence',
-        label: tSidebar('contextMenu.importIntelligence'),
-        icon: <ImportOutlined />,
-        disabled: importLoading,
-        onClick: () => {
-          void handleImportIntelligence(tab.path)
-        },
-      })
-    }
+    const docFormat = getDocumentFormat(tab.path)
+    const canImportIntelligence = isImportableDocument(tab.path)
+    const importDisabledReason = docFormat
+      ? null
+      : tab.path.toLowerCase().endsWith('.doc')
+        ? tSidebar('contextMenu.importIntelligenceUnsupportedDoc')
+        : tSidebar('contextMenu.importIntelligenceUnsupported', {
+            extensions: SUPPORTED_IMPORT_EXTENSIONS.join(', '),
+          })
+
+    items.push({
+      key: 'importIntelligence',
+      label: importDisabledReason
+        ? <span title={importDisabledReason} style={{ opacity: 0.65 }}>{tSidebar('contextMenu.importIntelligence')}</span>
+        : tSidebar('contextMenu.importIntelligence'),
+      icon: <ImportOutlined />,
+      disabled: importLoading,
+      onClick: () => {
+        if (!canImportIntelligence) {
+          message.warning(importDisabledReason || tSidebar('messages.importIntelligenceFailed'))
+          return
+        }
+        void handleImportIntelligence(tab.path)
+      },
+    })
 
     if (isMarkdown) {
       items.push(
@@ -252,17 +313,8 @@ const TabBar: React.FC = () => {
         data-testid="tab-bar"
         role="tablist"
         aria-label={tEditor('tabs.listLabel')}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          background: isDark ? '#181825' : '#f5f5f5',
-          borderBottom: `1px solid ${isDark ? '#313244' : '#e5e7eb'}`,
-          padding: '0 12px',
-          minHeight: 36,
-          flexShrink: 0,
-        }}
       >
-        <span style={{ fontSize: 12, color: isDark ? '#6c7086' : '#9ca3af' }}>
+        <span className="tab-bar__empty-label">
           {tEditor('tabs.emptyPlaceholder')}
         </span>
       </div>
@@ -276,14 +328,6 @@ const TabBar: React.FC = () => {
         data-testid="tab-bar"
         role="tablist"
         aria-label={tEditor('tabs.listLabel')}
-        style={{
-          display: 'flex',
-          background: isDark ? '#181825' : '#f5f5f5',
-          borderBottom: `1px solid ${isDark ? '#313244' : '#e5e7eb'}`,
-          padding: '4px 8px 0',
-          overflowX: 'auto',
-          flexShrink: 0,
-        }}
       >
         {state.openTabs.map((tab: OpenTab) => {
           const isActive = treePathsEqual(tab.path, state.currentFile ?? '')
@@ -298,66 +342,28 @@ const TabBar: React.FC = () => {
               className={isActive ? 'tab-bar__tab tab-bar__tab--active' : 'tab-bar__tab'}
               onClick={() => handleTabClick(tab.path)}
               onContextMenu={(e) => handleTabContextMenu(e, tab)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                padding: '6px 12px',
-                marginRight: '2px',
-                background: isActive ? undefined : (isDark ? '#11111b' : '#e5e7eb'),
-                borderRadius: '6px 6px 0 0',
-                cursor: 'pointer',
-                border: isActive ? undefined : '1px solid transparent',
-                borderBottom: isActive ? undefined : 'none',
-                marginBottom: '-1px',
-                minWidth: '100px',
-                maxWidth: '200px',
-                transition: 'all 0.2s',
-              }}
             >
               {isFolder ? (
-                <FolderOutlined style={{ marginRight: 6, color: '#f59e0b' }} />
+                <FolderOutlined className="tab-bar__tab-icon tab-bar__tab-icon--folder" />
               ) : (
-                <FileOutlined style={{ marginRight: 6, color: '#3b82f6' }} />
+                <FileOutlined className="tab-bar__tab-icon tab-bar__tab-icon--file" />
               )}
               <Tooltip title={tab.name} placement="bottom">
-                <span
-                  style={{
-                    flex: 1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontSize: 13,
-                    color: isActive ? undefined : (isDark ? '#e6e6e6' : '#1f2937'),
-                    fontWeight: isActive ? 600 : 400,
-                  }}
-                >
+                <span className="tab-bar__tab-label">
                   {tab.name}
                 </span>
               </Tooltip>
               {tab.isDirty && (
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: '#3b82f6',
-                    marginLeft: 6,
-                  }}
-                />
+                <span className="tab-bar__dirty-dot" aria-label={tEditor('unsaved')} />
               )}
               <Button
                 type="text"
                 size="small"
                 data-testid="tab-close"
+                className="tab-bar__close"
+                aria-label={tEditor('tabs.closeNamed', { name: tab.name })}
                 icon={<CloseOutlined style={{ fontSize: 10 }} />}
                 onClick={(e) => handleTabClose(e, tab.path)}
-                style={{
-                  marginLeft: 6,
-                  padding: '0 4px',
-                  height: 18,
-                  width: 18,
-                  minWidth: 18,
-                }}
               />
             </div>
           )

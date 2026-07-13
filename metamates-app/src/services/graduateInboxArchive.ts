@@ -24,15 +24,41 @@ export function extractInboxMarkdownCandidates(text: string): string[] {
   return [...matches]
 }
 
+/** True when `absPath` is a direct child of Inbox/ (not already under processed/). */
+export function isActiveInboxNotePath(inboxDir: string, absPath: string): boolean {
+  const absNorm = absPath.replace(/\\/g, '/')
+  const inboxNorm = inboxDir.replace(/\\/g, '/').replace(/\/+$/, '')
+  const lower = absNorm.toLowerCase()
+  if (!lower.startsWith(`${inboxNorm.toLowerCase()}/`)) return false
+  if (lower.includes('/processed/')) return false
+  const relative = absNorm.slice(inboxNorm.length + 1)
+  return relative.length > 0 && !relative.includes('/')
+}
+
+async function resolveInboxCandidateAbs(
+  workspacePath: string,
+  inboxDir: string,
+  candidate: string,
+): Promise<string | null> {
+  const api = window.electronAPI
+  if (!api?.path?.join) return null
+  const normalized = candidate.replace(/\\/g, '/').trim()
+  const abs = /^[A-Za-z]:[/\\]/.test(normalized)
+    ? normalized
+    : await api.path.join(workspacePath, normalized.replace(/^\.?[\\/]+/, ''))
+  return isActiveInboxNotePath(inboxDir, abs) ? abs : null
+}
+
 /**
- * Move source inbox notes to Inbox/processed after successful /graduate.
+ * Move inbox notes to Inbox/processed/ after successful /graduate or /intel.
  */
-export async function archiveGraduatedInboxNotes(options: {
+export async function archiveProcessedInboxNotes(options: {
   workspacePath: string
   language: WorkspaceLanguage
-  sourceTexts: string[]
+  sourceTexts?: string[]
+  explicitPaths?: string[]
 }): Promise<{ moved: string[]; skipped: string[] }> {
-  const { workspacePath, language, sourceTexts } = options
+  const { workspacePath, language, sourceTexts = [], explicitPaths = [] } = options
   const api = window.electronAPI
   if (!api?.path?.join || !api.renameFile || !api.fileExists || !api.createDirectory) {
     return { moved: [], skipped: [] }
@@ -42,25 +68,23 @@ export async function archiveGraduatedInboxNotes(options: {
   const processedDir = await api.path.join(inboxDir, 'processed')
   await api.createDirectory(processedDir)
 
-  const rawCandidates = sourceTexts.flatMap((text) => extractInboxMarkdownCandidates(text))
+  const rawCandidates = [
+    ...explicitPaths,
+    ...sourceTexts.flatMap((text) => extractInboxMarkdownCandidates(text)),
+  ]
   const deduped = new Set<string>()
   const moved: string[] = []
   const skipped: string[] = []
 
   for (const candidate of rawCandidates) {
-    const normalized = candidate.replace(/\\/g, '/').trim()
-    const abs = /^[A-Za-z]:[/\\]/.test(normalized)
-      ? normalized
-      : await api.path.join(workspacePath, normalized.replace(/^\.?[\\/]+/, ''))
-    const absNorm = abs.replace(/\\/g, '/')
-    const inboxNorm = inboxDir.replace(/\\/g, '/')
-    if (!absNorm.toLowerCase().startsWith(inboxNorm.toLowerCase())) {
+    const abs = await resolveInboxCandidateAbs(workspacePath, inboxDir, candidate)
+    if (!abs) {
       skipped.push(candidate)
       continue
     }
-    if (absNorm.toLowerCase().includes('/processed/')) continue
-    if (deduped.has(absNorm.toLowerCase())) continue
-    deduped.add(absNorm.toLowerCase())
+    const absKey = abs.replace(/\\/g, '/').toLowerCase()
+    if (deduped.has(absKey)) continue
+    deduped.add(absKey)
 
     const exists = await api.fileExists(abs)
     if (!exists.exists) {
@@ -80,4 +104,28 @@ export async function archiveGraduatedInboxNotes(options: {
   }
 
   return { moved, skipped }
+}
+
+/** @deprecated Use archiveProcessedInboxNotes */
+export async function archiveGraduatedInboxNotes(options: {
+  workspacePath: string
+  language: WorkspaceLanguage
+  sourceTexts: string[]
+}): Promise<{ moved: string[]; skipped: string[] }> {
+  return archiveProcessedInboxNotes({
+    workspacePath: options.workspacePath,
+    language: options.language,
+    sourceTexts: options.sourceTexts,
+  })
+}
+
+/** Resolve absolute path when it is an unprocessed Inbox note. */
+export async function detectInboxSourcePath(
+  workspacePath: string,
+  language: WorkspaceLanguage,
+  sourcePath: string,
+): Promise<string | undefined> {
+  const inboxDir = await resolveInboxDirPath(workspacePath, language)
+  const abs = await resolveInboxCandidateAbs(workspacePath, inboxDir, sourcePath)
+  return abs ?? undefined
 }

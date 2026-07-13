@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { getDirectoryAncestors, collectRequiredExpandKeys, getTreeRefreshParentDir } from './fileTreeExpand'
 
-const WS = 'E:\\Trae\\MetaMates\\Test\\test0407'
+const WS = 'C:\\MetaMatesVault\\test-fixture'
 
 describe('fileTreeExpand', () => {
   it('returns nested ancestor folders for a deep file', () => {

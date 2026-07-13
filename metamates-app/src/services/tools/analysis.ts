@@ -30,7 +30,7 @@ export class SummarizeTool extends BaseTool {
     if (target === '工作区' || target === '全部') {
       if (context.fileContents && context.fileContents.length > 0) {
         contentToSummarize = context.fileContents.map(f => `【${f.name}】\n${f.content}`).join('\n\n---\n\n')
-        targetName = `工作区 (${context.fileContents.length} 个文件)`
+        targetName = `灵感仓库 (${context.fileContents.length} 个文件)`
       }
     } else if (target === '当前文件' || !target) {
       if (context.currentFile && context.fileContents) {
@@ -103,7 +103,7 @@ export class AnalyzeTool extends BaseTool {
       return {
         success: false,
         error: '没有可分析的内容',
-        displayText: '❌ 工作区没有文件可分析',
+        displayText: '❌ 灵感仓库中没有文件可分析',
         llmContent: 'Error: No files to analyze',
       }
     }
@@ -138,7 +138,7 @@ export class ExtractTasksTool extends BaseTool {
       return {
         success: false,
         error: '没有可提取的文件',
-        displayText: '❌ 工作区没有文件',
+        displayText: '❌ 灵感仓库中没有文件',
         llmContent: 'Error: No files to extract tasks from',
       }
     }
@@ -225,7 +225,7 @@ export class FindLinksTool extends BaseTool {
       return {
         success: false,
         error: '没有可分析的文件',
-        displayText: '❌ 工作区没有文件',
+        displayText: '❌ 灵感仓库中没有文件',
         llmContent: 'Error: No files to analyze',
       }
     }
@@ -320,7 +320,7 @@ export class GenerateReportTool extends BaseTool {
       return {
         success: false,
         error: '没有可分析的文件',
-        displayText: '❌ 工作区没有文件',
+        displayText: '❌ 灵感仓库中没有文件',
         llmContent: 'Error: No files to analyze',
       }
     }
@@ -354,7 +354,7 @@ export class GenerateReportTool extends BaseTool {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
     
-    let displayText = `📊 工作区报告\n\n`
+    let displayText = `📊 灵感仓库报告\n\n`
     displayText += `📁 文件统计\n`
     displayText += `   总文件数: ${totalFiles}\n`
     displayText += `   总字符数: ${totalSize.toLocaleString()}\n`

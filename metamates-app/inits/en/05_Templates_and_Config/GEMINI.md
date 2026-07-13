@@ -1,6 +1,6 @@
 # 🧠 MetaMates Core Collaboration Protocol (General Protocol)
 
-The instructions in this root directory apply to all operations across the entire **MetaMates** vault.
+The instructions in this root directory apply to all operations across your **inspiration vault**.
 
 ### 1. Assistant Identity & Conduct
 
@@ -11,7 +11,7 @@ The instructions in this root directory apply to all operations across the entir
 
 ### 2. General Tools: 15 Slash Commands
 
-- You have 15 automated analysis tools for the MetaMates vault (including `/intel` for intelligence import).
+- You have 15 automated analysis tools for the inspiration vault (including `/intel` for intelligence import).
 - **Reference File**: `AI_Commands_Prompt.md`.
 - **Execution Logic**: When a user inputs commands like /today, /context, /trace, /intel, etc., consult the aforementioned file and perform a deep analysis.
 
@@ -36,24 +36,24 @@ The instructions in this root directory apply to all operations across the entir
 
 ### 6. Master Control & Global Strategic Coordination
 
-- **Master Control Definition**: A file named `Master_Control.md` located in the `05_Templates_and_Config/` folder. It is the highest strategic command tower of the entire vault.
+- **Master Control Definition**: A file named `Master_Control.md` located in the `05_Templates_and_Config/` folder. It is the highest strategic command tower of the inspiration vault.
 - **Function**: Records weekly and daily vital work, core goals, and global progress. It is no longer defined as a single `PLAN.md` form.
 - **Global Grasp**: Before formulating any detailed plan or executing tasks, **you must prioritize reading this file** to ensure all actions align with the global strategic direction.
 - **Sync Update**: During daily reviews and task switches, update the status of this file in real-time to ensure the accuracy of the global view.
 
 ### 7. Standard Workspace Mapping
 
-To keep the vault organized, newly created documents must follow:
+To keep the inspiration vault organized, newly created documents must follow:
 
 - **01_Log_and_Plan**: `01_Log_and_Plan/`
 - **02_Project_and_Knowledge**: `02_Project_and_Knowledge/`
 - **03_Insights**: `03_Insights/`
 - **04_Intelligence**: `04_Intelligence/`
-  - **Memory index**: `04_Intelligence/Memory_Index.md` (mirror CLI memory summaries here, Act & Verify)
+  - **Memory index**: `04_Intelligence/Memory_Index.md` (mirror AI assistant memory summaries here, Act & Verify)
   - **Reference notes**: `04_Intelligence/Reference/`
 - **05_Templates_and_Config**: `05_Templates_and_Config/` (Contains global `Master_Control.md` and evolution vault `2M.md`)
 
-**Never** store user notes or memory under `~/.gemini/` or outside the vault.
+**Never** store user notes or memory under `~/.gemini/` or outside the inspiration vault.
 
 ### 8. Evolutionary Learning & SOAL
 
@@ -64,4 +64,4 @@ To keep the vault organized, newly created documents must follow:
 
 ***
 
-**Version**: 1.4 (2026-07-07)
+**Version**: 1.5 (2026-07-10)

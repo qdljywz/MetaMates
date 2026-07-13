@@ -66,15 +66,47 @@ class WorkspaceIndexService {
     this.vaultChangeListeners.forEach((listener) => listener(event))
   }
 
-  /** 主动通知侧栏文件树刷新（如从标签栏删除后） */
+  /** @deprecated 请改用 signalVaultItemDeleted / signalVaultItemRenamed */
   async signalVaultTreeChange(filePath: string): Promise<void> {
+    await this.signalVaultItemDeleted(filePath)
+  }
+
+  /** 删除后立即刷新文件树 */
+  async signalVaultItemDeleted(filePath: string, isDirectory = false): Promise<void> {
     if (!window.electronAPI || !this.workspacePath) {
       this.notifyVaultChanged()
       return
     }
     const parentDir = await window.electronAPI.path.dirname(filePath)
-    const filename = filePath.split(/[/\\]/).pop() || ''
-    this.notifyVaultChanged({ type: 'change', dirPath: parentDir, filename })
+    this.notifyVaultChanged({
+      type: 'unlink',
+      dirPath: parentDir,
+      filename: '',
+      deletedPath: filePath,
+      isDirectory,
+    })
+  }
+
+  /** 创建文件/文件夹后立即刷新文件树并展开到可见位置 */
+  signalVaultItemCreated(parentPath: string, createdPath?: string): void {
+    this.notifyVaultChanged({ type: 'create', dirPath: parentPath, filename: '', createdPath })
+  }
+
+  /** 重命名后立即刷新文件树 */
+  async signalVaultItemRenamed(oldPath: string, newPath: string): Promise<void> {
+    if (!window.electronAPI || !this.workspacePath) {
+      this.notifyVaultChanged()
+      return
+    }
+    const newParent = await window.electronAPI.path.dirname(newPath)
+    this.notifyVaultChanged({
+      type: 'rename',
+      dirPath: newParent,
+      filename: '',
+      oldPath,
+      newPath,
+      createdPath: newPath,
+    })
   }
 
   /**

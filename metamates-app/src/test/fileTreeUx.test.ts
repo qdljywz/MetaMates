@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+﻿import { describe, expect, it } from 'vitest'
 import {
   getExpandedDirsToRehydrate,
   getVaultCreateRefreshDir,
@@ -8,7 +8,7 @@ import {
   withoutLoadedTreeKey,
 } from '../utils/fileTreeUx'
 
-const WS = 'E:\\Trae\\MetaMates\\Test\\test0407'
+const WS = 'C:\\MetaMatesVault\\test-fixture'
 
 describe('fileTreeUx (pinned)', () => {
   it('UX-08: refresh parent dir after create, not workspace root', () => {

@@ -114,6 +114,10 @@ const DailyNoteCalendar = memo(({ onOpenNote, onEntryCreated, onOpenInGraph }: D
     () => (theme.mode === 'dark' ? darkActionChipStyle : lightActionChipStyle),
     [theme.mode],
   )
+  const navButtonStyle = useMemo<React.CSSProperties>(
+    () => (theme.mode === 'dark' ? darkNavButtonStyle : lightNavButtonStyle),
+    [theme.mode],
+  )
 
   const monthLabel = useMemo(() => {
     const date = new Date(viewYear, viewMonth, 1)
@@ -183,9 +187,10 @@ const DailyNoteCalendar = memo(({ onOpenNote, onEntryCreated, onOpenInGraph }: D
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <div style={{ fontSize: 12, fontWeight: 600 }}>{t('dailyCalendar.title')}</div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button type="button" onClick={() => shiftMonth(-1)} style={navButtonStyle}>‹</button>
+          <button type="button" className="daily-nav-button" onClick={() => shiftMonth(-1)} style={navButtonStyle}>‹</button>
           <button
             type="button"
+            className="daily-nav-button"
             onClick={() => {
               setViewYear(now.getFullYear())
               setViewMonth(now.getMonth())
@@ -195,7 +200,7 @@ const DailyNoteCalendar = memo(({ onOpenNote, onEntryCreated, onOpenInGraph }: D
           >
             {t('dailyCalendar.today')}
           </button>
-          <button type="button" onClick={() => shiftMonth(1)} style={navButtonStyle}>›</button>
+          <button type="button" className="daily-nav-button" onClick={() => shiftMonth(1)} style={navButtonStyle}>›</button>
         </div>
       </div>
 
@@ -236,11 +241,11 @@ const DailyNoteCalendar = memo(({ onOpenNote, onEntryCreated, onOpenInGraph }: D
                 style={{
                   position: 'relative',
                   border: isSelected
-                    ? '1px solid #ff7a00'
-                    : (isToday ? '1px solid rgba(255,122,0,0.55)' : '1px solid transparent'),
+                    ? '1px solid var(--accent)'
+                    : (isToday ? '1px solid color-mix(in srgb, var(--accent) 55%, transparent)' : '1px solid transparent'),
                   borderRadius: 6,
                   background: level > 0 ? heatBackground : noteBackground,
-                  color: isToday ? '#ff7a00' : (inViewMonth ? 'inherit' : 'rgba(127,127,127,0.45)'),
+                  color: isToday ? 'var(--accent)' : (inViewMonth ? 'inherit' : 'var(--text-dim)'),
                   cursor: 'pointer',
                   padding: '4px 0',
                   fontSize: 11,
@@ -252,10 +257,10 @@ const DailyNoteCalendar = memo(({ onOpenNote, onEntryCreated, onOpenInGraph }: D
                 {(hasNote || hasPlan) && (
                   <span style={{ position: 'absolute', right: 2, bottom: 2, display: 'flex', gap: 2 }}>
                     {hasNote && (
-                      <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#ff7a00' }} />
+                      <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--accent)' }} />
                     )}
                     {hasPlan && (
-                      <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#3b82f6' }} />
+                      <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--info)' }} />
                     )}
                   </span>
                 )}
@@ -328,7 +333,7 @@ const DailyNoteCalendar = memo(({ onOpenNote, onEntryCreated, onOpenInGraph }: D
                 <span style={{ opacity: 0.55, marginRight: 6 }}>
                   {formatEditTime(entry.lastModified, i18n.language)}
                 </span>
-                <span style={{ color: entry.dailyKind === 'plan' ? '#3b82f6' : (entry.dailyKind === 'note' ? '#ff7a00' : 'inherit') }}>
+                <span style={{ color: entry.dailyKind === 'plan' ? 'var(--info)' : (entry.dailyKind === 'note' ? 'var(--accent)' : 'inherit') }}>
                   {entry.relativePath || entry.name}
                 </span>
               </button>
@@ -344,13 +349,23 @@ const DailyNoteCalendar = memo(({ onOpenNote, onEntryCreated, onOpenInGraph }: D
   )
 })
 
-const navButtonStyle: React.CSSProperties = {
+const lightNavButtonStyle: React.CSSProperties = {
   border: '1px solid rgba(127,127,127,0.25)',
   background: 'transparent',
   borderRadius: 6,
   cursor: 'pointer',
   padding: '2px 8px',
   fontSize: 12,
+}
+
+const darkNavButtonStyle: React.CSSProperties = {
+  border: '1px solid rgba(255,255,255,0.28)',
+  background: 'rgba(15,15,20,0.9)',
+  borderRadius: 6,
+  cursor: 'pointer',
+  padding: '2px 8px',
+  fontSize: 12,
+  color: '#f9fafb',
 }
 
 const lightActionChipStyle: React.CSSProperties = {

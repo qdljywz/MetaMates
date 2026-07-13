@@ -1,0 +1,14 @@
+{
+  "name": "@metamates/plugin-document-import",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MetaMates optional plugin — PDF/Word/Excel/OCR document import",
+  "main": "extractExtended.cjs",
+  "dependencies": {
+    "mammoth": "^1.12.0",
+    "metamates-app": "file:../..",
+    "pdf-parse": "^2.4.5",
+    "tesseract.js": "^7.0.0",
+    "xlsx": "^0.18.5"
+  }
+}

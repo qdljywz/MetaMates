@@ -24,8 +24,10 @@ import { useAppContext } from '../store/AppContext'
 import { getWorkspaceLanguage } from '../constants/paths'
 import { isHiddenFromFileTree } from '../services/vaultPaths'
 import { workspaceIndexService } from '../services/workspaceIndex'
-import { isImportableDocument } from '../../electron/shared/importableFormats'
+import { getDocumentFormat, isImportableDocument, SUPPORTED_IMPORT_EXTENSIONS } from '../../electron/shared/importableFormats'
 import { importDocumentAsIntelligence } from '../services/intelligenceImport'
+import { detectPluginInstallRequired } from '../utils/pluginInstallPrompt'
+import { openPluginInstallToast } from '../utils/openPluginInstallToast'
 import TemplateSelector from './TemplateSelector'
 import ContextMenu from './ContextMenu'
 import DailyNoteCalendar from './DailyNoteCalendar'
@@ -38,6 +40,7 @@ import {
   isTreeFolderNode,
   mergeRootTreeChildren,
   patchTreeNodeChildren,
+  removeTreeNodeByPath,
 } from '../utils/fileTreeUx'
 import type { FileChangeEvent } from '../types/electron'
 import { wasStartupWorkspaceInitDone, consumeStartupFileTreeCache, wasStartupFileTreeReady } from '../utils/startupPreload'
@@ -168,8 +171,22 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
     }
   }, [reloadDirectoryInTree, state.workspacePath])
 
+  const choosePreferredVaultEvent = useCallback((
+    current: FileChangeEvent | undefined,
+    incoming: FileChangeEvent | undefined,
+  ): FileChangeEvent | undefined => {
+    if (!incoming) return current
+    if (!current) return incoming
+    if (!state.workspacePath) return incoming
+    if (current.type === 'unlink') return current
+    if (incoming.type === 'unlink') return incoming
+    const currentDir = getTreeRefreshParentDir(state.workspacePath, current)
+    const incomingDir = getTreeRefreshParentDir(state.workspacePath, incoming)
+    return incomingDir.length >= currentDir.length ? incoming : current
+  }, [state.workspacePath])
+
   const scheduleRefreshFromVaultChange = useCallback((event?: FileChangeEvent) => {
-    pendingVaultEventRef.current = event
+    pendingVaultEventRef.current = choosePreferredVaultEvent(pendingVaultEventRef.current, event)
     if (vaultRefreshTimerRef.current) {
       clearTimeout(vaultRefreshTimerRef.current)
     }
@@ -179,7 +196,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
       pendingVaultEventRef.current = undefined
       void refreshTreeFromVaultChange(pending)
     }, 200)
-  }, [refreshTreeFromVaultChange])
+  }, [choosePreferredVaultEvent, refreshTreeFromVaultChange])
 
   const loadNodeChildren = useCallback(async (nodePath: string) => {
     if (!window.electronAPI) return
@@ -242,11 +259,16 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
 
     flushSync(() => {
       setTreeData((prev) => {
+        if (treePathsEqual(parentPath, state.workspacePath!)) {
+          return mergeRootTreeChildren(prev, children)
+        }
         const next = patchTreeNodeChildren(prev, parentPath, children)
         return next.patched ? next.tree : prev
       })
     })
-    await refreshExpandedTree()
+    if (!treePathsEqual(parentPath, state.workspacePath)) {
+      await refreshExpandedTree()
+    }
     await reloadDirectoryInTree(parentPath)
 
     if (!createdPath) return
@@ -261,6 +283,61 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
     }
   }, [bumpLoadGeneration, loadNodeChildren, mapFilesToTreeNodes, refreshExpandedTree, reloadDirectoryInTree, state.workspacePath])
 
+  /** 删除后立即从树中移除并重新列出父目录 */
+  const refreshAfterDeleteInTree = useCallback(async (filePath: string, isDirectory = false) => {
+    if (!window.electronAPI || !state.workspacePath) return
+
+    const parentDir = await window.electronAPI.path.dirname(filePath)
+
+    flushSync(() => {
+      setTreeData((prev) => removeTreeNodeByPath(prev, filePath).tree)
+    })
+
+    if (isDirectory) {
+      const normalized = filePath.replace(/\//g, '\\').toLowerCase()
+      for (const key of [...loadedKeysRef.current]) {
+        const keyLower = key.replace(/\//g, '\\').toLowerCase()
+        if (treePathsEqual(key, filePath) || keyLower.startsWith(`${normalized}\\`)) {
+          loadedKeysRef.current.delete(key)
+        }
+      }
+      setUserExpandedKeys((prev) =>
+        prev.filter((key) => {
+          const keyLower = key.replace(/\//g, '\\').toLowerCase()
+          return !treePathsEqual(key, filePath) && !keyLower.startsWith(`${normalized}\\`)
+        }),
+      )
+    }
+
+    await reloadDirectoryInTree(parentDir)
+  }, [reloadDirectoryInTree, state.workspacePath])
+
+  /** 重命名/移动后立即刷新涉及的父目录 */
+  const refreshAfterRenameInTree = useCallback(async (oldPath: string, newPath: string) => {
+    if (!window.electronAPI || !state.workspacePath) return
+
+    const oldParent = await window.electronAPI.path.dirname(oldPath)
+    const newParent = await window.electronAPI.path.dirname(newPath)
+
+    flushSync(() => {
+      setTreeData((prev) => removeTreeNodeByPath(prev, oldPath).tree)
+    })
+
+    await reloadDirectoryInTree(oldParent)
+    if (!treePathsEqual(oldParent, newParent)) {
+      await reloadDirectoryInTree(newParent)
+    }
+
+    const expandDirs = getVaultCreateRevealExpandKeys(newPath, newParent, state.workspacePath)
+    setUserExpandedKeys((prev) => [...new Set([...prev, ...expandDirs])])
+    const dirsToLoad = [...expandDirs]
+      .filter((dir) => !treePathsEqual(dir, newParent))
+      .sort((a, b) => a.length - b.length)
+    if (dirsToLoad.length > 0) {
+      await Promise.all(dirsToLoad.map((dir) => loadNodeChildren(dir)))
+    }
+  }, [loadNodeChildren, reloadDirectoryInTree, state.workspacePath])
+
   const handleReinitWorkspace = async () => {
     if (!window.electronAPI || !state.workspacePath) return
     
@@ -273,7 +350,9 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
       console.log('[Reinit] Result:', result)
       if (result.success) {
         void refreshExpandedTree()
-        message.success(result.message || `已添加 ${result.createdItems?.length || 0} 个项目`)
+        message.success(
+          result.message || t('messages.reinitSuccess', { count: result.createdItems?.length || 0 })
+        )
       } else {
         message.error(t('messages.reinitFailed') + ': ' + result.error)
       }
@@ -296,10 +375,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
         void refreshExpandedTree()
         void workspaceIndexService.rebuild(state.workspacePath)
         setLegacyPaths([])
-        message.success(
-          t('messages.migrateSuccess', { count: result.migrated.length }) ||
-            `已迁移 ${result.migrated.length} 项到标准目录`
-        )
+        message.success(t('messages.migrateSuccess', { count: result.migrated.length }))
       } else {
         message.error(t('messages.migrateFailed') + ': ' + result.error)
       }
@@ -357,6 +433,19 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
   useEffect(() => {
     if (!state.workspacePath) return
     const unsubscribe = workspaceIndexService.onVaultChanged((event) => {
+      if (!event) return
+      if (event.type === 'create' && event.dirPath) {
+        void refreshAfterCreateInFolder(event.dirPath, event.createdPath)
+        return
+      }
+      if (event.type === 'unlink' && event.deletedPath) {
+        void refreshAfterDeleteInTree(event.deletedPath, event.isDirectory)
+        return
+      }
+      if (event.type === 'rename' && event.oldPath && event.newPath) {
+        void refreshAfterRenameInTree(event.oldPath, event.newPath)
+        return
+      }
       scheduleRefreshFromVaultChange(event)
     })
     return () => {
@@ -366,7 +455,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
         vaultRefreshTimerRef.current = null
       }
     }
-  }, [scheduleRefreshFromVaultChange, state.workspacePath])
+  }, [refreshAfterCreateInFolder, refreshAfterDeleteInTree, refreshAfterRenameInTree, scheduleRefreshFromVaultChange, state.workspacePath])
 
   const filteredTreeData = useMemo(() => {
     if (!searchText.trim()) return treeData
@@ -436,8 +525,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
     const result = await window.electronAPI.renameFile(oldPath, newPath)
     if (result.success) {
       message.success(t('messages.renameSuccess'))
-      await workspaceIndexService.signalVaultTreeChange(oldPath)
-      await workspaceIndexService.signalVaultTreeChange(newPath)
+      await workspaceIndexService.signalVaultItemRenamed(oldPath, newPath)
       const tabNewName = `${newName}${ext}`
       const renamePayload = getRenameTabPayload(state.openTabs, oldPath, newPath, tabNewName)
       if (renamePayload) {
@@ -454,11 +542,13 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
 
   const handleDelete = async () => {
     if (!contextMenuNodeRef.current || !window.electronAPI) return
-    const filePath = contextMenuNodeRef.current.key as string
+    const node = contextMenuNodeRef.current
+    const filePath = node.key as string
+    const isDirectory = isTreeFolderNode(node)
     const result = await window.electronAPI.deleteFile(filePath)
     if (result.success) {
       message.info(result.alreadyGone ? t('messages.deleteAlreadyGone') : t('messages.deleteSuccess'))
-      await workspaceIndexService.signalVaultTreeChange(filePath)
+      await workspaceIndexService.signalVaultItemDeleted(filePath, isDirectory)
       for (const tabPath of getTabPathsToCloseForDeletedFile(state.openTabs, filePath)) {
         dispatch({ type: 'CLOSE_TAB', payload: tabPath })
       }
@@ -486,7 +576,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
       pendingNewFileParentRef.current = null
       setPendingNewFileParentPath(null)
       contextMenuNodeRef.current = null
-      await refreshAfterCreateInFolder(parentPath, filePath)
+      workspaceIndexService.signalVaultItemCreated(parentPath, filePath)
       dispatch({
         type: 'ADD_TAB',
         payload: { path: filePath, name: tabName, isDirty: false },
@@ -511,7 +601,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
       pendingNewFolderParentRef.current = null
       setPendingNewFolderParentPath(null)
       contextMenuNodeRef.current = null
-      await refreshAfterCreateInFolder(parentPath, folderPath)
+      workspaceIndexService.signalVaultItemCreated(parentPath, folderPath)
     } else {
       message.error(t('messages.createFailed') + ': ' + result.error)
     }
@@ -540,6 +630,11 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
       )
       if (result.error === 'canceled') return
       if (!result.success || !result.notePath) {
+        const pluginPrompt = detectPluginInstallRequired(result)
+        if (pluginPrompt.required) {
+          openPluginInstallToast(t, pluginPrompt.pluginId)
+          return
+        }
         message.error(result.error || t('messages.importIntelligenceFailed'))
         return
       }
@@ -548,11 +643,14 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
         payload: { path: result.notePath, name: result.noteName || 'intel.md', isDirty: false },
       })
       message.success(t('messages.importIntelligenceSuccess', { name: result.noteName }))
+      if (result.inboxArchivedCount && result.inboxArchivedCount > 0) {
+        message.success(t('messages.inboxArchivedAfterIntel', { count: result.inboxArchivedCount }))
+      }
       if (result.warnings?.length) {
-        message.warning(result.warnings.join('；'))
+        message.warning(result.warnings.join(t('messages.listSeparator')))
       }
       const parentDir = await window.electronAPI.path.dirname(result.notePath)
-      await refreshAfterCreateInFolder(parentDir, result.notePath)
+      workspaceIndexService.signalVaultItemCreated(parentDir, result.notePath)
     } finally {
       hide()
       setImportIntelLoading(false)
@@ -604,12 +702,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
       } else if (state.currentFile && treePathsEqual(state.currentFile, dragPath)) {
         dispatch({ type: 'SET_CURRENT_FILE', payload: targetPath })
       }
-      await workspaceIndexService.signalVaultTreeChange(dragPath)
-      await workspaceIndexService.signalVaultTreeChange(targetPath)
-      await refreshAfterCreateInFolder(
-        await window.electronAPI.path.dirname(targetPath),
-        targetPath,
-      )
+      await workspaceIndexService.signalVaultItemRenamed(dragPath, targetPath)
     } else {
       message.error(t('messages.moveFailed') + ': ' + result.error)
     }
@@ -734,6 +827,18 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
   const getFileMenuItems = useCallback((): MenuProps['items'] => {
     const node = contextMenuNodeRef.current
     const filePath = node?.key as string | undefined
+    const docFormat = filePath ? getDocumentFormat(filePath) : null
+    const canImportIntelligence = !!filePath && isImportableDocument(filePath)
+    const lowerPath = (filePath || '').toLowerCase()
+    const importDisabledReason = !filePath
+      ? null
+      : docFormat
+        ? null
+        : lowerPath.endsWith('.doc')
+          ? t('contextMenu.importIntelligenceUnsupportedDoc')
+          : t('contextMenu.importIntelligenceUnsupported', {
+              extensions: SUPPORTED_IMPORT_EXTENSIONS.join(', '),
+            })
     const items: MenuProps['items'] = [
       {
         key: 'open',
@@ -765,17 +870,22 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
       },
     ]
 
-    if (filePath && isImportableDocument(filePath)) {
-      items.push({
-        key: 'importIntelligence',
-        label: t('contextMenu.importIntelligence'),
-        icon: <ImportOutlined />,
-        disabled: importIntelLoading,
-        onClick: () => {
-          void handleImportIntelligence(filePath)
-        },
-      })
-    }
+    items.push({
+      key: 'importIntelligence',
+      label: importDisabledReason
+        ? <span title={importDisabledReason} style={{ opacity: 0.65 }}>{t('contextMenu.importIntelligence')}</span>
+        : t('contextMenu.importIntelligence'),
+      icon: <ImportOutlined />,
+      disabled: importIntelLoading || !filePath,
+      onClick: () => {
+        if (!filePath) return
+        if (!canImportIntelligence) {
+          message.warning(importDisabledReason || t('messages.importIntelligenceFailed'))
+          return
+        }
+        void handleImportIntelligence(filePath)
+      },
+    })
 
     items.push(
       { type: 'divider' },
@@ -871,7 +981,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
               loading={migrateLoading}
               size="small"
               title={t('migrateWorkspace')}
-              style={{ color: '#f59e0b' }}
+              style={{ color: 'var(--warning)' }}
             />
           )}
           {!collapsed && (
@@ -1072,7 +1182,7 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
           
           if (result.success) {
             message.success(t('messages.fileCreated'))
-            await refreshAfterCreateInFolder(templateTargetPath, filePath)
+            workspaceIndexService.signalVaultItemCreated(templateTargetPath, filePath)
             const tabName = filePath.split(/[/\\]/).pop() || fileName
             dispatch({
               type: 'ADD_TAB',

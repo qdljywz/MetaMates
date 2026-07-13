@@ -114,7 +114,7 @@ const AgentMessageItem = memo(({ msg, theme, isDark, workspacePath, renderMarkdo
         <div style={{ color: theme.textSecondary, fontStyle: 'italic' }}>💭 {msg.content}</div>
       ) : msg.type === 'plan' ? (
         <div style={{ fontSize: 13 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8, color: theme.primary }}>📋 {msg.title || 'Plan'}</div>
+          <div style={{ fontWeight: 600, marginBottom: 8, color: theme.primary }}>📋 {msg.title || t('modes.plan')}</div>
           <pre style={{
             margin: 0,
             whiteSpace: 'pre-wrap',

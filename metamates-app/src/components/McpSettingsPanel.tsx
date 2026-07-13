@@ -81,11 +81,11 @@ const McpSettingsPanel: React.FC<McpSettingsPanelProps> = ({ open, onClose }) =>
       const ok = result.results.filter(r => r.success).length
       const fail = result.results.filter(r => !r.success).length
       if (fail === 0 && ok > 0) {
-        message.success(t('settings.mcpReconnectDone') || `已重载 ${ok} 个 Agent 会话`)
+        message.success(t('settings.mcpReconnectDone'))
       } else if (ok > 0) {
-        message.warning(t('settings.mcpReconnectPartial') || `部分 Agent 重载成功 (${ok}/${ok + fail})`)
+        message.warning(t('settings.mcpReconnectPartial'))
       } else {
-        message.info(t('settings.mcpReconnectHint') || 'MCP 已保存；下次连接 Agent 时生效')
+        message.info(t('settings.mcpReconnectHint'))
       }
     } else {
       message.success(t('settings.savedSuccess'))
@@ -100,7 +100,7 @@ const McpSettingsPanel: React.FC<McpSettingsPanelProps> = ({ open, onClose }) =>
   const handleDelete = async (id: string) => {
     const next = servers.filter(s => s.id !== id)
     await persist(next)
-    message.success(t('settings.mcpDeleted') || '已删除')
+    message.success(t('settings.mcpDeleted'))
   }
 
   const openEditor = (server?: UserMcpServer) => {
@@ -141,24 +141,24 @@ const McpSettingsPanel: React.FC<McpSettingsPanelProps> = ({ open, onClose }) =>
 
   const columns = [
     {
-      title: t('settings.mcpName') || '名称',
+      title: t('settings.mcpName'),
       dataIndex: 'name',
       key: 'name',
       render: (name: string, row: UserMcpServer) => (
         <Space>
           {name}
-          {row.builtin && <Tag color="blue">builtin</Tag>}
+          {row.builtin && <Tag className="mm-tag mm-tag--teal">{t('settings.mcpBuiltin')}</Tag>}
         </Space>
       ),
     },
     {
-      title: t('settings.mcpCommand') || '命令',
+      title: t('settings.mcpCommand'),
       dataIndex: 'command',
       key: 'command',
       ellipsis: true,
     },
     {
-      title: t('settings.mcpEnabled') || '启用',
+      title: t('settings.mcpEnabled'),
       key: 'enabled',
       width: 80,
       render: (_: unknown, row: UserMcpServer) => (
@@ -170,14 +170,14 @@ const McpSettingsPanel: React.FC<McpSettingsPanelProps> = ({ open, onClose }) =>
       ),
     },
     {
-      title: t('settings.actions') || '操作',
+      title: t('settings.actions'),
       key: 'actions',
       width: 120,
       render: (_: unknown, row: UserMcpServer) =>
         row.builtin ? null : (
           <Space>
             <Button type="text" size="small" icon={<EditOutlined />} onClick={() => openEditor(row)} />
-            <Popconfirm title={t('settings.mcpDeleteConfirm') || '确认删除？'} onConfirm={() => handleDelete(row.id)}>
+            <Popconfirm title={t('settings.mcpDeleteConfirm')} onConfirm={() => handleDelete(row.id)}>
               <Button type="text" size="small" danger icon={<DeleteOutlined />} />
             </Popconfirm>
           </Space>
@@ -190,11 +190,11 @@ const McpSettingsPanel: React.FC<McpSettingsPanelProps> = ({ open, onClose }) =>
       <Modal
         open={open}
         onCancel={onClose}
-        title={t('settings.mcpTitle') || 'MCP 服务器'}
+        title={t('settings.mcpTitle')}
         width={720}
         footer={[
           <Button key="add" type="dashed" icon={<PlusOutlined />} onClick={() => openEditor()}>
-            {t('settings.mcpAdd') || '添加 MCP'}
+            {t('settings.mcpAdd')}
           </Button>,
           <Button key="close" onClick={onClose}>
             {t('settings.cancel')}
@@ -202,7 +202,7 @@ const McpSettingsPanel: React.FC<McpSettingsPanelProps> = ({ open, onClose }) =>
         ]}
       >
         <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-          {t('settings.mcpHint') || '启用的 MCP 会在 ACP session/new 时注入。Vault 桥接在 Vault API 开启时自动加入。'}
+          {t('settings.mcpHint')}
         </p>
         <Table
           rowKey="id"
@@ -216,26 +216,26 @@ const McpSettingsPanel: React.FC<McpSettingsPanelProps> = ({ open, onClose }) =>
 
       <Modal
         open={editOpen}
-        title={editing ? (t('settings.mcpEdit') || '编辑 MCP') : (t('settings.mcpAdd') || '添加 MCP')}
+        title={editing ? t('settings.mcpEdit') : t('settings.mcpAdd')}
         onCancel={() => { setEditOpen(false); setEditing(null) }}
         onOk={handleSaveEdit}
         okText={t('settings.save')}
         cancelText={t('settings.cancel')}
       >
         <Form form={form} layout="vertical" size="small">
-          <Form.Item name="name" label={t('settings.mcpName') || '名称'} rules={[{ required: true }]}>
+          <Form.Item name="name" label={t('settings.mcpName')} rules={[{ required: true }]}>
             <Input placeholder="my-mcp-server" />
           </Form.Item>
-          <Form.Item name="command" label={t('settings.mcpCommand') || '命令'} rules={[{ required: true }]}>
+          <Form.Item name="command" label={t('settings.mcpCommand')} rules={[{ required: true }]}>
             <Input placeholder="npx" />
           </Form.Item>
-          <Form.Item name="args" label={t('settings.mcpArgs') || '参数（空格分隔）'}>
+          <Form.Item name="args" label={t('settings.mcpArgs')}>
             <Input placeholder="-y @modelcontextprotocol/server-filesystem /path" />
           </Form.Item>
-          <Form.Item name="env" label={t('settings.mcpEnv') || '环境变量（KEY=VALUE 每行）'}>
+          <Form.Item name="env" label={t('settings.mcpEnv')}>
             <Input.TextArea rows={3} placeholder="API_KEY=xxx" />
           </Form.Item>
-          <Form.Item name="enabled" label={t('settings.mcpEnabled') || '启用'} valuePropName="checked">
+          <Form.Item name="enabled" label={t('settings.mcpEnabled')} valuePropName="checked">
             <Switch />
           </Form.Item>
         </Form>

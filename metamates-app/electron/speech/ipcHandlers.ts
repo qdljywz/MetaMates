@@ -9,21 +9,44 @@ import {
   startWindowsSpeech,
   stopWindowsSpeech,
 } from './windowsSpeech'
+import { isWhisperSpeechAvailable, transcribeAudioBlob } from './whisperTranscribe'
 
 /**
  * @param getMainWindow - 获取当前主窗口（用于推送 transcript / error）
  */
 export function registerSpeechHandlers(getMainWindow: () => BrowserWindow | null): void {
   ipcMain.handle('speech-is-available', () => ({
-    available: isWindowsSpeechAvailable(),
+    available: isWhisperSpeechAvailable() || isWindowsSpeechAvailable(),
+    whisper: isWhisperSpeechAvailable(),
+    native: isWindowsSpeechAvailable(),
     running: isWindowsSpeechRunning(),
   }))
 
-  ipcMain.handle('speech-start', (_event, language: string = 'zh-CN') => {
+  ipcMain.handle(
+    'speech-transcribe-audio',
+    async (_event, payload: {
+      base64?: string
+      mimeType?: string
+      pcmBase64?: string
+      sampleRate?: number
+      language: string
+    }) => {
+      try {
+        const text = await transcribeAudioBlob(payload)
+        return { success: true, text }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        console.error('[speech] whisper transcribe failed:', message)
+        return { success: false, error: message }
+      }
+    },
+  )
+
+  ipcMain.handle('speech-start', async (_event, language: string = 'zh-CN') => {
     const win = getMainWindow()
     if (!win) return { success: false, error: 'no-window' }
 
-    const ok = startWindowsSpeech(
+    return startWindowsSpeech(
       language,
       (update) => {
         if (!win.isDestroyed()) {
@@ -36,8 +59,6 @@ export function registerSpeechHandlers(getMainWindow: () => BrowserWindow | null
         }
       },
     )
-
-    return { success: ok }
   })
 
   ipcMain.handle('speech-stop', () => {

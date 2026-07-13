@@ -1,4 +1,7 @@
 .startup-splash {
+  /* LOCKED: --startup-cycle comes from logoTrace STARTUP_SPLASH_CYCLE_S (5s). Do not override. */
+  --startup-cycle: 5s;
+  --startup-draw-end: 82%;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -27,8 +30,8 @@
   background: #fff;
   box-shadow:
     0 0 8px 2px rgba(255, 140, 40, 0.95),
-    0 0 18px 6px rgba(56, 189, 248, 0.55);
-  animation: startup-border-walk 5.5s linear infinite;
+    0 0 18px 6px rgba(0, 212, 196, 0.45);
+  animation: startup-border-walk var(--startup-cycle) linear 1 forwards;
 }
 
 @keyframes startup-border-walk {
@@ -75,34 +78,13 @@
   overflow: visible;
 }
 
+/* M outline — dash reveal driven by SMIL in StartupSplash.tsx (synced with trail-dot) */
 .startup-splash__trace {
   fill: none;
   stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  stroke-linecap: butt;
+  stroke-linejoin: miter;
   filter: url(#startup-glow);
-  stroke-dasharray: var(--logo-trace-length, 613);
-  stroke-dashoffset: var(--logo-trace-length, 613);
-  animation: startup-trace-draw 5s ease-in-out infinite;
-}
-
-@keyframes startup-trace-draw {
-  0% {
-    stroke-dashoffset: var(--logo-trace-length, 613);
-    opacity: 0.35;
-  }
-  45% {
-    stroke-dashoffset: 0;
-    opacity: 1;
-  }
-  70% {
-    stroke-dashoffset: 0;
-    opacity: 0.85;
-  }
-  100% {
-    stroke-dashoffset: -40;
-    opacity: 0.2;
-  }
 }
 
 .startup-splash__logo-img {
@@ -114,18 +96,18 @@
   object-fit: contain;
   opacity: 0;
   transform: scale(0.92);
-  animation: startup-logo-reveal 5s ease-in-out infinite;
+  animation: startup-logo-reveal var(--startup-cycle) ease-out 1 forwards;
   filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
 }
 
 @keyframes startup-logo-reveal {
   0%,
-  38% {
+  70% {
     opacity: 0;
     transform: scale(0.92);
   }
-  52%,
-  78% {
+  86%,
+  94% {
     opacity: 1;
     transform: scale(1);
   }
@@ -146,7 +128,7 @@
   letter-spacing: 0.28em;
   text-transform: uppercase;
   color: rgba(250, 250, 250, 0.88);
-  animation: startup-brand-pulse 5s ease-in-out infinite;
+  animation: startup-brand-pulse var(--startup-cycle) ease-out 1 forwards;
 }
 
 .startup-splash__slogan {
@@ -158,7 +140,7 @@
   text-align: center;
   color: rgba(212, 212, 216, 0.82);
   letter-spacing: 0.04em;
-  animation: startup-brand-pulse 5s ease-in-out infinite;
+  animation: startup-brand-pulse var(--startup-cycle) ease-out 1 forwards;
 }
 
 .startup-splash__hint {
@@ -170,10 +152,10 @@
 
 @keyframes startup-brand-pulse {
   0%,
-  40% {
+  72% {
     opacity: 0.45;
   }
-  55%,
+  86%,
   100% {
     opacity: 1;
   }
@@ -181,7 +163,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .startup-splash__frame-dot,
-  .startup-splash__trace,
   .startup-splash__logo-img,
   .startup-splash__brand,
   .startup-splash__slogan {
@@ -189,12 +170,61 @@
   }
 
   .startup-splash__trace {
-    stroke-dashoffset: 0;
     opacity: 0.6;
+  }
+
+  .startup-splash__trail-dot {
+    display: none;
   }
 
   .startup-splash__logo-img {
     opacity: 1;
     transform: none;
   }
+}
+
+[data-theme='light'][data-light-palette='paper'] .startup-splash,
+[data-theme='light']:not([data-light-palette]) .startup-splash {
+  background: radial-gradient(ellipse 80% 60% at 50% 45%, #fcfaf6 0%, #f7f6f2 55%, #f0eeea 100%);
+}
+
+[data-theme='light'][data-light-palette='cold'] .startup-splash {
+  background: radial-gradient(ellipse 80% 60% at 50% 45%, #ffffff 0%, #fafaf9 55%, #f4f4f5 100%);
+}
+
+[data-theme='light'] .startup-splash__frame-glow {
+  border-color: rgba(0, 0, 0, 0.06);
+  box-shadow: inset 0 0 40px rgba(255, 122, 0, 0.04);
+}
+
+[data-theme='light'] .startup-splash__brand {
+  color: rgba(9, 9, 11, 0.88);
+}
+
+[data-theme='light'] .startup-splash__slogan {
+  color: rgba(63, 63, 70, 0.82);
+}
+
+[data-theme='light'] .startup-splash__hint {
+  color: rgba(113, 113, 122, 0.85);
+}
+
+[data-theme='light'] .startup-splash__logo-img {
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.12));
+}
+
+/* Boot phase: always dark splash — prevents black/white flicker while settings hydrate. */
+html[data-boot='true'] .startup-splash,
+html[data-boot='true'] #boot-splash {
+  background: radial-gradient(ellipse 80% 60% at 50% 45%, #1f1f24 0%, #18181b 55%, #0f0f12 100%) !important;
+}
+
+html[data-boot='true'] .startup-splash__brand,
+html[data-boot='true'] #boot-splash .boot-brand {
+  color: rgba(250, 250, 250, 0.88) !important;
+}
+
+html[data-boot='true'] .startup-splash__slogan,
+html[data-boot='true'] #boot-splash .boot-slogan {
+  color: rgba(212, 212, 216, 0.82) !important;
 }

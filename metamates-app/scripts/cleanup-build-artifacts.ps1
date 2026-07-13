@@ -23,7 +23,12 @@ public class MetamatesKernel32 {
 $appRoot = Split-Path $PSScriptRoot -Parent
 $repoRoot = Split-Path $appRoot -Parent
 
-Get-Process electron, MetaMates, Metamates -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process electron -ErrorAction SilentlyContinue |
+  Where-Object { $_.Path -and $_.Path -match 'Metamates\\metamates-app' } |
+  Stop-Process -Force -ErrorAction SilentlyContinue
+Get-Process MetaMates, Metamates -ErrorAction SilentlyContinue |
+  Where-Object { $_.Path -and $_.Path -match 'Metamates\\metamates-app\\release' } |
+  Stop-Process -Force -ErrorAction SilentlyContinue
 Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
   Where-Object { $_.CommandLine -match 'Metamates\\metamates-app' } |
   ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
@@ -54,7 +59,7 @@ function Remove-Tree($path) {
 function Collect-ReleaseDirs($root) {
   if (-not (Test-Path $root)) { return @() }
   Get-ChildItem $root -Directory -Force | Where-Object {
-    $_.Name -match '^(dist-release|release-build|release)(-|$)' -or $_.Name -eq 'acp-poc' -or $_.Name -eq 'poc'
+    $_.Name -match '^(dist-release|release-build|release-local|release2|release)(-|$)' -or $_.Name -eq 'acp-poc' -or $_.Name -eq 'poc'
   } | ForEach-Object { $_.FullName }
 }
 

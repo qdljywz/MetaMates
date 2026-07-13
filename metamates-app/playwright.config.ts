@@ -1,10 +1,13 @@
 import { defineConfig } from '@playwright/test'
 
-process.env.METAMATES_WORKSPACE = process.env.METAMATES_WORKSPACE?.trim() || 'E:\\MyM2'
+const { resolveDefaultWorkspace } = await import('./scripts/lib/default-workspace.mjs')
+process.env.METAMATES_WORKSPACE = resolveDefaultWorkspace()
 process.env.METAMATES_E2E = '1'
 
-/** Default: journey project only (E2E_SINGLE_SESSION in spec beforeAll). E2E_SPLIT=1 = per-area debug specs. */
+/** Default: journey project only (E2E_SINGLE_SESSION in spec beforeAll). E2E_SPLIT=1 = per-area debug specs (many restarts). */
 const splitMode = process.env.E2E_SPLIT === '1'
+/** E2E_MAX=1: maximal feature coverage with ~8 Electron launches (see npm run test:e2e:max). */
+const maxMode = process.env.E2E_MAX === '1'
 
 const shared = {
   testDir: './e2e',
@@ -31,13 +34,50 @@ export default defineConfig(
   splitMode
     ? {
         ...shared,
-        testMatch: ['suite/**/*.spec.ts', '!suite/06-full-journey.spec.ts'],
+        testMatch: ['suite/**/*.spec.ts', 'lazy-warmup.spec.ts', '!suite/06-full-journey.spec.ts'],
       }
-    : {
-        ...shared,
-        projects: [
-          { name: 'journey', testMatch: 'suite/06-full-journey.spec.ts' },
-          { name: 'guardrails', testMatch: '*-ux-guardrails.spec.ts' },
-        ],
-      },
+    : maxMode
+      ? {
+          ...shared,
+          projects: [
+            // ~8 launches: core journey + UI audit + unique split specs + plugins + agent regression.
+            // Skips suite/01–13 duplicates, agent-live 17/19/28 (covered by journey 25–27), packaged 29.
+            { name: 'max-journey', testMatch: 'suite/06-full-journey.spec.ts' },
+            { name: 'max-audit', testMatch: 'suite/27-comprehensive-final-audit.spec.ts' },
+            {
+              name: 'max-supplement',
+              testMatch: [
+                'suite/14-editor-trust.spec.ts',
+                'suite/16-vault-capture.spec.ts',
+                'suite/20-workspace-dirty-guard.spec.ts',
+              ],
+            },
+            {
+              name: 'max-plugins',
+              testMatch: [
+                'suite/22-offline-speech-plugin.spec.ts',
+                'suite/23-document-import-plugin.spec.ts',
+              ],
+            },
+            { name: 'max-agent', testMatch: 'suite/25-agent-recent-changes.spec.ts' },
+          ],
+        }
+      : {
+          ...shared,
+          projects: [
+            // Each project = one Electron launch (beforeAll in that spec file).
+            { name: 'journey', testMatch: 'suite/06-full-journey.spec.ts' },
+            { name: 'audit', testMatch: 'suite/27-comprehensive-final-audit.spec.ts' },
+            {
+              name: 'guardrails',
+              testMatch: [
+                '*-ux-guardrails.spec.ts',
+                'lazy-warmup.spec.ts',
+                'suite/22-offline-speech-plugin.spec.ts',
+                'suite/23-document-import-plugin.spec.ts',
+                'suite/25-agent-recent-changes.spec.ts',
+              ],
+            },
+          ],
+        },
 )

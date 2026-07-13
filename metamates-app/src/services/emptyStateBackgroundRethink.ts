@@ -1,5 +1,11 @@
 import { storageService } from './storage'
 import type { EmptyStateContext } from '../utils/editorEmptyState'
+import {
+  extractPartialQuestionText,
+  normalizeEmptyStateQuestionText,
+} from '../../electron/shared/emptyStateRethinkLeak'
+
+export const BACKGROUND_EMPTY_STATE_DISPLAY = '[background-empty-state]'
 
 interface BackgroundRethinkResult {
   questionText?: string
@@ -73,7 +79,7 @@ async function fetchRethinkFromHistory(
       const msg = messages[i]!
       if (msg.created_at != null && msg.created_at < sinceMs - 3000) continue
       const text = extractHistoryMessageText(msg)
-      if (!text.trim() || text.includes('[background-empty-state]')) continue
+      if (!text.trim() || text.includes(BACKGROUND_EMPTY_STATE_DISPLAY)) continue
       const parsed = extractRethinkResult(text)
       if (parsed?.questionText?.trim()) return parsed
     }
@@ -114,6 +120,15 @@ export function extractRethinkResult(text: string): BackgroundRethinkResult | nu
     const contextMatch = text.match(/"contextLineText[^"]*"\s*:\s*"((?:[^"\\]|\\.)*)"/i)
     return {
       questionText: unescapeJsonString(questionMatch[1]),
+      contextLineText: contextMatch?.[1] ? unescapeJsonString(contextMatch[1]) : undefined,
+    }
+  }
+
+  const partialQuestion = extractPartialQuestionText(text)
+  if (partialQuestion) {
+    const contextMatch = text.match(/"contextLineText[^"]*"\s*:\s*"((?:[^"\\]|\\.)*)/i)
+    return {
+      questionText: partialQuestion,
       contextLineText: contextMatch?.[1] ? unescapeJsonString(contextMatch[1]) : undefined,
     }
   }
@@ -295,7 +310,7 @@ export async function runBackgroundEmptyStateRethink(
       })
     }, getRethinkTimeoutMs())
 
-    void api.sendPrompt(prompt, null, [], '[background-empty-state]')
+    void api.sendPrompt(prompt, null, [], BACKGROUND_EMPTY_STATE_DISPLAY)
       .then((result) => {
         if (result && result.success === false) {
           setRethinkDebug(`send-failed:${backend}`)

@@ -37,8 +37,26 @@ export interface EmptyStateContext {
   scheduleNextSummary?: string
   scheduleNextTime?: string
   recentIdeasLabel?: string
+  recentIdeasPath?: string
+  recentIdeasSummary?: string
+  recentIdeasPreview?: string
   recentFocusLabel?: string
+  recentFocusPath?: string
+  recentFocusSummary?: string
+  recentFocusPreview?: string
+  inboxSamplePath?: string
+  inboxSampleLabel?: string
+  inboxSampleSummary?: string
+  inboxSamplePreview?: string
+  planPreview?: string
+  todayNoteSummary?: string
+  todayNotePreview?: string
+  calendarIcsPath?: string
+  schedulePreview?: string
   recentFiles: { path: string; name: string }[]
+  engineDisplayName?: string
+  engineNamingSkippedAt?: number
+  engineNamingPromptCount?: number
 }
 
 export type EmptyStateGreetingKey =

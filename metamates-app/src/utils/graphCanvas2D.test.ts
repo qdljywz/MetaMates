@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fitViewportToNodes } from './graphCanvas2D'
+import { convexHull, fitViewportToFolderClusters, fitViewportToNodes } from './graphCanvas2D'
 
 describe('graphCanvas2D', () => {
   it('fits nodes into viewport with padding', () => {
@@ -30,5 +30,29 @@ describe('graphCanvas2D', () => {
     const focusScreenY = vp.offset.y + 0 * vp.scale
     expect(Math.abs(focusScreenX - 400)).toBeLessThan(2)
     expect(Math.abs(focusScreenY - 250)).toBeLessThan(2)
+  })
+
+  it('builds a convex hull for island backgrounds', () => {
+    const hull = convexHull([
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 0, y: 10 },
+      { x: 5, y: 5 },
+    ])
+    expect(hull.length).toBe(4)
+  })
+
+  it('fits folder cluster panorama into viewport', () => {
+    const centers = new Map([
+      ['01', { folder: '01', x: -200, y: 0, color: '#f00', label: 'Plan' }],
+      ['02', { folder: '02', x: 200, y: 0, color: '#0f0', label: 'Projects' }],
+    ])
+    const counts = new Map([['01', 12], ['02', 8]])
+    const vp = fitViewportToFolderClusters(centers, counts, { width: 900, height: 600 })
+    expect(vp.scale).toBeGreaterThan(0.18)
+    expect(vp.scale).toBeLessThanOrEqual(1.15)
+    expect(Math.abs(vp.offset.x - 450)).toBeLessThan(80)
+    expect(Math.abs(vp.offset.y - 300)).toBeLessThan(80)
   })
 })

@@ -9,6 +9,8 @@ import { getMimeTypeFromPath } from './mimeType'
 export interface IntelligencePrepareResult {
   success: boolean
   error?: string
+  errorCode?: string
+  pluginId?: string
   format?: string
   mimeType?: string
   text?: string
@@ -94,7 +96,12 @@ export async function prepareIntelligenceImport(
   const mimeType = getMimeTypeFromPath(extractPath)
   const extracted = await extractDocumentText(extractPath, format, mimeType)
   if (!extracted.success) {
-    return { success: false, error: extracted.error || 'Extraction failed' }
+    return {
+      success: false,
+      error: extracted.error || 'Extraction failed',
+      errorCode: extracted.errorCode,
+      pluginId: extracted.pluginId,
+    }
   }
 
   const warnings = [...(extracted.warnings || [])]

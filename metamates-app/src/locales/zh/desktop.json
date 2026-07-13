@@ -1,10 +1,10 @@
 {
   "title": "请使用 MetaMates 桌面版",
-  "subtitle": "MetaMates 是本地 Electron 应用，不是网页版。浏览器模式无法访问工作区、Agent 与终端。",
-  "browserHint": "你当前在浏览器里打开了开发地址（如 localhost:3000）。请改用弹出的 Electron 桌面窗口，或在任务栏查找 MetaMates 图标。",
-  "preloadFailedTitle": "桌面壳加载失败",
-  "preloadFailedSubtitle": "Electron 窗口已打开，但内部桥接未就绪。请完全退出 MetaMates 后重新运行 npm run electron:dev。",
-  "runHint": "在项目目录执行：",
+  "subtitle": "MetaMates 是本地桌面应用，不是网页版。浏览器无法访问灵感仓库、思考引擎与终端。",
+  "browserHint": "您当前在浏览器中打开了地址。请改用 MetaMates 桌面窗口，或在任务栏查找 MetaMates 图标。",
+  "preloadFailedTitle": "桌面版加载异常",
+  "preloadFailedSubtitle": "MetaMates 窗口已打开，但内部组件未就绪。请完全退出 MetaMates 后重新启动；若仍失败，请重新安装最新版本。",
+  "runHint": "开发者可在项目目录执行：",
   "or": "或",
   "footer": "已安装用户请直接运行 MetaMates 桌面程序。手机上的 /mobile 页面仅用于剪藏辅助，不是主入口。"
 }

@@ -1,0 +1,60 @@
+{
+  "title": "启用思考引擎",
+  "subtitle": "MetaMates 的核心是右侧 AI 对话与命令。选一个助手，约 2 分钟完成安装与登录。",
+  "steps": {
+    "pick": "选择助手",
+    "install": "安装",
+    "auth": "登录",
+    "done": "完成"
+  },
+  "pick": {
+    "recommended": "推荐",
+    "others": "其他助手",
+    "hint": "只需选一个作为日常默认；以后可在设置里安装更多。"
+  },
+  "install": {
+    "title": "安装 {{name}}",
+    "hint": "MetaMates 会在本机自动安装助手程序，无需手动打开终端。",
+    "installing": "正在安装…",
+    "installed": "已安装",
+    "notInstalled": "尚未安装",
+    "button": "安装 {{name}}",
+    "retry": "重试安装",
+    "failed": "安装失败"
+  },
+  "auth": {
+    "title": "登录 {{name}}",
+    "hint": "安装完成后需要登录，思考引擎才能读写灵感仓库。",
+    "checking": "正在检查登录状态…",
+    "ready": "登录状态正常，可以开始对话。",
+    "needsAuth": "尚未登录，请完成认证。",
+    "openClaudeLogin": "打开 Claude 登录窗口",
+    "openGeminiLogin": "打开 Gemini 登录窗口",
+    "codebuddyHint": "CodeBuddy 安装后通常可直接使用；若无法连接，请在设置 → AI 助手中查看状态。",
+    "codexHint": "Codex 安装后请在设置 → AI 助手中确认登录与连接状态。",
+    "rescan": "重新检测",
+    "connecting": "正在连接思考引擎…",
+    "connected": "已连接 {{name}}"
+  },
+  "done": {
+    "title": "思考引擎已就绪",
+    "subtitle": "在右侧发消息，或试试 /today 生成今日计划——成品会写回灵感仓库。",
+    "firstMessageHint": "进入后可在右侧输入框直接对话；建议先试：「帮我用 /today 生成今日计划」。"
+  },
+  "actions": {
+    "next": "下一步",
+    "back": "上一步",
+    "continue": "继续",
+    "enterApp": "进入 MetaMates",
+    "vaultOnly": "暂时只用灵感仓库",
+    "vaultOnlyHint": "无法对话，也无法使用 /today、/graduate 等命令。之后可在右侧或设置里启用思考引擎。"
+  },
+  "vaultReminder": {
+    "message": "你选择了暂时只用灵感仓库。启用思考引擎后可对话并使用 /today 等命令。",
+    "action": "启用思考引擎",
+    "dismiss": "关闭提醒"
+  },
+  "errors": {
+    "noElectron": "此功能仅在桌面版中可用"
+  }
+}

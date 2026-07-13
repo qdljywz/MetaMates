@@ -1,10 +1,20 @@
-.daily-action-chip {
+.daily-action-chip,
+.daily-nav-button {
   transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
-[data-theme='dark'] .daily-action-chip:hover {
+[data-theme='dark'] .daily-action-chip:hover,
+[data-theme='dark'] .daily-nav-button:hover {
   background: rgba(255, 255, 255, 0.16) !important;
   border-color: rgba(255, 255, 255, 0.42) !important;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+  transform: translateY(-1px);
+}
+
+[data-theme='light'] .daily-action-chip:hover,
+[data-theme='light'] .daily-nav-button:hover {
+  background: var(--canvas-hover) !important;
+  border-color: var(--divider-strong) !important;
+  box-shadow: var(--shadow-xs);
   transform: translateY(-1px);
 }

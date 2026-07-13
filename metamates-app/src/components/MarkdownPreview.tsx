@@ -1,6 +1,5 @@
 import React, { useMemo, useCallback } from 'react'
 import { Typography, Tag, Divider, Checkbox, Table } from 'antd'
-import { useTheme } from '../hooks/useTheme'
 import NoteEmbedBlock from './NoteEmbedBlock'
 import { stripFrontmatter } from '../services/embedResolver'
 
@@ -31,9 +30,6 @@ interface ParsedNode {
 }
 
 const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick, onTagClick, resolveNoteEmbed }) => {
-  const { theme } = useTheme()
-  const isDark = theme.mode === 'dark'
-  
   const parseContent = useCallback((text: string): ParsedNode[] => {
     const lines = stripFrontmatter(text).split('\n')
     const nodes: ParsedNode[] = []
@@ -219,7 +215,6 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
               blockId={blockId}
               alias={alias}
               resolveNoteEmbed={resolveNoteEmbed}
-              isDark={isDark}
             />
           ),
         })
@@ -237,23 +232,8 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
           render: () => (
             <a
               key={key++}
+              className="md-wiki-link"
               onClick={() => linkHandler?.(suffix ? `${note}#${suffix}` : note)}
-              style={{ 
-                color: '#8b5cf6', 
-                cursor: 'pointer',
-                background: 'linear-gradient(120deg, #f3e8ff 0%, #ede9fe 100%)',
-                padding: '2px 6px',
-                borderRadius: '4px',
-                textDecoration: 'none',
-                fontWeight: 500,
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'linear-gradient(120deg, #e9d5ff 0%, #ddd6fe 100%)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'linear-gradient(120deg, #f3e8ff 0%, #ede9fe 100%)'
-              }}
             >
               {display}
             </a>
@@ -268,15 +248,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
           render: () => (
             <Tag
               key={key++}
-              color="purple"
-              style={{ 
-                cursor: 'pointer',
-                borderRadius: '12px',
-                padding: '2px 8px',
-                border: 'none',
-                background: 'linear-gradient(120deg, #fef3c7 0%, #fde68a 100%)',
-                color: '#92400e',
-              }}
+              className="md-tag-chip"
               onClick={() => tagHandler?.(tagMatch[1])}
             >
               #{tagMatch[1]}
@@ -289,7 +261,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
         matches.push({
           index: boldMatch.index,
           length: boldMatch[0].length,
-          render: () => <strong key={key++} style={{ color: '#1f2937' }}>{boldMatch[1]}</strong>,
+          render: () => <strong key={key++} className="md-preview-strong">{boldMatch[1]}</strong>,
         })
       }
 
@@ -297,7 +269,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
         matches.push({
           index: italicMatch.index,
           length: italicMatch[0].length,
-          render: () => <em key={key++} style={{ color: '#4b5563' }}>{italicMatch[1]}</em>,
+          render: () => <em key={key++} className="md-preview-em">{italicMatch[1]}</em>,
         })
       }
 
@@ -306,18 +278,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
           index: codeMatch.index,
           length: codeMatch[0].length,
           render: () => (
-            <code
-              key={key++}
-              style={{
-                background: 'linear-gradient(120deg, #1e1e1e 0%, #2d2d2d 100%)',
-                padding: '3px 8px',
-                borderRadius: 6,
-                fontFamily: '"Fira Code", "SF Mono", Monaco, Menlo, monospace',
-                fontSize: '0.9em',
-                color: '#a5d6ff',
-                border: '1px solid #404040',
-              }}
-            >
+            <code key={key++} className="md-preview-inline-code">
               {codeMatch[1]}
             </code>
           ),
@@ -335,9 +296,9 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
               target="_blank"
               rel="noopener noreferrer"
               style={{ 
-                color: '#3b82f6',
+                color: 'var(--secondary-accent)',
                 textDecoration: 'none',
-                borderBottom: '1px dashed #3b82f6',
+                borderBottom: '1px dashed var(--secondary-accent)',
               }}
             >
               {linkMatch[1]}
@@ -368,12 +329,12 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
     switch (node.type) {
       case 'heading':
         const headingStyles: Record<number, React.CSSProperties> = {
-          1: { fontSize: '2.25em', marginBottom: 24, marginTop: 32, fontWeight: 700, color: isDark ? '#e6e6e6' : '#111827', letterSpacing: '-0.025em' },
-          2: { fontSize: '1.75em', marginBottom: 20, marginTop: 28, fontWeight: 600, color: isDark ? '#e6e6e6' : '#1f2937', letterSpacing: '-0.02em' },
-          3: { fontSize: '1.375em', marginBottom: 16, marginTop: 24, fontWeight: 600, color: isDark ? '#cdd6f4' : '#374151' },
-          4: { fontSize: '1.125em', marginBottom: 12, marginTop: 20, fontWeight: 600, color: isDark ? '#bac2de' : '#4b5563' },
-          5: { fontSize: '1em', marginBottom: 10, marginTop: 16, fontWeight: 600, color: isDark ? '#a6adc8' : '#6b7280' },
-          6: { fontSize: '0.875em', marginBottom: 8, marginTop: 12, fontWeight: 600, color: isDark ? '#9399b2' : '#9ca3af' },
+          1: { fontSize: '2.25em', marginBottom: 24, marginTop: 32, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.025em' },
+          2: { fontSize: '1.75em', marginBottom: 20, marginTop: 28, fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em' },
+          3: { fontSize: '1.375em', marginBottom: 16, marginTop: 24, fontWeight: 600, color: 'var(--text-primary)' },
+          4: { fontSize: '1.125em', marginBottom: 12, marginTop: 20, fontWeight: 600, color: 'var(--text-secondary)' },
+          5: { fontSize: '1em', marginBottom: 10, marginTop: 16, fontWeight: 600, color: 'var(--text-muted)' },
+          6: { fontSize: '0.875em', marginBottom: 8, marginTop: 12, fontWeight: 600, color: 'var(--text-dim)' },
         }
         
         return (
@@ -387,7 +348,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
           <Paragraph key={index} style={{ 
             marginBottom: 16, 
             lineHeight: 1.75,
-            color: isDark ? '#cdd6f4' : '#374151',
+            color: 'var(--text-primary)',
             fontSize: '1em',
             wordBreak: 'break-word',
             overflowWrap: 'anywhere',
@@ -411,7 +372,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
                 <span style={{ 
                   position: 'absolute', 
                   left: -16, 
-                  color: '#8b5cf6',
+                  color: 'var(--accent)',
                   fontWeight: 'bold',
                 }}>•</span>
                 {item.content}
@@ -426,13 +387,13 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
             <Checkbox 
               checked={node.checked} 
               style={{ 
-                color: node.checked ? '#10b981' : undefined,
+                color: node.checked ? 'var(--success)' : undefined,
               }}
             >
               <span style={{ 
                 textDecoration: node.checked ? 'line-through' : 'none', 
                 opacity: node.checked ? 0.6 : 1,
-                color: node.checked ? (isDark ? '#6b7280' : '#9ca3af') : (isDark ? '#cdd6f4' : '#374151'),
+                color: node.checked ? 'var(--text-dim)' : 'var(--text-primary)',
               }}>
                 {node.content}
               </span>
@@ -444,62 +405,25 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
         return (
           <div key={index} style={{ marginBottom: 20 }}>
             {node.language && (
-              <div style={{ 
-                background: '#1e1e1e', 
-                color: '#6b7280', 
-                fontSize: 12,
-                padding: '8px 16px',
-                borderRadius: '8px 8px 0 0',
-                borderBottom: '1px solid #333',
-                fontFamily: '"Fira Code", monospace',
-              }}>
+              <div className="md-code-lang">
                 {node.language}
               </div>
             )}
-            <pre
-              style={{
-                background: '#1e1e1e',
-                padding: 20,
-                borderRadius: node.language ? '0 0 8px 8px' : 8,
-                overflow: 'auto',
-                marginBottom: 0,
-                border: '1px solid #333',
-              }}
-            >
-              <code style={{ 
-                fontFamily: '"Fira Code", "SF Mono", Monaco, Menlo, monospace', 
-                fontSize: 14,
-                color: '#e6e6e6',
-                lineHeight: 1.6,
-              }}>
-                {node.content}
-              </code>
+            <pre className={`md-code-block${node.language ? ' md-code-block--with-lang' : ''}`}>
+              <code>{node.content}</code>
             </pre>
           </div>
         )
 
       case 'blockquote':
         return (
-          <div
-            key={index}
-            style={{
-              borderLeft: '4px solid #8b5cf6',
-              paddingLeft: 20,
-              marginBottom: 20,
-              marginTop: 8,
-              color: isDark ? '#a6adc8' : '#6b7280',
-              fontStyle: 'italic',
-              background: isDark ? 'linear-gradient(90deg, #1e1e2e 0%, transparent 100%)' : 'linear-gradient(90deg, #f5f3ff 0%, transparent 100%)',
-              padding: '16px 20px',
-              borderRadius: '0 8px 8px 0',
-            }}
-          >
+          <div key={index} className="md-blockquote">
             {node.content}
           </div>
         )
 
       case 'hr':
-        return <Divider key={index} style={{ margin: '32px 0', borderColor: isDark ? '#313244' : '#e5e7eb' }} />
+        return <Divider key={index} style={{ margin: '32px 0', borderColor: 'var(--divider-strong)' }} />
 
       case 'embed':
         return (
@@ -510,7 +434,6 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
             blockId={node.blockId}
             alias={node.alias}
             resolveNoteEmbed={resolveNoteEmbed}
-            isDark={isDark}
           />
         )
 
@@ -528,16 +451,12 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
         }))
         
         return (
-          <div key={index} style={{ marginBottom: 20, overflow: 'auto' }}>
+          <div key={index} className="md-table-wrap">
             <Table 
               columns={columns} 
               dataSource={dataSource} 
               pagination={false}
               size="small"
-              style={{
-                background: isDark ? '#1e1e2e' : '#fff',
-                borderRadius: 8,
-              }}
             />
           </div>
         )
@@ -550,16 +469,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
   const nodes = useMemo(() => parseContent(content), [content, parseContent])
 
   return (
-    <div
-      style={{
-        padding: '32px 40px',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-        lineHeight: 1.75,
-        color: isDark ? '#cdd6f4' : '#374151',
-        background: isDark ? '#1e1e2e' : '#ffffff',
-        minHeight: '100%',
-      }}
-    >
+    <div className="markdown-preview">
       {nodes.map((node, index) => renderNode(node, index))}
     </div>
   )

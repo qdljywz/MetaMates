@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MetaMates · 使用指南</title>
+  <title>MetaMates · 使用指南 — 私人灵感仓库 + 思考引擎</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet" />
@@ -1169,7 +1169,7 @@
         <li><a href="#faq">常见问题</a></li>
       </ul>
       <div class="sidebar-footer">
-        本地知识工作台
+        私人灵感仓库 · 思考引擎
         <div class="version-pill">v0.1.0 · 基线</div>
       </div>
     </aside>
@@ -1182,31 +1182,32 @@
           <circle cx="100" cy="100" r="40" stroke="rgba(232,184,109,0.25)" stroke-width="0.5"/>
           <path d="M100 20 L100 180 M20 100 L180 100" stroke="rgba(255,255,255,0.06)" stroke-width="0.5"/>
         </svg>
-        <div class="eyebrow"><span class="eyebrow-line"></span> MetaMates · v0.1.0</div>
-        <h1>笔记在本地，<br /><span class="highlight">思考有回响。</span></h1>
+        <div class="eyebrow"><span class="eyebrow-line"></span> 私人灵感仓库 + 思考引擎</div>
+        <h1>碎片先进仓库，<br /><span class="highlight">右侧说一句就能开工。</span></h1>
         <p class="lede">
-          MetaMates 是一款桌面知识工作台。您照常写 Markdown 笔记，AI 在同一工作区里协助整理、规划与检索——产出写回文件，而非留在对话里。
+          MetaMates 是本地桌面应用：<strong style="color:var(--ink)">左侧灵感仓库</strong>装碎片与日记，<strong style="color:var(--ink)">右侧思考引擎</strong>是日常起点（对话 + 15 条 slash 命令），中间编辑器查看写回的成品——计划与洞察落盘到 Markdown，不会消失在聊天里。
           设置页中部分能力尚在实验阶段，手册已分「<a href="#settings">现在可用</a>」与「<a href="#settings-experimental">实验功能</a>」两档。
         </p>
         <div class="hero-actions">
           <a class="btn btn-primary" href="#start">5 分钟上手 →</a>
           <a class="btn btn-ghost" href="#settings">配置 AI 助手</a>
         </div>
+        <p style="font-size:0.86rem;color:var(--muted);margin:0.75rem 0 0">应用内随时可点标题栏 <strong style="color:var(--ink-soft)">?</strong> 打开帮助中心，并一键打开本手册。</p>
         <div class="pillars">
           <div class="pillar">
             <span class="pillar-icon">📁</span>
-            <strong>本地优先</strong>
-            <span>数据保存在您选择的文件夹，标准 Markdown，随时可迁移。</span>
+            <strong>私人灵感仓库</strong>
+            <span>本地 Markdown 文件夹，碎片、日记、剪藏先放这里，您完全拥有。</span>
           </div>
           <div class="pillar">
             <span class="pillar-icon">🧠</span>
-            <strong>笔记即上下文</strong>
-            <span>AI 读取您的项目与日记，给出贴合您实际情况的建议。</span>
+            <strong>思考引擎</strong>
+            <span>右侧 AI 对话 + slash 命令，读过仓库后把计划与洞察写回文件。</span>
           </div>
           <div class="pillar">
             <span class="pillar-icon">⚡</span>
-            <strong>命令即动作</strong>
-            <span>一条命令完成计划、复盘、情报整理等，结果自动落盘。</span>
+            <strong>15 条方法论命令</strong>
+            <span>从 /today 到 /intel，一条命令完成计划、复盘、情报整理，结果自动落盘。</span>
           </div>
         </div>
       </header>
@@ -1223,11 +1224,11 @@
           </li>
           <li>
             <strong>连接 AI 助手</strong>
-            点击标题栏齿轮打开设置，按<a href="#setting-cli">「AI CLI 安装」</a>步骤完成至少一个助手的安装与登录。
+            点击标题栏齿轮 → <strong style="color:var(--ink)">设置 → Agent</strong>，按<a href="#setting-cli">「安装 AI 助手」</a>完成至少一个助手的安装与登录。
           </li>
           <li>
-            <strong>开始写作与协作</strong>
-            在中间编辑笔记，在右侧面板发送指令或点击命令按钮。
+            <strong>从思考引擎开始</strong>
+            在右侧思考引擎发消息或点命令按钮；成品在中间编辑器打开、修改。
           </li>
         </ol>
       </section>
@@ -1237,7 +1238,7 @@
           <span class="section-num">02</span>
           <h2>界面与工作区</h2>
         </div>
-        <p>左侧浏览文件与日历，中间编辑笔记，右侧与 AI 协作。布局简洁，专注写作。</p>
+        <p>左侧浏览灵感仓库与日历，中间查看写回的成品，<strong style="color:var(--ink)">右侧思考引擎是主入口</strong>。布局简洁，先捕获、后加工。</p>
         <div class="mock-wrap" aria-hidden="true">
           <div class="mock-titlebar">
             <span class="mock-dot r"></span>
@@ -1253,7 +1254,7 @@
               <div class="mock-bar short"></div>
               <div class="mock-bar"></div>
             </div>
-            <div class="agent-col">AI<br />助手</div>
+            <div class="agent-col">思考<br />引擎</div>
           </div>
         </div>
         <p>工作区首次初始化后，将按用途分为五个区域：</p>
@@ -1271,7 +1272,7 @@
           <span class="section-num">03</span>
           <h2>命令一览</h2>
         </div>
-        <p>在右侧 AI 面板底部选择命令，或在输入框键入 <code>/</code> 加命令名。带「需输入」的命令会提示您补充主题或链接。</p>
+        <p>在右侧<strong style="color:var(--ink)">思考引擎</strong>底部选择命令，或在输入框键入 <code>/</code> 加命令名。共 <strong style="color:var(--ink)">15 条</strong>方法论命令；带「需输入」的会提示您补充主题或链接。</p>
 
         <h3>日常</h3>
         <div class="cmd-grid">
@@ -1310,7 +1311,7 @@
           <span class="section-num">04</span>
           <h2>情报导入</h2>
         </div>
-        <p>将网页、PDF、Office 文档或图片中的信息，整理为可检索、可关联的情报笔记。</p>
+        <p>将网页、PDF、Office 文档或图片中的信息，整理为可检索、可关联的情报笔记。可在思考引擎使用 <code>/intel</code>，或直接发送链接。</p>
         <div class="ways">
           <span class="way">命令 <code>/intel</code></span>
           <span class="way">直接发送链接</span>
@@ -1331,7 +1332,7 @@
           <div class="intel-step">
             <div class="num">3</div>
             <strong>深化</strong>
-            <p>AI 补充要点与笔记关联</p>
+            <p>AI 助手补充要点与笔记关联，写入 <code>04_情报与连接</code></p>
           </div>
         </div>
       </section>
@@ -1342,7 +1343,7 @@
           <h2>设置 · 现在可用</h2>
         </div>
         <p>
-          当前版本（v0.1.0）的主线是：<strong style="color:var(--ink)">本地工作区 + 笔记编辑 + Agent 对话 + slash 命令写回</strong>。
+          当前版本（v0.1.0）的主线是：<strong style="color:var(--ink)">私人灵感仓库 + 中间编辑器 + 思考引擎对话 + 15 条 slash 命令写回</strong>。
           下面这些是建议现在配置、且与主线直接相关的设置；其余带「实验性」标签的见<a href="#settings-experimental">下一节</a>。
         </p>
 
@@ -1370,8 +1371,8 @@
 
         <h3>推荐配置顺序（仅 2 步）</h3>
         <div class="setting-order">
-          <div class="order-item"><span class="order-num">1</span><span><strong style="color:var(--ink)"><a href="#setting-cli">AI CLI 安装</a></strong> — 必做，否则 Agent 无法对话</span></div>
-          <div class="order-item"><span class="order-num">2</span><span><strong style="color:var(--ink)"><a href="#setting-skills">重新同步 CLI Skills</a></strong> — 建议，启用 <code>/today</code> 等命令</span></div>
+          <div class="order-item"><span class="order-num">1</span><span><strong style="color:var(--ink)"><a href="#setting-cli">安装 AI 助手</a></strong>（设置 → Agent）— 必做，否则思考引擎无法对话</span></div>
+          <div class="order-item"><span class="order-num">2</span><span><strong style="color:var(--ink)"><a href="#setting-skills">重新同步 CLI Skills</a></strong> — 建议，启用 <code>/today</code> 等 15 条命令</span></div>
         </div>
 
         <div class="setting-block" id="setting-autosave">
@@ -1384,29 +1385,29 @@
         </div>
 
         <div class="setting-block" id="setting-cli">
-          <h4>AI CLI 安装 <span class="badge badge-stable">必做</span></h4>
-          <p class="purpose">MetaMates 通过本机 CLI（Gemini、Claude Code、CodeBuddy、Codex 等）与 AI 对话。至少安装并登录一个。</p>
+          <h4>安装 AI 助手 <span class="badge badge-stable">必做</span></h4>
+          <p class="purpose">MetaMates 外接本机 AI 助手（Gemini、Claude、CodeBuddy 等，底层为 ACP CLI）。至少安装并登录一个，思考引擎才能对话与执行 slash 命令。</p>
           <ul class="checklist">
-            <li>设置 →「AI CLI 安装」→ 点击<strong style="color:var(--ink)">「管理 CLI Agent」</strong></li>
+            <li>设置 → <strong style="color:var(--ink)">Agent</strong> → 点击<strong style="color:var(--ink)">「安装 AI 助手」</strong></li>
             <li>选择助手（建议先试 Gemini 或 CodeBuddy）→ 未安装则点<strong style="color:var(--ink)">安装</strong></li>
             <li>在 PowerShell 完成登录（如 <code>gemini</code>、<code>codebuddy</code>、<code>claude</code>）</li>
-            <li>回到 MetaMates，点击右侧 Agent 面板顶部对应 pill</li>
+            <li>回到 MetaMates，在右侧<strong style="color:var(--ink)">思考引擎</strong>顶部选择对应助手 pill</li>
             <li>验证：显示「已连接」后发送「你好」能收到回复</li>
           </ul>
           <div class="callout callout-tip">
-            <strong>提示：</strong>登录弹窗仅在您<strong style="color:var(--ink)">主动点击 Agent 或发送消息</strong>时出现，不会在启动时挡住界面。
+            <strong>提示：</strong>登录弹窗仅在您<strong style="color:var(--ink)">主动选择 AI 助手或发送消息</strong>时出现，不会在启动时挡住界面。
           </div>
         </div>
 
         <div class="setting-block" id="setting-skills">
           <h4>重新同步 CLI Skills <span class="badge badge-stable">建议</span></h4>
-          <p class="purpose">将 <code>/today</code>、<code>/context</code> 等技能写入工作区各 CLI 目录；<strong style="color:var(--ink)">不覆盖</strong>您已修改的文件。</p>
+          <p class="purpose">将 <code>/today</code>、<code>/context</code> 等 15 条技能写入工作区各助手目录；<strong style="color:var(--ink)">不覆盖</strong>您已修改的文件。</p>
           <ul class="checklist">
-            <li>确认工作区已打开 → 设置 →「重新同步 CLI Skills」</li>
-            <li>验证：Agent 输入框输入 <code>/</code> 应出现命令列表</li>
+            <li>确认工作区已打开 → 设置 → Agent →「重新同步 CLI Skills」</li>
+            <li>验证：思考引擎输入框输入 <code>/</code> 应出现 15 条命令列表</li>
           </ul>
           <div class="callout callout-tip">
-            <strong>工作区隔离：</strong>每个工作区有独立的 Agent 聊天记录和 skills；切换文件夹后会加载对应历史。
+            <strong>工作区隔离：</strong>每个工作区有独立的 AI 助手聊天记录和 skills；切换文件夹后会加载对应历史。
           </div>
         </div>
 
@@ -1422,12 +1423,12 @@
         <h3>配置出问题时</h3>
         <div class="faq-grid">
           <div class="faq-item">
-            <strong>Agent 连不上</strong>
-            <p>先在 PowerShell 单独运行对应 CLI 确认能登录；再在设置「管理 CLI Agent」查看安装状态。</p>
+            <strong>AI 助手连不上</strong>
+            <p>先在 PowerShell 单独运行对应助手 CLI 确认能登录；再在<strong style="color:var(--ink)">设置 → Agent</strong>查看安装状态，或点击思考引擎内的「安装 AI 助手」。</p>
           </div>
           <div class="faq-item">
             <strong>slash 命令不出现</strong>
-            <p>执行「重新同步 CLI Skills」，并确认当前工作区路径正确。</p>
+            <p>在设置 → Agent 执行「重新同步 CLI Skills」，并确认当前工作区路径正确。</p>
           </div>
         </div>
       </section>
@@ -1450,7 +1451,7 @@
         <ul class="roadmap-list">
           <li><strong style="color:var(--ink)">日历 (iCal)</strong> — 导入 .ics，状态栏显示今日日程，配合 <code>/schedule</code></li>
           <li><strong style="color:var(--ink)">Vault API</strong> — 本地 HTTP 接口，供 Cursor / Claude Desktop 读写笔记</li>
-          <li><strong style="color:var(--ink)">MCP 服务器</strong> — 为内置 Agent 注入自定义工具</li>
+          <li><strong style="color:var(--ink)">MCP 服务器</strong> — 为思考引擎注入自定义工具</li>
           <li><strong style="color:var(--ink)">Ollama</strong> — 本地大模型，数据不出本机</li>
         </ul>
 
@@ -1486,16 +1487,16 @@
 
         <div class="setting-block experimental" id="setting-mcp">
           <h4>MCP 服务器 <span class="badge badge-exp">实验性</span></h4>
-          <p class="purpose">给内置 Agent 面板注入额外 MCP 工具。开启 Vault API 时会自动注入 <code>metamates-vault</code>。</p>
+          <p class="purpose">给思考引擎注入额外 MCP 工具。开启 Vault API 时会自动注入 <code>metamates-vault</code>。</p>
           <ul class="checklist">
             <li>设置 →「管理 MCP 服务器」→ 添加命令与参数</li>
-            <li>保存后会尝试重载 Agent 会话（成功率因 MCP 而异）</li>
+            <li>保存后会尝试重载 AI 助手会话（成功率因 MCP 而异）</li>
           </ul>
         </div>
 
         <div class="setting-block experimental" id="setting-ollama">
           <h4>Ollama 本地模型 <span class="badge badge-exp">实验性</span></h4>
-          <p class="purpose">连接本机 Ollama。设置页可检测在线状态；与 Agent pill 的完整打通仍在路线图中。</p>
+          <p class="purpose">连接本机 Ollama。设置页可检测在线状态；与思考引擎内 AI 助手 pill 的完整打通仍在路线图中。</p>
           <ul class="checklist">
             <li>安装 <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> 并 <code>ollama pull llama3.2</code></li>
             <li>设置 → 开启 Ollama → 填地址与模型名 → 保存</li>
@@ -1508,13 +1509,24 @@
           <span class="section-num">07</span>
           <h2>常用快捷键</h2>
         </div>
+        <p style="font-size:0.9rem;margin-bottom:1rem">以下快捷键在 MetaMates 内<strong style="color:var(--ink)">全局有效</strong>（与标题栏 <strong style="color:var(--ink)">?</strong> 帮助中心「快捷键」页一致）。</p>
         <div class="keys">
           <div class="key-row"><span>命令面板</span><kbd>Ctrl + P</kbd></div>
+          <div class="key-row"><span>打开/创建今日日记</span><kbd>Ctrl + N</kbd></div>
+          <div class="key-row"><span>打开/创建今日 PLAN</span><kbd>Ctrl + Shift + P</kbd></div>
           <div class="key-row"><span>全局搜索</span><kbd>Ctrl + Shift + F</kbd></div>
-          <div class="key-row"><span>今日计划</span><kbd>Ctrl + Shift + P</kbd></div>
-          <div class="key-row"><span>写入进化档案</span><kbd>Ctrl + Shift + O</kbd></div>
-          <div class="key-row"><span>切换标签页</span><kbd>Ctrl + Tab</kbd></div>
-          <div class="key-row"><span>保存</span><kbd>Ctrl + S</kbd></div>
+          <div class="key-row"><span>显示/隐藏文件树</span><kbd>Ctrl + B</kbd></div>
+          <div class="key-row"><span>保存当前文件</span><kbd>Ctrl + S</kbd></div>
+          <div class="key-row"><span>关闭当前标签</span><kbd>Ctrl + W</kbd></div>
+          <div class="key-row"><span>下一个标签</span><kbd>Ctrl + Tab</kbd></div>
+          <div class="key-row"><span>上一个标签</span><kbd>Ctrl + Shift + Tab</kbd></div>
+          <div class="key-row"><span>循环切换主题</span><kbd>Ctrl + Shift + L</kbd></div>
+        </div>
+        <div class="callout callout-tip" style="margin-top:1.25rem">
+          <strong>编辑器内</strong>（焦点在编辑器时）：<kbd>Ctrl + B</kbd> 粗体、<kbd>Ctrl + I</kbd> 斜体、<kbd>Ctrl + K</kbd> 双向链接——会覆盖全局的「显示/隐藏文件树」。
+        </div>
+        <div class="callout callout-tip" style="margin-top:0.75rem">
+          <strong>Slash 命令</strong>（如 <code>/today</code>、<code>/soal</code>）请在<strong style="color:var(--ink)">右侧思考引擎</strong>输入，<strong style="color:var(--ink)">没有全局快捷键</strong>。
         </div>
       </section>
 
@@ -1526,11 +1538,11 @@
         <div class="faq-grid">
           <div class="faq-item">
             <strong>我的数据存在哪里？</strong>
-            <p>全部在您选择的工作区文件夹中，以 Markdown 格式保存。备份该文件夹即可。</p>
+            <p>全部在您选择的<strong style="color:var(--ink)">灵感仓库</strong>文件夹中，以 Markdown 格式保存。备份该文件夹即可。</p>
           </div>
           <div class="faq-item">
             <strong>AI 助手无法连接？</strong>
-            <p>请确认已在电脑上安装对应助手并完成登录，然后在 MetaMates 设置中检查连接状态。</p>
+            <p>请确认已在电脑上安装对应助手并完成登录，然后在 MetaMates <strong style="color:var(--ink)">设置 → Agent</strong> 中检查状态，或在右侧思考引擎点击「安装 AI 助手」。</p>
           </div>
           <div class="faq-item">
             <strong>笔记之间如何建立关联？</strong>
@@ -1538,7 +1550,7 @@
           </div>
           <div class="faq-item">
             <strong>设置里的 Vault API、MCP、Ollama、日历要不要配？</strong>
-            <p>v0.1.0 不必配。它们属于<a href="#settings-experimental">实验性功能</a>，可等有需求再试；不影响笔记编辑与 Agent 对话主流程。</p>
+            <p>v0.1.0 不必配。它们属于<a href="#settings-experimental">实验性功能</a>，可等有需求再试；不影响灵感仓库编辑与思考引擎对话主流程。</p>
           </div>
         </div>
       </section>

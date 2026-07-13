@@ -21,8 +21,10 @@ contextBridge.exposeInMainWorld('__METAMATES_E2E__', {
   registerSimulateGraduateArchive(fn) {
     simulateGraduateArchiveFn = typeof fn === 'function' ? fn : null
   },
-  async simulateGraduateInboxArchive(sourceTexts) {
-    return simulateGraduateArchiveFn?.(sourceTexts) ?? { moved: [], skipped: [] }
+  async simulateGraduateInboxArchive(payload) {
+    const sourceTexts = Array.isArray(payload) ? payload : payload?.sourceTexts
+    const explicitPaths = Array.isArray(payload) ? [] : payload?.explicitPaths
+    return simulateGraduateArchiveFn?.({ sourceTexts, explicitPaths }) ?? { moved: [], skipped: [] }
   },
   registerSimulateSlashWritebackOpen(fn) {
     simulateSlashWritebackOpenFn = typeof fn === 'function' ? fn : null
@@ -53,7 +55,15 @@ contextBridge.exposeInMainWorld('__METAMATES_E2E__', {
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
+  getBootElapsedMs: () => ipcRenderer.invoke('get-boot-elapsed-ms'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
+  getNativeColorScheme: () => ipcRenderer.invoke('get-native-color-scheme'),
+  setNativeThemeSource: (themeMode) => ipcRenderer.invoke('set-native-theme-source', themeMode),
+  onNativeColorSchemeChanged: (callback) => {
+    const handler = (_event, payload) => callback(payload)
+    ipcRenderer.on('native-color-scheme-changed', handler)
+    return () => ipcRenderer.removeListener('native-color-scheme-changed', handler)
+  },
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
   readFileBase64: (filePath) => ipcRenderer.invoke('read-file-base64', filePath),
   writeFile: (filePath, content) => ipcRenderer.invoke('write-file', filePath, content),
@@ -69,11 +79,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveFileDialog: () => ipcRenderer.invoke('save-file-dialog'),
   fileExists: (filePath) => ipcRenderer.invoke('file-exists', filePath),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  openUserManual: () => ipcRenderer.invoke('open-user-manual'),
   writeClipboardText: (text) => {
     clipboard.writeText(String(text ?? ''))
     return true
   },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  getRuntimeInfo: () => ipcRenderer.invoke('get-runtime-info'),
   getDatabaseStatus: () => ipcRenderer.invoke('get-database-status'),
   waitDesktopReady: () => ipcRenderer.invoke('wait-desktop-ready'),
   onDesktopReady: (callback) => {
@@ -171,6 +183,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isImportable: (filePath) => ipcRenderer.invoke('is-importable-document', filePath),
   },
 
+  plugins: {
+    getDocumentImportStatus: () => ipcRenderer.invoke('get-document-import-plugin-status'),
+    getOfflineSpeechStatus: () => ipcRenderer.invoke('get-offline-speech-plugin-status'),
+    listInstalled: () => ipcRenderer.invoke('list-installed-plugins'),
+    installDocumentImport: (options) => ipcRenderer.invoke('install-document-import-plugin', options),
+    installOfflineSpeech: (options) => ipcRenderer.invoke('install-offline-speech-plugin', options),
+    uninstall: (pluginId) => ipcRenderer.invoke('uninstall-plugin', pluginId),
+  },
+
   ollama: {
     getStatus: (baseUrl) => ipcRenderer.invoke('ollama-status', baseUrl),
   },
@@ -179,6 +200,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isAvailable: () => ipcRenderer.invoke('speech-is-available'),
     start: (language) => ipcRenderer.invoke('speech-start', language),
     stop: () => ipcRenderer.invoke('speech-stop'),
+    transcribeAudio: (payload) => ipcRenderer.invoke('speech-transcribe-audio', payload),
     ...(process.env.METAMATES_E2E === '1'
       ? {
           e2eInject: (update) => ipcRenderer.invoke('speech-e2e-inject', update),
@@ -302,6 +324,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     authenticate: (backendId, methodId, meta) => ipcRenderer.invoke('acp-authenticate', backendId, methodId, meta),
     getAuthMethods: (backendId) => ipcRenderer.invoke('acp-get-auth-methods', backendId),
     openGeminiTerminalLogin: () => ipcRenderer.invoke('acp-open-gemini-terminal-login'),
+    getClaudePreferredModel: () => ipcRenderer.invoke('acp-get-claude-preferred-model'),
+    getAgentRuntime: (backend) => ipcRenderer.invoke('acp-get-agent-runtime', backend),
+    getAllAgentRuntimes: () => ipcRenderer.invoke('acp-get-all-agent-runtimes'),
+    openClaudeTerminalLogin: () => ipcRenderer.invoke('acp-open-claude-terminal-login'),
     checkGeminiAuth: () => ipcRenderer.invoke('acp-check-gemini-auth'),
     reloadSessions: () => ipcRenderer.invoke('acp-reload-sessions'),
     refreshAgents: () => ipcRenderer.invoke('acp-refresh-agents'),

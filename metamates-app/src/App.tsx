@@ -12,6 +12,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import StatusBar from './components/StatusBar'
 import TabBar from './components/TabBar'
 import WelcomeWizard from './components/WelcomeWizard'
+import EngineSetupFlow from './components/EngineSetupFlow'
 import StartupSplash from './components/StartupSplash'
 import DesktopOnlyGate from './components/DesktopOnlyGate'
 import { storageService } from './services/storage'
@@ -31,6 +32,8 @@ import { workspaceIndexService } from './services/workspaceIndex'
 import { registerE2EBridge } from './e2e/e2eBridge'
 import { pruneMissingOpenTabs } from './utils/openSlashWriteback'
 import { pickAndImportIntelligence } from './services/intelligenceImport'
+import { detectPluginInstallRequired } from './utils/pluginInstallPrompt'
+import { openPluginInstallToast } from './utils/openPluginInstallToast'
 import type { GraphViewMode } from './utils/graphFocus'
 import { acknowledgeYoloMode } from './utils/yoloAcknowledgment'
 import { waitForStartupGate } from './utils/startupGate'
@@ -46,7 +49,12 @@ import {
   shouldShowWelcomeWizard,
   hasOnboardingSettings,
   waitStartupCapMs,
+  markSplashMounted,
+  waitUntilSplashEnter,
 } from './utils/startupUx'
+import { applyThemeBootstrapToDocument } from './utils/themeBootstrap'
+import { shouldShowEngineSetup, engineSetupReadyPatch, engineSetupPendingPatch, vaultReminderSessionKey } from './utils/engineSetupPolicy'
+import { detectHasUsableAgent } from './utils/engineSetupDetect'
 import {
   preloadAgentDuringSplash,
   prefetchLazyAppChunks,
@@ -85,6 +93,7 @@ const AppContent: React.FC = () => {
   const isDark = appTheme.mode === 'dark'
   const [loading, setLoading] = useState(true)
   const [showWizard, setShowWizard] = useState(false)
+  const [showEngineSetup, setShowEngineSetup] = useState(false)
   const [commandPaletteVisible, setCommandPaletteVisible] = useState(false)
   const [globalSearchVisible, setGlobalSearchVisible] = useState(false)
   const [fileTreeCollapsed, setFileTreeCollapsed] = useState(false)
@@ -97,6 +106,8 @@ const AppContent: React.FC = () => {
   const [templateVisible, setTemplateVisible] = useState(false)
   const [newFolderModalVisible, setNewFolderModalVisible] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
+  const [newFileModalVisible, setNewFileModalVisible] = useState(false)
+  const [newFileName, setNewFileName] = useState('')
   const [files, setFiles] = useState<{ name: string; path: string }[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
   const lastWorkspacePathRef = useRef('')
@@ -105,10 +116,16 @@ const AppContent: React.FC = () => {
   useEmptyStateBackgroundPlanner(state.workspacePath)
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(false)
 
-  // Hard cap: never keep splash longer than STARTUP_FORCE_ENTER_MS.
-  // Must be a mount-only effect — bundling with initApp + [i18n] deps cleared this timer
-  // when changeLanguage() ran, leaving loading stuck true forever.
   useEffect(() => {
+    const px = state.settings.fontSize || 14
+    document.documentElement.style.setProperty('--app-font-size', `${px}px`)
+  }, [state.settings.fontSize])
+
+  // LOCKED: splash exits at exactly STARTUP_FORCE_ENTER_MS from mount — not when preloads finish early.
+  useEffect(() => {
+    markSplashMounted()
+    document.documentElement.classList.add('startup-phase')
+    applyThemeBootstrapToDocument()
     const forceEnterTimer = window.setTimeout(() => {
       setLoading((prev) => {
         if (prev) {
@@ -117,7 +134,10 @@ const AppContent: React.FC = () => {
         return false
       })
     }, STARTUP_FORCE_ENTER_MS)
-    return () => window.clearTimeout(forceEnterTimer)
+    return () => {
+      window.clearTimeout(forceEnterTimer)
+      document.documentElement.classList.remove('startup-phase')
+    }
   }, [])
 
   useEffect(() => {
@@ -129,7 +149,7 @@ const AppContent: React.FC = () => {
         dispatch({ type: 'UPDATE_SETTINGS', payload: { autoSave: enabled } })
       },
       onExternalFileRemoved: async (filePath) => {
-        await workspaceIndexService.signalVaultTreeChange(filePath)
+        await workspaceIndexService.signalVaultItemDeleted(filePath)
       },
     })
   }, [state.workspacePath, i18n.language, dispatch])
@@ -201,6 +221,7 @@ const AppContent: React.FC = () => {
             fontSize: 14,
             autoSave: true,
             language: 'zh',
+            engineSetupStatus: 'ready',
           })
           dispatch({ type: 'SET_WORKSPACE', payload: ws })
           restoredWorkspacePath = ws
@@ -215,7 +236,11 @@ const AppContent: React.FC = () => {
             void preloadAgentDuringSplash(settings.lastAgentBackend)
           })
           await Promise.race([splashPreloads, waitStartupCapMs(STARTUP_FORCE_ENTER_MS)])
-          if (!cancelled) setLoading(false)
+          if (!cancelled) {
+            applyThemeBootstrapToDocument()
+            await waitUntilSplashEnter()
+            if (!cancelled) setLoading(false)
+          }
           return
         }
         
@@ -324,7 +349,30 @@ const AppContent: React.FC = () => {
         setFiles(workspaceIndexService.getAllFiles())
       }
 
-      if (!cancelled) setLoading(false)
+      if (!cancelled) {
+        applyThemeBootstrapToDocument()
+        await waitUntilSplashEnter()
+        if (!cancelled) setLoading(false)
+      }
+
+      const e2eNoAgents = (window as Window & { __METAMATES_E2E__?: { noAgents?: boolean } }).__METAMATES_E2E__?.noAgents
+      if (!cancelled && !e2eNoAgents && window.electronAPI) {
+        const latest = await storageService.getSettings().catch(() => settings)
+        const hasAgent = await detectHasUsableAgent(latest.cliAgentEnabled)
+        if (hasAgent && latest.engineSetupStatus !== 'ready') {
+          const readyPatch = engineSetupReadyPatch(latest.preferredAssistant || latest.lastAgentBackend || '')
+          await storageService.saveSettings(readyPatch)
+          dispatch({ type: 'UPDATE_SETTINGS', payload: readyPatch })
+        } else if (
+          shouldShowEngineSetup({
+            workspacePath: latest.workspacePath || restoredWorkspacePath,
+            engineSetupStatus: latest.engineSetupStatus,
+            hasUsableAgent: hasAgent,
+          })
+        ) {
+          setShowEngineSetup(true)
+        }
+      }
     }
     
     void initApp()
@@ -474,6 +522,11 @@ const AppContent: React.FC = () => {
       const result = await pickAndImportIntelligence(state.workspacePath, language)
       if (result.error === 'canceled') return
       if (!result.success || !result.notePath) {
+        const pluginPrompt = detectPluginInstallRequired(result)
+        if (pluginPrompt.required) {
+          openPluginInstallToast(t, pluginPrompt.pluginId)
+          return
+        }
         message.error(result.error || t('appShell.importIntelligenceFailed'))
         return
       }
@@ -483,6 +536,9 @@ const AppContent: React.FC = () => {
       })
       setRefreshKey((prev) => prev + 1)
       message.success(t('appShell.importIntelligenceSuccess', { name: result.noteName }))
+      if (result.inboxArchivedCount && result.inboxArchivedCount > 0) {
+        message.success(t('appShell.inboxArchivedAfterIntel', { count: result.inboxArchivedCount }))
+      }
       if (result.warnings?.length) {
         message.warning(result.warnings.join('；'))
       }
@@ -515,7 +571,9 @@ const AppContent: React.FC = () => {
         e.preventDefault()
         if (state.currentFile) {
           void (async () => {
-            const ok = await maybeCloseTab(state.openTabs, state.currentFile!, tEditor, t)
+            const ok = await maybeCloseTab(state.openTabs, state.currentFile!, tEditor, t, {
+              autoSave: state.settings.autoSave !== false,
+            })
             if (ok) dispatch({ type: 'CLOSE_TAB', payload: state.currentFile! })
           })()
         }
@@ -607,7 +665,7 @@ const AppContent: React.FC = () => {
     const result = await window.electronAPI.writeFile(filePath, `# ${heading}\n\n`)
     if (result.success) {
       openFileInTab(filePath, fileName)
-      setRefreshKey((prev) => prev + 1)
+      workspaceIndexService.signalVaultItemCreated(inboxPath, filePath)
       message.success(t('appShell.fileCreated', { name: fileName }))
     } else {
       message.error(t('appShell.fileCreateFailed', { error: result.error }))
@@ -662,7 +720,10 @@ const AppContent: React.FC = () => {
         message.error(t('appShell.templateWorkspaceForbidden'))
         return
       }
-      const ok = await confirmAllDirtyTabsClosed(state.openTabs, tEditor, t)
+      const ok = await confirmAllDirtyTabsClosed(state.openTabs, tEditor, t, {
+        autoSave: state.settings.autoSave !== false,
+        currentFile: state.currentFile,
+      })
       if (!ok) return
       const lang = i18n.language?.startsWith('en') ? 'en' : 'zh'
       await window.electronAPI.initWorkspace(path, lang)
@@ -677,7 +738,10 @@ const AppContent: React.FC = () => {
       message.error(t('appShell.templateWorkspaceForbidden'))
       return
     }
-    const ok = await confirmAllDirtyTabsClosed(state.openTabs, tEditor, t)
+    const ok = await confirmAllDirtyTabsClosed(state.openTabs, tEditor, t, {
+      autoSave: state.settings.autoSave !== false,
+      currentFile: state.currentFile,
+    })
     if (!ok) return
     dispatch({ type: 'SET_WORKSPACE', payload: path })
     await storageService.saveSettings({
@@ -686,12 +750,47 @@ const AppContent: React.FC = () => {
       fontSize: 14,
       autoSave: true,
       language: i18n.language?.startsWith('en') ? 'en' : 'zh',
+      ...engineSetupPendingPatch(),
     })
     setShowWorkspaceSelector(false)
   }, [dispatch, state.openTabs, t, tEditor, i18n.language])
 
-  const createNewNote = async () => {
-    await createNoteFile()
+  const createNewNote = () => {
+    if (!state.workspacePath) {
+      message.warning(t('appShell.openWorkspaceFirst'))
+      return
+    }
+    setNewFileName('')
+    setNewFileModalVisible(true)
+  }
+
+  const handleCreateNoteAtRoot = async () => {
+    if (!window.electronAPI || !state.workspacePath || !newFileName.trim()) return
+
+    const stem = newFileName.trim().replace(/\.md$/i, '')
+    const fileName = `${stem}.md`
+    const filePath = await window.electronAPI.path.join(state.workspacePath, fileName)
+
+    const existsResult = await window.electronAPI.fileExists(filePath)
+    if (existsResult.exists) {
+      openFileInTab(filePath, fileName)
+      message.info(t('appShell.fileOpened', { name: fileName }))
+      setNewFileModalVisible(false)
+      setNewFileName('')
+      return
+    }
+
+    const heading = stem.replace(/_/g, ' ')
+    const result = await window.electronAPI.writeFile(filePath, `# ${heading}\n\n`)
+    if (result.success) {
+      setNewFileModalVisible(false)
+      setNewFileName('')
+      openFileInTab(filePath, fileName)
+      workspaceIndexService.signalVaultItemCreated(state.workspacePath, filePath)
+      message.success(t('appShell.fileCreated', { name: fileName }))
+    } else {
+      message.error(t('appShell.fileCreateFailed', { error: result.error }))
+    }
   }
 
   const createNewFolder = async () => {
@@ -708,10 +807,10 @@ const AppContent: React.FC = () => {
     const result = await window.electronAPI.createDirectory(folderPath)
     
     if (result.success) {
-      setRefreshKey(prev => prev + 1)
       message.success(t('appShell.folderCreated', { name: newFolderName }))
       setNewFolderModalVisible(false)
       setNewFolderName('')
+      workspaceIndexService.signalVaultItemCreated(state.workspacePath, folderPath)
     } else {
       message.error(t('appShell.folderCreateFailed', { error: result.error }))
     }
@@ -747,8 +846,29 @@ const AppContent: React.FC = () => {
 
   const handleWizardComplete = useCallback(() => {
     setShowWizard(false)
-    void handleCreateDailyNote()
-  }, [handleCreateDailyNote])
+    setShowEngineSetup(true)
+    dispatch({ type: 'UPDATE_SETTINGS', payload: { engineSetupStatus: 'pending' } })
+  }, [dispatch])
+
+  const handleEngineSetupComplete = useCallback((result: 'ready' | 'vault_only') => {
+    setShowEngineSetup(false)
+    dispatch({
+      type: 'UPDATE_SETTINGS',
+      payload: { engineSetupStatus: result },
+    })
+    if (result === 'ready') {
+      void handleCreateDailyNote()
+    }
+  }, [dispatch, handleCreateDailyNote])
+
+  useEffect(() => {
+    const openEngineSetup = () => {
+      sessionStorage.removeItem(vaultReminderSessionKey())
+      setShowEngineSetup(true)
+    }
+    window.addEventListener('metamates:open-engine-setup', openEngineSetup)
+    return () => window.removeEventListener('metamates:open-engine-setup', openEngineSetup)
+  }, [])
 
   if (loading) {
     return <StartupSplash />
@@ -761,8 +881,8 @@ const AppContent: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', background: '#18181b', padding: 24 }}>
           <Result
             status="error"
-            title={t('desktop:preloadFailedTitle', { defaultValue: '桌面壳加载失败' })}
-            subTitle={t('desktop:preloadFailedSubtitle', { defaultValue: 'Electron 窗口已打开，但 preload 未注入。请完全退出后重新运行 npm run electron:dev。' })}
+            title={t('desktop:preloadFailedTitle', { defaultValue: '桌面版加载异常' })}
+            subTitle={t('desktop:preloadFailedSubtitle', { defaultValue: 'MetaMates 窗口已打开，但内部组件未就绪。请完全退出 MetaMates 后重新启动。' })}
           />
         </div>
       )
@@ -775,12 +895,12 @@ const AppContent: React.FC = () => {
       theme={{
         algorithm: isDark ? darkAlgorithm : defaultAlgorithm,
         token: {
-          colorPrimary: isDark ? '#ff8c28' : '#ff7a00',
-          colorBgContainer: isDark ? '#1c1c1f' : '#ffffff',
-          colorBgElevated: isDark ? '#202024' : '#ffffff',
+          colorPrimary: appTheme.colors.primary,
+          colorBgContainer: appTheme.colors.surface,
+          colorBgElevated: appTheme.colors.elevated,
           colorText: isDark ? '#fafafa' : '#09090b',
-          colorTextSecondary: isDark ? '#d4d4d8' : '#3f3f46',
-          colorBorder: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.08)',
+          colorTextSecondary: appTheme.colors.textSecondary,
+          colorBorder: appTheme.colors.border,
         },
       }}
     >
@@ -825,7 +945,7 @@ const AppContent: React.FC = () => {
                 </div>
                 </ErrorBoundary>
               </Panel>
-              <Separator style={{ width: '8px', background: 'rgba(255, 255, 255, 0.06)' }} />
+              <Separator className="panel-resize-separator" style={{ width: '8px' }} />
               <Panel defaultSize={40} minSize={20}>
                 <div className="agent-panel-column">
                   <ErrorBoundary>
@@ -847,6 +967,11 @@ const AppContent: React.FC = () => {
           workspacePath={state.workspacePath}
           onComplete={handleWizardComplete}
           onWorkspaceSelected={handleWorkspaceFromWizard}
+        />
+        <EngineSetupFlow
+          visible={showEngineSetup}
+          workspacePath={state.workspacePath}
+          onComplete={handleEngineSetupComplete}
         />
         <div className="app-lazy-modals-host">
         <Suspense fallback={null}>
@@ -891,7 +1016,7 @@ const AppContent: React.FC = () => {
               if (!window.electronAPI || !state.workspacePath) return
               
               const now = new Date()
-              const dateStr = now.toISOString().split('T')[0]
+              const dateStr = getTodayDateString(resolveUserTimezone(state.settings.userTimezone))
               
               let filePath: string
               let fileName: string
@@ -920,8 +1045,7 @@ const AppContent: React.FC = () => {
               const result = await window.electronAPI.writeFile(filePath, content)
               
               if (result.success) {
-                await workspaceIndexService.signalVaultTreeChange(filePath)
-                setRefreshKey(prev => prev + 1)
+                workspaceIndexService.signalVaultItemCreated(state.workspacePath, filePath)
                 dispatch({
                   type: 'ADD_TAB',
                   payload: { path: filePath, name: fileName, isDirty: false },
@@ -936,6 +1060,27 @@ const AppContent: React.FC = () => {
           />
         </Suspense>
         </div>
+        <Modal
+          title={t('sidebar:newNote', { ns: 'sidebar' })}
+          open={newFileModalVisible}
+          onCancel={() => {
+            setNewFileModalVisible(false)
+            setNewFileName('')
+          }}
+          onOk={() => void handleCreateNoteAtRoot()}
+          okText={t('actions.create')}
+          cancelText={t('actions.cancel')}
+        >
+          <div style={{ marginBottom: 16 }}>
+            <Input
+              placeholder={t('sidebar:fileNamePlaceholder')}
+              value={newFileName}
+              onChange={(e) => setNewFileName(e.target.value)}
+              onPressEnter={() => void handleCreateNoteAtRoot()}
+              autoFocus
+            />
+          </div>
+        </Modal>
         <Modal
           title={t('appShell.newFolderTitle')}
           open={newFolderModalVisible}

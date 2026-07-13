@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { Modal, Spin, Empty, Input, Select, Space, Button, Tag, Divider, message, Switch, Tooltip, Segmented } from 'antd'
 import { useTranslation } from 'react-i18next'
-import { SearchOutlined, FilterOutlined, ReloadOutlined, ZoomInOutlined, ZoomOutOutlined, BulbOutlined, CopyOutlined } from '@ant-design/icons'
+import { SearchOutlined, FilterOutlined, ReloadOutlined, ZoomInOutlined, ZoomOutOutlined, CopyOutlined } from '@ant-design/icons'
 import { LinkParser } from '../services/linkParser'
 import { buildSemanticGraphLinks, buildPlainMentionCountMap, computeGraphNodeImportance, importanceToNodeSize, normalizeNoteStem, resolveStemToNodeKey } from '../services/linkIntelligence'
 import { fileIndexService } from '../services/fileIndex'
@@ -20,11 +20,17 @@ import {
   filterLinksToNodeSet,
   getGraphFolderLegend,
   getGraphNodeColor,
+  getGraphNodeFolder,
+  isCrossFolderGraphLink,
   isOrphanGraphNode,
   layoutGraphCluster,
+  layoutGraphFolderClusters,
+  measureFolderClusterSeparation,
+  usesGraphFolderIslandLayout,
+  type FolderClusterCenter,
   type GraphViewMode,
 } from '../utils/graphFocus'
-import { drawGraphBackground, drawGraphLink, drawGraphNode, fitViewportToNodes, sanitizeGraphNodePositions } from '../utils/graphCanvas2D'
+import { drawGraphBackground, drawGraphFolderIslands, drawGraphLink, drawGraphNode, fitViewportToFolderClusters, fitViewportToNodes, sanitizeGraphNodePositions } from '../utils/graphCanvas2D'
 
 interface GraphNode {
   id: string
@@ -154,6 +160,8 @@ const GraphView: React.FC<GraphViewProps> = ({
     hoveredNode: null as GraphNode | null,
     selectedNode: null as GraphNode | null,
     isDark: false,
+    viewMode: 'focus' as GraphViewMode,
+    clusterCenters: new Map<string, FolderClusterCenter>(),
   })
   const interactionRef = useRef({
     draggingNode: null as GraphNode | null,
@@ -171,8 +179,11 @@ const GraphView: React.FC<GraphViewProps> = ({
   const loadGenerationRef = useRef(0)
   const didCenterFocusRef = useRef(false)
   const didFitViewRef = useRef(false)
+  const clusterCentersRef = useRef<Map<string, FolderClusterCenter>>(new Map())
   const nodesRef = useRef(nodes)
   nodesRef.current = nodes
+  const viewModeRef = useRef(viewMode)
+  viewModeRef.current = viewMode
 
   const focusNodeId = React.useMemo(() => {
     if (!focusFilePath || !workspacePath) return null
@@ -228,16 +239,30 @@ const GraphView: React.FC<GraphViewProps> = ({
     if (shouldCompactLayout) {
       layoutGraphCluster(visibleNodes, compactAnchorId)
       simulationPausedRef.current = true
+    } else if (usesGraphFolderIslandLayout(viewMode)) {
+      clusterCentersRef.current = layoutGraphFolderClusters(visibleNodes, workspaceLanguage)
+      simulationPausedRef.current = false
+      simulationFrameRef.current = 0
     } else {
       sanitizeGraphNodePositions(visibleNodes)
     }
 
     const focusId = viewMode === 'focus' ? focusNodeId : null
-    const vp = fitViewportToNodes(visibleNodes, rect, 56, focusId)
+    let vp
+    if (usesGraphFolderIslandLayout(viewMode) && clusterCentersRef.current.size > 0) {
+      const folderCounts = new Map<string, number>()
+      for (const node of visibleNodes) {
+        const folder = getGraphNodeFolder(node.id)
+        folderCounts.set(folder, (folderCounts.get(folder) ?? 0) + 1)
+      }
+      vp = fitViewportToFolderClusters(clusterCentersRef.current, folderCounts, rect, 88)
+    } else {
+      vp = fitViewportToNodes(visibleNodes, rect, 56, focusId)
+    }
     applyViewport(vp.scale, vp.offset)
     didFitViewRef.current = true
     return true
-  }, [is3DMode, applyViewport, viewMode, focusNodeId, shouldCompactLayout, compactAnchorId])
+  }, [is3DMode, applyViewport, viewMode, focusNodeId, shouldCompactLayout, compactAnchorId, workspaceLanguage])
 
   const scheduleFitView = useCallback(() => {
     didFitViewRef.current = false
@@ -346,7 +371,15 @@ const GraphView: React.FC<GraphViewProps> = ({
     return filterLinksForDisplay(pool, showSemanticLinks, activeId)
   }, [allLinks, nodes, focusNeighborhood, showSemanticLinks, selectedNode, hoveredNode])
 
-  renderStateRef.current = { nodes, visibleLinks, hoveredNode, selectedNode, isDark }
+  renderStateRef.current = {
+    nodes,
+    visibleLinks,
+    hoveredNode,
+    selectedNode,
+    isDark,
+    viewMode,
+    clusterCenters: clusterCentersRef.current,
+  }
   interactionRef.current = { draggingNode, hoveredNode, selectedNode }
 
   useEffect(() => {
@@ -456,19 +489,24 @@ const GraphView: React.FC<GraphViewProps> = ({
       return matchesSearch && matchesTag
     })
 
-    const needsClusterLayout = Boolean(focusNeighborhood || activityNeighborhood)
-    const visibleNodes = needsClusterLayout
+    const needsCompactLayout = Boolean(focusNeighborhood || activityNeighborhood)
+    const folderIslandLayout = usesGraphFolderIslandLayout(viewMode)
+    const visibleNodes = (needsCompactLayout || folderIslandLayout)
       ? filtered.map((node) => ({ ...node, vx: 0, vy: 0 }))
       : filtered
 
-    if (needsClusterLayout) {
+    if (needsCompactLayout) {
       simulationPausedRef.current = true
-    } else if (viewMode === 'full') {
+    } else if (folderIslandLayout) {
+      clusterCentersRef.current = layoutGraphFolderClusters(visibleNodes, workspaceLanguage)
+      simulationPausedRef.current = false
+      simulationFrameRef.current = 0
+    } else if (viewMode === 'orphans') {
       resumeSimulation()
     }
 
     setNodes(visibleNodes)
-  }, [searchText, filterTag, allNodes, focusNeighborhood, activityNeighborhood, viewMode, filterFolder, resumeSimulation])
+  }, [searchText, filterTag, allNodes, focusNeighborhood, activityNeighborhood, viewMode, filterFolder, resumeSimulation, workspaceLanguage])
 
   useEffect(() => {
     if (!selectedNode) return
@@ -692,6 +730,8 @@ const GraphView: React.FC<GraphViewProps> = ({
 
   const simulate = useCallback(() => {
     const { nodes: simNodes, visibleLinks: simLinks } = renderStateRef.current
+    const mode = viewModeRef.current
+    const clusterCenters = clusterCentersRef.current
     const { draggingNode: dragNode, hoveredNode: hoverNode } = interactionRef.current
     if (simNodes.length === 0) return
     if (isDraggingCanvas.current || dragNode || hoverNode) return
@@ -703,24 +743,29 @@ const GraphView: React.FC<GraphViewProps> = ({
     const viewOffset = offsetRef.current
     const centerX = rect ? (rect.width / 2 - viewOffset.x) / viewScale : 350
     const centerY = rect ? (rect.height / 2 - viewOffset.y) / viewScale : 250
+    const clusterMode = usesGraphFolderIslandLayout(mode)
 
     let energy = 0
 
     simNodes.forEach(node => {
       let fx = 0, fy = 0
+      const nodeFolder = clusterMode ? getGraphNodeFolder(node.id) : null
 
       simNodes.forEach(other => {
         if (node.id === other.id) return
+        if (clusterMode && getGraphNodeFolder(other.id) !== nodeFolder) return
         const dx = node.x - other.x
         const dy = node.y - other.y
         const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 36)
-        const force = 800 / (dist * dist)
+        const repulsion = clusterMode ? 520 : 800
+        const force = repulsion / (dist * dist)
         fx += (dx / dist) * force
         fy += (dy / dist) * force
       })
 
       simLinks.forEach(link => {
         if (link.kind === 'semantic') return
+        if (clusterMode && isCrossFolderGraphLink(link.source, link.target)) return
         if (link.source === node.id || link.target === node.id) {
           const otherId = link.source === node.id ? link.target : link.source
           const other = simNodes.find(n => n.id === otherId)
@@ -728,27 +773,36 @@ const GraphView: React.FC<GraphViewProps> = ({
             const dx = other.x - node.x
             const dy = other.y - node.y
             const dist = Math.max(Math.sqrt(dx * dx + dy * dy), 1)
-            const force = (dist - 110) * 0.012
+            const force = (dist - 96) * 0.014
             fx += (dx / dist) * force
             fy += (dy / dist) * force
           }
         }
       })
 
-      const dx = centerX - node.x
-      const dy = centerY - node.y
-      fx += dx * 0.0008
-      fy += dy * 0.0008
+      if (clusterMode) {
+        const cluster = clusterCenters.get(nodeFolder ?? '')
+        if (cluster) {
+          fx += (cluster.x - node.x) * 0.028
+          fy += (cluster.y - node.y) * 0.028
+        }
+      } else {
+        const dx = centerX - node.x
+        const dy = centerY - node.y
+        fx += dx * 0.0008
+        fy += dy * 0.0008
+      }
 
-      node.vx = (node.vx + fx) * 0.88
-      node.vy = (node.vy + fy) * 0.88
+      node.vx = (node.vx + fx) * 0.86
+      node.vy = (node.vy + fy) * 0.86
       node.x += node.vx
       node.y += node.vy
       energy += node.vx * node.vx + node.vy * node.vy
     })
 
     simulationFrameRef.current += 1
-    if (simulationFrameRef.current > 360 || energy < 0.25) {
+    const maxFrames = clusterMode ? 200 : 360
+    if (simulationFrameRef.current > maxFrames || energy < 0.2) {
       simulationPausedRef.current = true
     }
   }, [])
@@ -760,7 +814,9 @@ const GraphView: React.FC<GraphViewProps> = ({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const { nodes: drawNodes, visibleLinks: drawLinks, hoveredNode: hoverNode, selectedNode: selectNode, isDark: dark } = renderStateRef.current
+    const { nodes: drawNodes, visibleLinks: drawLinks, hoveredNode: hoverNode, selectedNode: selectNode, isDark: dark, viewMode: drawMode } = renderStateRef.current
+    const folderIslandLayout = usesGraphFolderIslandLayout(drawMode)
+    const clusterCenters = folderIslandLayout ? clusterCentersRef.current : new Map<string, FolderClusterCenter>()
     const viewScale = scaleRef.current
     const viewOffset = offsetRef.current
     
@@ -796,19 +852,33 @@ const GraphView: React.FC<GraphViewProps> = ({
     ctx.save()
     ctx.translate(viewOffset.x, viewOffset.y)
     ctx.scale(viewScale, viewScale)
+
+    if (folderIslandLayout && clusterCenters.size > 0) {
+      drawGraphFolderIslands(ctx, drawNodes, clusterCenters, viewScale, dark)
+    }
+
+    const hideDistantBridges = folderIslandLayout && viewScale < 0.82 && !focusActive
+    const hideIntraClusterLinks = folderIslandLayout && viewScale < 0.72 && !focusActive
+    const compactNodes = folderIslandLayout && viewScale < 0.85 && !focusActive
     
     drawLinks.forEach(link => {
       const source = drawNodes.find(n => n.id === link.source)
       const target = drawNodes.find(n => n.id === link.target)
       if (!source || !target) return
 
+      const isCrossCluster = folderIslandLayout && isCrossFolderGraphLink(link.source, link.target)
       const isHighlighted = Boolean(hoverNode && (hoverNode.id === link.source || hoverNode.id === link.target))
       const isSelected = Boolean(selectNode && (selectNode.id === link.source || selectNode.id === link.target))
+      if (hideDistantBridges && isCrossCluster && !isHighlighted && !isSelected) return
+      if (hideIntraClusterLinks && !isCrossCluster && !isHighlighted && !isSelected) return
+
       const isDimmed = focusActive && !isHighlighted && !isSelected
         && !relatedIds.has(link.source) && !relatedIds.has(link.target)
 
-      drawGraphLink(ctx, source, target, link, viewScale, time, isHighlighted, isSelected, isDimmed)
+      drawGraphLink(ctx, source, target, link, viewScale, time, isHighlighted, isSelected, isDimmed, isCrossCluster)
     })
+
+    const showNodeLabels = !folderIslandLayout || viewScale >= 0.78 || focusActive
     
     drawNodes.forEach(node => {
       const isHovered = hoverNode?.id === node.id
@@ -825,6 +895,9 @@ const GraphView: React.FC<GraphViewProps> = ({
         isConnected,
         isDimmed,
         isDark: dark,
+        showLabel: showNodeLabels || isHovered || isSelected || isConnected,
+        reduceMotion: folderIslandLayout,
+        compact: compactNodes && !isHovered && !isSelected,
       })
     })
     
@@ -850,15 +923,27 @@ const GraphView: React.FC<GraphViewProps> = ({
     ;(window as unknown as {
       __METAMATES_GRAPH_E2E__?: {
         getNodesScreenCoords: () => ReturnType<typeof getNodesScreenCoords>
-        nodeCount: number
-        is3DMode: boolean
+        getGraphAudit: () => {
+          nodeCount: number
+          is3DMode: boolean
+          viewMode: GraphViewMode
+          clusterSeparation: number | null
+          simulationPaused: boolean
+        }
       }
     }).__METAMATES_GRAPH_E2E__ = {
       getNodesScreenCoords,
-      nodeCount: nodes.length,
-      is3DMode,
+      getGraphAudit: () => ({
+        nodeCount: nodesRef.current.length,
+        is3DMode,
+        viewMode: viewModeRef.current,
+        clusterSeparation: usesGraphFolderIslandLayout(viewModeRef.current)
+          ? measureFolderClusterSeparation(nodesRef.current)
+          : null,
+        simulationPaused: simulationPausedRef.current,
+      }),
     }
-  }, [visible, nodes, is3DMode])
+  }, [visible, nodes, is3DMode, viewMode])
 
   useEffect(() => {
     if (!visible || is3DMode || loading) return
@@ -1032,7 +1117,8 @@ const GraphView: React.FC<GraphViewProps> = ({
   }, [applyViewport, selectedNode])
   const handleReset = () => {
     setSelectedNode(null)
-    if (viewMode === 'full') {
+    if (usesGraphFolderIslandLayout(viewMode)) {
+      clusterCentersRef.current = layoutGraphFolderClusters(nodesRef.current, workspaceLanguage)
       resumeSimulation()
     } else {
       simulationPausedRef.current = true
@@ -1088,7 +1174,7 @@ const GraphView: React.FC<GraphViewProps> = ({
           />
           <Button icon={<ReloadOutlined />} onClick={() => {
             didFitViewRef.current = false
-            if (viewMode === 'full') resumeSimulation()
+            if (usesGraphFolderIslandLayout(viewMode)) resumeSimulation()
             loadGraphData(true)
           }}>
             {t('refresh')}
@@ -1111,17 +1197,17 @@ const GraphView: React.FC<GraphViewProps> = ({
             ]}
           />
           {activityDateLabel && viewMode === 'activity' && (
-            <Tag color="orange">{t('activityDay', { date: activityDateLabel })}</Tag>
+            <Tag className="mm-tag mm-tag--accent">{t('activityDay', { date: activityDateLabel })}</Tag>
           )}
-          <Tooltip title={is3DMode ? t('switchTo2D') : t('switchTo3D')}>
-            <Switch
-              data-testid="graph-3d-switch"
-              checkedChildren={<BulbOutlined />}
-              unCheckedChildren={<BulbOutlined />}
-              checked={is3DMode}
-              onChange={setIs3DMode}
-            />
-          </Tooltip>
+          <Segmented
+            data-testid="graph-dimension-switch"
+            value={is3DMode ? '3d' : '2d'}
+            onChange={(value) => setIs3DMode(value === '3d')}
+            options={[
+              { label: '2D', value: '2d' },
+              { label: '3D', value: '3d' },
+            ]}
+          />
           <Tooltip title={t('semanticLinksToggle')}>
             <Switch
               checked={showSemanticLinks}
@@ -1130,8 +1216,8 @@ const GraphView: React.FC<GraphViewProps> = ({
               unCheckedChildren={t('semanticOff')}
             />
           </Tooltip>
-          <Tag color="blue">{t('stats.wikiLinks')}: {visibleLinks.filter((l) => l.kind !== 'semantic').length}</Tag>
-          <Tag color="purple">{t('stats.semanticLinks')}: {visibleLinks.filter((l) => l.kind === 'semantic').length}</Tag>
+          <Tag className="mm-tag mm-tag--accent">{t('stats.wikiLinks')}: {visibleLinks.filter((l) => l.kind !== 'semantic').length}</Tag>
+          <Tag className="mm-tag mm-tag--teal">{t('stats.semanticLinks')}: {visibleLinks.filter((l) => l.kind === 'semantic').length}</Tag>
         </Space>
         <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {getGraphFolderLegend(workspaceLanguage).map((item) => (
@@ -1160,10 +1246,12 @@ const GraphView: React.FC<GraphViewProps> = ({
           <Empty description={t('noNodes')} />
         </div>
       ) : is3DMode ? (
-        <div className="graph-canvas-placeholder graph-canvas-placeholder--fill" style={{ border: `1px solid ${isDark ? '#313244' : '#e5e7eb'}`, borderRadius: 8, overflow: 'hidden' }}>
+        <div className="graph-canvas-placeholder graph-canvas-placeholder--fill">
           <GraphView3D
             nodes={nodes}
             links={visibleLinks}
+            layoutMode={usesGraphFolderIslandLayout(viewMode) ? 'folders' : 'sphere'}
+            workspaceLanguage={workspaceLanguage}
             onNodeClick={(node) => {
               const filePath = fileMapRef.current.get(node.id)
               if (filePath) {
@@ -1181,10 +1269,6 @@ const GraphView: React.FC<GraphViewProps> = ({
             ref={canvasRef}
             data-testid="graph-2d-canvas"
             className="graph-2d-canvas"
-            style={{
-              border: `1px solid ${isDark ? '#313244' : '#e5e7eb'}`,
-              background: isDark ? '#0f0f1a' : '#f3f4f8',
-            }}
             onMouseMove={handleMouseMove}
             onMouseDown={handleMouseDown}
             onMouseUp={handleMouseUp}
@@ -1194,37 +1278,30 @@ const GraphView: React.FC<GraphViewProps> = ({
           />
           
           {selectedNode && (
-            <div style={{ 
-              width: 250, 
-              border: `1px solid ${isDark ? '#313244' : '#e5e7eb'}`, 
-              borderRadius: 8, 
-              padding: 12,
-              background: isDark ? '#1e1e2e' : '#fff',
-              color: isDark ? '#e6e6e6' : '#1f2937'
-            }}>
-              <div style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 8 }}>
+            <div className="graph-detail-panel">
+              <div className="graph-detail-panel__title">
                 {selectedNode.name}
               </div>
               <Divider style={{ margin: '8px 0' }} />
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ color: isDark ? '#a6adc8' : '#6b7280' }}>{t('importance')}: </span>
-                <span style={{ fontWeight: 500 }}>{Math.round(selectedNode.importance)}</span>
+              <div className="graph-detail-panel__row">
+                <span className="graph-detail-panel__label">{t('importance')}: </span>
+                <span className="graph-detail-panel__value">{Math.round(selectedNode.importance)}</span>
               </div>
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ color: isDark ? '#a6adc8' : '#6b7280' }}>{t('backlinkCount')}: </span>
-                <span style={{ fontWeight: 500 }}>{selectedNode.inDegree}</span>
+              <div className="graph-detail-panel__row">
+                <span className="graph-detail-panel__label">{t('backlinkCount')}: </span>
+                <span className="graph-detail-panel__value">{selectedNode.inDegree}</span>
               </div>
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ color: isDark ? '#a6adc8' : '#6b7280' }}>{t('mentionCount')}: </span>
-                <span style={{ fontWeight: 500 }}>{selectedNode.mentionCount}</span>
+              <div className="graph-detail-panel__row">
+                <span className="graph-detail-panel__label">{t('mentionCount')}: </span>
+                <span className="graph-detail-panel__value">{selectedNode.mentionCount}</span>
               </div>
-              <div style={{ marginBottom: 8 }}>
-                <span style={{ color: isDark ? '#a6adc8' : '#6b7280' }}>{t('connections')}: </span>
-                <span style={{ fontWeight: 500 }}>{selectedNode.outDegree}</span>
+              <div className="graph-detail-panel__row">
+                <span className="graph-detail-panel__label">{t('connections')}: </span>
+                <span className="graph-detail-panel__value">{selectedNode.outDegree}</span>
               </div>
               {selectedNode.tags.length > 0 && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ color: isDark ? '#a6adc8' : '#6b7280', marginBottom: 4 }}>{t('tags')}:</div>
+                <div className="graph-detail-panel__row">
+                  <div className="graph-detail-panel__section-label">{t('tags')}:</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {selectedNode.tags.map(tag => (
                       <Tag key={tag} color="orange">#{tag}</Tag>
@@ -1233,22 +1310,16 @@ const GraphView: React.FC<GraphViewProps> = ({
                 </div>
               )}
               {semanticSuggestions.length > 0 && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ color: isDark ? '#a6adc8' : '#6b7280', marginBottom: 4 }}>{t('semanticSuggestions')}:</div>
-                  <div style={{ maxHeight: 140, overflow: 'auto' }}>
+                <div className="graph-detail-panel__row">
+                  <div className="graph-detail-panel__section-label">{t('semanticSuggestions')}:</div>
+                  <div className="graph-detail-panel__scroll--short">
                     {semanticSuggestions.map((neighborId) => (
                       <div
                         key={neighborId}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '4px 0',
-                          gap: 4,
-                        }}
+                        className="graph-detail-panel__semantic-row"
                       >
                         <span
-                          style={{ cursor: 'pointer', flex: 1, fontSize: 12 }}
+                          className="graph-detail-panel__semantic-link"
                           onClick={() => {
                             const node = allNodes.find((n) => n.id === neighborId)
                             if (node) {
@@ -1273,23 +1344,12 @@ const GraphView: React.FC<GraphViewProps> = ({
               )}
               {selectedNode.connections.length > 0 && (
                 <div>
-                  <div style={{ color: isDark ? '#a6adc8' : '#6b7280', marginBottom: 4 }}>{t('connectedTo')}:</div>
-                  <div style={{ maxHeight: 200, overflow: 'auto' }}>
+                  <div className="graph-detail-panel__section-label">{t('connectedTo')}:</div>
+                  <div className="graph-detail-panel__scroll">
                     {selectedNode.connections.map(conn => (
                       <div 
                         key={conn}
-                        style={{ 
-                          padding: '4px 8px', 
-                          cursor: 'pointer',
-                          borderRadius: 4,
-                          marginBottom: 2
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.background = isDark ? '#313244' : '#f3f4f6'
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.background = 'transparent'
-                        }}
+                        className="graph-connection-item"
                         onClick={() => {
                           const filePath = fileMapRef.current.get(conn)
                           if (filePath) {
@@ -1326,50 +1386,29 @@ const GraphView: React.FC<GraphViewProps> = ({
       )}
 
       {linkDebtRanking.length > 0 && (
-        <div style={{
-          marginTop: 12,
-          padding: '10px 12px',
-          borderRadius: 8,
-          border: `1px solid ${isDark ? '#313244' : '#e5e7eb'}`,
-          background: isDark ? '#181825' : '#fafafa',
-        }}>
-          <div style={{ fontWeight: 600, marginBottom: 8, color: isDark ? '#cdd6f4' : '#1f2937' }}>
+        <div className="graph-link-debt">
+          <div className="graph-link-debt__title">
             {t('linkDebtTitle')}
           </div>
           {linkDebtRanking.slice(0, 5).map((item) => (
             <div
               key={item.path}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: 12,
-                padding: '4px 0',
-                cursor: 'pointer',
-                color: isDark ? '#a6adc8' : '#4b5563',
-              }}
+              className="graph-link-debt__item"
               onClick={() => {
                 onFileSelect(item.path)
                 onClose()
               }}
             >
               <span>{item.stem}</span>
-              <Tag color={item.score >= 8 ? 'red' : item.score >= 4 ? 'orange' : 'default'}>{item.score}</Tag>
+              <Tag className={
+                item.score >= 8 ? 'mm-tag mm-tag--error' : item.score >= 4 ? 'mm-tag mm-tag--accent' : 'mm-tag mm-tag--muted'
+              }>{item.score}</Tag>
             </div>
           ))}
         </div>
       )}
       
-      <div 
-        className="graph-footer"
-        style={{ 
-          marginTop: 8, 
-          padding: '8px 12px', 
-          background: isDark ? '#181825' : '#f9fafb', 
-          borderRadius: 6,
-          fontSize: 12,
-          color: isDark ? '#a6adc8' : '#6b7280'
-        }}
-      >
+      <div className="graph-footer">
         <Space split={<Divider type="vertical" />}>
           <span>{t('stats.nodes')}: {nodes.length}</span>
             <span>{t('stats.links')}: {visibleLinks.length}</span>

@@ -1,7 +1,14 @@
 {
-  "title": "Install CLI agents",
-  "hint": "For installed CLIs, use the “Use in Agent panel” switch to show or hide them in the right-hand Agent toolbar. Disabling does not uninstall the CLI.",
-  "loading": "Checking CLI status…",
+  "title": "Manage AI assistants",
+  "hint": "Install or remove Gemini, Claude, CodeBuddy, and other AI assistants. For installed assistants, use the in-app toggle to show or hide each one in the thinking engine panel.",
+  "loading": "Checking AI assistants…",
+  "backendDesc": {
+    "gemini": "Google Gemini — official assistant with chat and tools",
+    "claude": "Anthropic Claude Code assistant",
+    "codebuddy": "Tencent CodeBuddy coding assistant",
+    "codex": "OpenAI Codex assistant",
+    "qwen": "Alibaba Qwen assistant"
+  },
   "status": {
     "installing": "Installing…",
     "installed": "Installed",
@@ -12,15 +19,15 @@
     "install": "Install",
     "uninstall": "Uninstall",
     "notAvailable": "Unavailable",
-    "useInApp": "Use in Agent panel"
+    "useInApp": "Show in thinking engine"
   },
   "messages": {
     "installSuccess": "{{name}} installed successfully",
     "installFailed": "Installation failed",
     "uninstallSuccess": "{{name}} uninstalled",
     "uninstallFailed": "Uninstall failed",
-    "enabledSuccess": "{{name}} is now visible in the Agent panel",
-    "disabledSuccess": "{{name}} is hidden from the Agent panel",
-    "toggleFailed": "Failed to update Agent visibility"
+    "enabledSuccess": "{{name}} is now visible in the thinking engine",
+    "disabledSuccess": "{{name}} is hidden from the thinking engine",
+    "toggleFailed": "Failed to update thinking engine visibility"
   }
 }

@@ -98,6 +98,7 @@ export function drawGraphLink(
   isHighlighted: boolean,
   isSelected: boolean,
   isDimmed: boolean,
+  isCrossCluster = false,
 ): void {
   const sx = source.x
   const sy = source.y
@@ -124,6 +125,12 @@ export function drawGraphLink(
     ctx.lineWidth = 1 / scale
     ctx.setLineDash([7 / scale, 5 / scale])
     ctx.lineDashOffset = -(time * 18) / scale
+    ctx.shadowBlur = 0
+  } else if (isCrossCluster) {
+    ctx.strokeStyle = isDimmed ? 'rgba(148,163,184,0.04)' : 'rgba(167,139,250,0.22)'
+    ctx.lineWidth = 1 / scale
+    ctx.setLineDash([5 / scale, 9 / scale])
+    ctx.lineDashOffset = -(time * 8) / scale
     ctx.shadowBlur = 0
   } else {
     ctx.strokeStyle = isDimmed ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.42)'
@@ -260,6 +267,260 @@ export function sanitizeGraphNodePositions(nodes: GraphCanvasNode[]): void {
   })
 }
 
+export interface GraphCanvasClusterCenter {
+  folder: string
+  x: number
+  y: number
+  color: string
+  label: string
+}
+
+function getNodeFolder(nodeId: string): string {
+  return nodeId.replace(/\\/g, '/').split('/')[0] ?? 'other'
+}
+
+/** Andrew's monotone chain convex hull. */
+export function convexHull(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+  if (points.length <= 1) return [...points]
+  const sorted = [...points].sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x))
+
+  const cross = (o: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
+
+  const lower: Array<{ x: number; y: number }> = []
+  for (const point of sorted) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], point) <= 0) {
+      lower.pop()
+    }
+    lower.push(point)
+  }
+
+  const upper: Array<{ x: number; y: number }> = []
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const point = sorted[i]
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], point) <= 0) {
+      upper.pop()
+    }
+    upper.push(point)
+  }
+
+  lower.pop()
+  upper.pop()
+  return lower.concat(upper)
+}
+
+function expandHullFromCentroid(
+  hull: Array<{ x: number; y: number }>,
+  padding: number,
+): Array<{ x: number; y: number }> {
+  if (hull.length === 0) return hull
+  const cx = hull.reduce((sum, point) => sum + point.x, 0) / hull.length
+  const cy = hull.reduce((sum, point) => sum + point.y, 0) / hull.length
+  const avgRadius = hull.reduce((sum, point) => sum + Math.hypot(point.x - cx, point.y - cy), 0) / hull.length
+  const factor = (avgRadius + padding) / Math.max(avgRadius, 1)
+  return hull.map((point) => ({
+    x: cx + (point.x - cx) * factor,
+    y: cy + (point.y - cy) * factor,
+  }))
+}
+
+/** Smooth closed curve through hull vertices (softer island silhouettes). */
+function traceSmoothClosedHull(
+  ctx: CanvasRenderingContext2D,
+  points: Array<{ x: number; y: number }>,
+): void {
+  const n = points.length
+  if (n < 3) return
+  ctx.beginPath()
+  ctx.moveTo(points[0].x, points[0].y)
+  for (let i = 0; i < n; i++) {
+    const p0 = points[(i - 1 + n) % n]
+    const p1 = points[i]
+    const p2 = points[(i + 1) % n]
+    const p3 = points[(i + 2) % n]
+    const cp1x = p1.x + (p2.x - p0.x) / 6
+    const cp1y = p1.y + (p2.y - p0.y) / 6
+    const cp2x = p2.x - (p3.x - p1.x) / 6
+    const cp2y = p2.y - (p3.y - p1.y) / 6
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y)
+  }
+  ctx.closePath()
+}
+
+function groupNodesByFolder(nodes: GraphCanvasNode[]): Map<string, GraphCanvasNode[]> {
+  const byFolder = new Map<string, GraphCanvasNode[]>()
+  for (const node of nodes) {
+    const folder = getNodeFolder(node.id)
+    if (!byFolder.has(folder)) byFolder.set(folder, [])
+    byFolder.get(folder)!.push(node)
+  }
+  return byFolder
+}
+
+function hullSamplePoints(nodes: GraphCanvasNode[]): Array<{ x: number; y: number }> {
+  const points: Array<{ x: number; y: number }> = []
+  for (const node of nodes) {
+    const r = node.size / 2 + 4
+    points.push({ x: node.x, y: node.y })
+    for (let i = 0; i < 6; i++) {
+      const angle = (i / 6) * Math.PI * 2
+      points.push({ x: node.x + Math.cos(angle) * r, y: node.y + Math.sin(angle) * r })
+    }
+  }
+  return points
+}
+
+/** Soft convex-hull islands (Gephi / Obsidian-style) — no dashed rings. */
+export function drawGraphFolderIslands(
+  ctx: CanvasRenderingContext2D,
+  nodes: GraphCanvasNode[],
+  centers: Map<string, GraphCanvasClusterCenter>,
+  scale: number,
+  isDark: boolean,
+): void {
+  if (centers.size === 0 || nodes.length === 0) return
+
+  const byFolder = groupNodesByFolder(nodes)
+
+  for (const center of centers.values()) {
+    const folderNodes = byFolder.get(center.folder)
+    if (!folderNodes?.length) continue
+
+    let hull: Array<{ x: number; y: number }>
+    if (folderNodes.length === 1) {
+      const node = folderNodes[0]
+      const r = node.size / 2 + 22
+      hull = []
+      for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2
+        hull.push({ x: node.x + Math.cos(angle) * r, y: node.y + Math.sin(angle) * r })
+      }
+    } else {
+      hull = expandHullFromCentroid(convexHull(hullSamplePoints(folderNodes)), 24)
+    }
+
+    if (hull.length < 3) continue
+
+    const cx = hull.reduce((sum, point) => sum + point.x, 0) / hull.length
+    const cy = hull.reduce((sum, point) => sum + point.y, 0) / hull.length
+    let maxR = 0
+    for (const point of hull) {
+      maxR = Math.max(maxR, Math.hypot(point.x - cx, point.y - cy))
+    }
+
+    traceSmoothClosedHull(ctx, hull)
+
+    const wash = ctx.createRadialGradient(cx, cy, maxR * 0.06, cx, cy, maxR * 1.12)
+    wash.addColorStop(0, rgba(center.color, isDark ? 0.24 : 0.16))
+    wash.addColorStop(0.55, rgba(center.color, isDark ? 0.1 : 0.07))
+    wash.addColorStop(1, rgba(center.color, 0))
+    ctx.fillStyle = wash
+    ctx.fill()
+
+    ctx.strokeStyle = rgba(center.color, isDark ? 0.28 : 0.22)
+    ctx.lineWidth = 1.25 / scale
+    ctx.setLineDash([])
+    ctx.stroke()
+
+    const label = center.label
+    const fontSize = Math.max(10, 11 / scale + 9)
+    ctx.font = `600 ${fontSize}px "Segoe UI", system-ui, sans-serif`
+    const textW = ctx.measureText(label).width
+    const padX = 8
+    const pillW = textW + padX * 2
+    const pillH = fontSize + 8
+    let minY = Infinity
+    for (const point of hull) minY = Math.min(minY, point.y)
+    const pillX = cx - pillW / 2
+    const pillY = minY - pillH - 8
+
+    ctx.fillStyle = rgba(center.color, isDark ? 0.82 : 0.88)
+    pathRoundRect(ctx, pillX, pillY, pillW, pillH, 6)
+    ctx.fill()
+
+    ctx.fillStyle = isDark ? '#f8fafc' : '#0f172a'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(label, cx, pillY + pillH / 2)
+
+    const countLabel = String(folderNodes.length)
+    const countFont = Math.max(10, fontSize - 1)
+    ctx.font = `600 ${countFont}px "Segoe UI", system-ui, sans-serif`
+    const countW = ctx.measureText(countLabel).width
+    const countPadX = 10
+    const countPadY = 4
+    const countPillW = countW + countPadX * 2
+    const countPillH = countFont + countPadY * 2
+    ctx.fillStyle = isDark ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.72)'
+    pathRoundRect(ctx, cx - countPillW / 2, cy - countPillH / 2, countPillW, countPillH, countPillH / 2)
+    ctx.fill()
+    ctx.fillStyle = isDark ? 'rgba(248,250,252,0.9)' : 'rgba(30,41,59,0.88)'
+    ctx.fillText(countLabel, cx, cy)
+  }
+}
+
+/** Fit panorama view to folder cluster anchors (shows all islands at once). */
+export function fitViewportToFolderClusters(
+  centers: Map<string, GraphCanvasClusterCenter> | Iterable<GraphCanvasClusterCenter>,
+  folderNodeCounts: Map<string, number>,
+  viewport: { width: number; height: number },
+  padding = 88,
+): { scale: number; offset: { x: number; y: number } } {
+  const entries = centers instanceof Map ? [...centers.values()] : [...centers]
+  if (entries.length === 0 || viewport.width < 1 || viewport.height < 1) {
+    return { scale: 1, offset: { x: 0, y: 0 } }
+  }
+
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+
+  for (const center of entries) {
+    const count = folderNodeCounts.get(center.folder) ?? 1
+    const localRadius = Math.min(140, 28 + Math.sqrt(count) * 11) + 48
+    minX = Math.min(minX, center.x - localRadius)
+    minY = Math.min(minY, center.y - localRadius - 28)
+    maxX = Math.max(maxX, center.x + localRadius)
+    maxY = Math.max(maxY, center.y + localRadius)
+  }
+
+  const graphW = Math.max(maxX - minX, 120)
+  const graphH = Math.max(maxY - minY, 120)
+  const cx = (minX + maxX) / 2
+  const cy = (minY + maxY) / 2
+
+  const scale = Math.min(
+    1.15,
+    Math.max(
+      0.18,
+      Math.min(
+        (viewport.width - padding * 2) / graphW,
+        (viewport.height - padding * 2) / graphH,
+      ),
+    ),
+  )
+
+  return {
+    scale,
+    offset: {
+      x: viewport.width / 2 - cx * scale,
+      y: viewport.height / 2 - cy * scale,
+    },
+  }
+}
+
+/** @deprecated Use drawGraphFolderIslands */
+export function drawGraphClusterRegions(
+  ctx: CanvasRenderingContext2D,
+  nodes: GraphCanvasNode[],
+  centers: Map<string, GraphCanvasClusterCenter>,
+  scale: number,
+  isDark: boolean,
+): void {
+  drawGraphFolderIslands(ctx, nodes, centers, scale, isDark)
+}
+
 function pathRoundRect(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -293,18 +554,33 @@ export function drawGraphNode(
     isConnected: boolean
     isDimmed: boolean
     isDark: boolean
+    showLabel?: boolean
+    reduceMotion?: boolean
+    compact?: boolean
   },
 ): void {
-  const { isHovered, isSelected, isConnected, isDimmed, isDark } = opts
+  const { isHovered, isSelected, isConnected, isDimmed, isDark, showLabel = true, reduceMotion = false, compact = false } = opts
   const active = isHovered || isSelected
-  const floatY = Math.sin(time * 1.1 + node.x * 0.02 + node.y * 0.015) * (active ? 0 : 2.2)
+  const floatY = reduceMotion || active || compact
+    ? 0
+    : Math.sin(time * 1.1 + node.x * 0.02 + node.y * 0.015) * 2.2
   const x = node.x
   const y = node.y + floatY
-  const baseR = node.size / 2
-  const pulse = active ? 1 + Math.sin(time * 3.2) * 0.08 : 1 + Math.sin(time * 0.9 + node.importance * 0.05) * 0.03
+  const baseR = compact ? Math.max(2.2, node.size * 0.38) : node.size / 2
+  const pulse = compact
+    ? 1
+    : (active ? 1 + Math.sin(time * 3.2) * 0.08 : 1 + Math.sin(time * 0.9 + node.importance * 0.05) * 0.03)
   const r = baseR * pulse
 
-  const alpha = isDimmed ? 0.45 : 1
+  const alpha = isDimmed ? (compact ? 0.55 : 0.45) : (compact ? 0.82 : 1)
+
+  if (compact && !active && !isConnected) {
+    ctx.fillStyle = rgba(node.color, alpha)
+    ctx.beginPath()
+    ctx.arc(x, y, r, 0, Math.PI * 2)
+    ctx.fill()
+    return
+  }
 
   if (active || isConnected) {
     const glowR = r * (active ? 2.2 : 1.6)
@@ -340,6 +616,8 @@ export function drawGraphNode(
     : (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.15)')
   ctx.lineWidth = (active ? 2 : 1) / scale
   ctx.stroke()
+
+  if (!showLabel && !active) return
 
   const label = node.name
   const fontSize = active ? 13 : 11

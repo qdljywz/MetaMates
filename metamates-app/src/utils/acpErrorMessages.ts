@@ -7,6 +7,11 @@ export function isPlanExpiredError(message: string): boolean {
     || lower.includes('plan expired')
     || lower.includes('coding plan')
     || (lower.includes('glm') && lower.includes('到期'))
+    || lower.includes('arrearage')
+    || lower.includes('account is in good standing')
+    || lower.includes('overdue-payment')
+    || lower.includes('欠费')
+    || lower.includes('余额不足')
   )
 }
 
@@ -27,6 +32,10 @@ export function formatAcpErrorForDisplay(raw: string): string {
       const parsed = JSON.parse(raw.slice(jsonStart)) as {
         error?: { message?: string }
         message?: string
+        code?: string
+      }
+      if (parsed.code === 'Arrearage') {
+        return 'DashScope 账户欠费或余额不足，请充值后再试'
       }
       const inner = parsed?.error?.message || parsed?.message
       if (typeof inner === 'string' && inner.trim()) {
@@ -37,6 +46,10 @@ export function formatAcpErrorForDisplay(raw: string): string {
     } catch {
       // fall through
     }
+  }
+
+  if (/\"code\"\s*:\s*\"Arrearage\"/i.test(raw)) {
+    return 'DashScope 账户欠费或余额不足，请充值后再试'
   }
 
   const apiMatch = raw.match(/API Error:\s*\d+\s*(.+)/i)

@@ -39,6 +39,7 @@ import { getWorkspaceLanguage, resolveInboxDirPath } from '../constants/paths'
 import { filterMarkdownFilesForFileTree } from '../services/vaultPaths'
 import EditorEmptyState from './EditorEmptyState'
 import { storageService } from '../services/storage'
+import { treePathsEqual } from '../utils/fileTreeExpand'
 
 interface EditorProps {
   filePath?: string
@@ -293,6 +294,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
   const viewRef = useRef<EditorView | null>(null)
   const [currentFile, setCurrentFile] = useState<string>('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false)
+  const hasUnsavedChangesRef = useRef(false)
   const [isSaving, setIsSaving] = useState<boolean>(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -311,7 +313,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
   const [filePickerSearch, setFilePickerSearch] = useState('')
   const [_pendingLinkInsert, _setPendingLinkInsert] = useState<(() => void) | null>(null)
   const currentFileRef = useRef<string>('')
-  const saveFileRef = useRef<() => Promise<void>>(async () => {})
+  const saveFileRef = useRef<() => Promise<boolean>>(async () => true)
   const isLoadingFile = useRef<boolean>(false)
   const handleLinkClickRef = useRef<(target: string) => void>(() => {})
   const handleTagClickRef = useRef<(name: string) => void>(() => {})
@@ -346,12 +348,16 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
     currentFileRef.current = currentFile
   }, [currentFile])
 
+  useEffect(() => {
+    hasUnsavedChangesRef.current = hasUnsavedChanges
+  }, [hasUnsavedChanges])
+
   const autoSaveEnabled = state.settings.autoSave !== false
 
-  const saveFile = useCallback(async () => {
+  const saveFile = useCallback(async (): Promise<boolean> => {
     const file = currentFileRef.current
     if (!window.electronAPI || !file || isSaving) {
-      return
+      return !hasUnsavedChangesRef.current
     }
 
     setIsSaving(true)
@@ -365,9 +371,10 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
           type: 'UPDATE_TAB_DIRTY',
           payload: { path: file, isDirty: false },
         })
-      } else {
-        message.error(`${t('saveFailed')}: ${result.error}`)
+        return true
       }
+      message.error(`${t('saveFailed')}: ${result.error}`)
+      return false
     } finally {
       setIsSaving(false)
     }
@@ -382,6 +389,35 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
     window.addEventListener('metamates:save-file', onSaveRequest)
     return () => window.removeEventListener('metamates:save-file', onSaveRequest)
   }, [])
+
+  useEffect(() => {
+    const onFlushAutoSave = (event: Event) => {
+      const detail = (event as CustomEvent<{ filePath?: string; done: (ok: boolean) => void }>).detail
+      void (async () => {
+        const targetPath = detail.filePath
+        const activePath = currentFileRef.current
+        if (targetPath && activePath && !treePathsEqual(targetPath, activePath)) {
+          detail.done(true)
+          return
+        }
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current)
+          saveTimeoutRef.current = null
+        }
+        if (!autoSaveEnabled) {
+          detail.done(false)
+          return
+        }
+        if (!hasUnsavedChangesRef.current) {
+          detail.done(true)
+          return
+        }
+        detail.done(await saveFileRef.current())
+      })()
+    }
+    window.addEventListener('metamates:flush-auto-save', onFlushAutoSave as EventListener)
+    return () => window.removeEventListener('metamates:flush-auto-save', onFlushAutoSave as EventListener)
+  }, [autoSaveEnabled])
 
   const triggerAutoSave = useCallback(() => {
     if (!autoSaveEnabled) return
@@ -823,12 +859,12 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
           tagTheme,
           EditorView.lineWrapping,
           EditorView.theme({
-            '&': { height: '100%', width: '100%', backgroundColor: 'var(--canvas-surface)', fontSize: '16px' },
+            '&': { height: '100%', width: '100%', backgroundColor: 'var(--canvas-surface)', fontSize: 'var(--app-font-size, 16px)' },
             '.cm-scroller': { 
               overflow: 'auto', 
               backgroundColor: 'var(--canvas-surface)',
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-              fontSize: '16px',
+              fontSize: 'var(--app-font-size, 16px)',
             },
             '.cm-content': { 
               padding: '32px 48px', 
@@ -838,7 +874,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
               maxWidth: '800px',
               margin: '0 auto',
               boxSizing: 'border-box',
-              fontSize: '16px',
+              fontSize: 'var(--app-font-size, 16px)',
               userSelect: 'text',
               WebkitUserSelect: 'text',
             },
@@ -847,7 +883,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
               color: 'var(--text-primary)',
               lineHeight: '1.75',
               padding: '1px 0',
-              fontSize: '16px',
+              fontSize: 'var(--app-font-size, 16px)',
               userSelect: 'text',
               WebkitUserSelect: 'text',
               wordBreak: 'break-word',
@@ -1064,15 +1100,15 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
     )
   }
 
-  const bgColor = isDarkMode ? '#1e1e2e' : '#fafafa'
-  const surfaceColor = isDarkMode ? '#181825' : '#ffffff'
-  const borderColor = isDarkMode ? '#313244' : '#e5e7eb'
-  const textColor = isDarkMode ? '#e6e6e6' : '#1f2937'
-  const secondaryColor = isDarkMode ? '#a6adc8' : '#6b7280'
-  const accentColor = isDarkMode ? '#cba6f7' : '#7c3aed'
-  const tagColor = isDarkMode ? '#f9e2af' : '#d97706'
-  const successColor = isDarkMode ? '#a6e3a1' : '#059669'
-  const dividerColor = isDarkMode ? '#45475a' : '#d1d5db'
+  const bgColor = 'var(--canvas-base)'
+  const surfaceColor = 'var(--canvas-elevated)'
+  const borderColor = 'var(--divider-strong)'
+  const textColor = 'var(--text-primary)'
+  const secondaryColor = 'var(--text-muted)'
+  const accentColor = 'var(--accent)'
+  const tagColor = 'var(--warning)'
+  const successColor = 'var(--success)'
+  const dividerColor = 'var(--divider-strong)'
 
   return (
     <div style={{ flex: 1, width: '100%', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1372,7 +1408,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
                             renderItem={(item) => (
                               <List.Item style={{ padding: '4px 0', border: 'none', flexDirection: 'column', alignItems: 'flex-start' }}>
                                 <div style={{ color: accentColor, marginBottom: 4 }}>{item.fileName}</div>
-                                <div style={{ color: secondaryColor, fontSize: 11, background: isDarkMode ? '#11111b' : '#ffffff', padding: 4, borderRadius: 4, border: `1px solid ${borderColor}` }}>
+                                <div style={{ color: secondaryColor, fontSize: 11, background: isDarkMode ? '#11111b' : 'var(--canvas-elevated)', padding: 4, borderRadius: 4, border: `1px solid ${borderColor}` }}>
                                   {item.context.slice(0, 100)}...
                                 </div>
                               </List.Item>
@@ -1417,7 +1453,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
                             {tagArray.map(([name, files]) => (
                               <Tooltip key={name} title={`${files.length} ${t('tags.files')}`}>
                                 <Tag
-                                  color="blue"
+                                  className="mm-tag mm-tag--accent"
                                   style={{ cursor: 'pointer' }}
                                   onClick={() => handleTagClick(name)}
                                 >
@@ -1477,7 +1513,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
                 style={{ cursor: 'pointer', padding: '8px 12px' }}
                 onClick={() => handleFilePickerSelect(item.name)}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = isDarkMode ? '#313244' : '#f3f4f6'
+                  e.currentTarget.style.background = 'var(--canvas-hover)'
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'transparent'
@@ -1511,7 +1547,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
                 style={{ cursor: 'pointer', padding: '8px 12px' }}
                 onClick={() => handleTagFileSelect(item.name)}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = isDarkMode ? '#313244' : '#f3f4f6'
+                  e.currentTarget.style.background = 'var(--canvas-hover)'
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'transparent'

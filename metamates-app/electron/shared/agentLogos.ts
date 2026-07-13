@@ -1,5 +1,10 @@
 /**
  * Single source for agent logo URLs and fallback initials (renderer + main process).
+ *
+ * Layout contract (see resolveAgentAssetsDir in appPaths.ts):
+ * - Source of truth: public/assets/{backendId}.svg (logos:agents)
+ * - Renderer URL: ./assets/{backendId}.svg (relative to dist/index.html)
+ * - Packaged main-process disk probe: agentLogosDisk.ts (main only)
  */
 import { LOGO_COLORS, POTENTIAL_ACP_CLIS } from './acpRegistry'
 
@@ -10,7 +15,7 @@ export type AgentLogoInfo = {
   bgColor?: string
 }
 
-/** Must ship real brand SVGs in public/assets/ — verified by verify-agent-logos.mjs */
+/** Must ship real brand SVGs in public/assets/ — verified by verify-agent-logos + verify-agent-logo-resolution */
 export const BRANDED_AGENT_LOGO_IDS = ['gemini', 'claude', 'codebuddy', 'qwen', 'codex'] as const
 
 export function getAgentDisplayName(backendId: string): string {

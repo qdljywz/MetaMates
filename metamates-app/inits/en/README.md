@@ -1,19 +1,19 @@
 # MetaMates Workspace
 
-> **Personal inspiration vault** — a local Markdown folder read and written by the [MetaMates](https://github.com/qdljywz/MetaMates) desktop app. Capture fragments, journals, and clips here first; the **engine on the right** (AI chat + slash commands) reads the vault and writes plans and insights back into these files.
+> **Personal inspiration vault** — a local Markdown folder read and written by the [MetaMates](https://github.com/qdljywz/MetaMates) desktop app. Capture fragments, journals, and clips here first; the **thinking engine on the right** (AI chat + slash commands) reads the vault and writes plans and insights back into these files.
 
 ---
 
 ## Using this folder in MetaMates
 
 1. **Open workspace**: Select this folder in MetaMates (the first-run wizard copies structure from `inits/en`).
-2. **Start from the engine**: Pick an AI on the right, send a message or tap `/today` and other commands — **this is the main entry point**.
-3. **Review output**: Files the engine writes back open in the center editor; the calendar opens today's journal / PLAN.
+2. **Start from the thinking engine**: Pick an AI assistant on the right, send a message or tap `/today` and other commands — **this is the main entry point**.
+3. **Review output**: Files the thinking engine writes back open in the center editor; the calendar opens today's journal / PLAN.
 4. **Mobile capture**: With Vault API enabled, quick captures land in `01_Log_and_Plan/Inbox/`.
-5. **Timezone**: Set your IANA timezone in MetaMates **Settings** (e.g. `Asia/Shanghai`) — journals, PLAN files, and agent dates follow it.
-6. **Empty-state guidance**: With no editor tabs open, the center **Thinking Engine** asks context-aware questions from PLAN, calendar, Ideas, and Inbox backlog.
+5. **Timezone**: Set your IANA timezone in MetaMates **Settings** (e.g. `Asia/Shanghai`) — journals, PLAN files, and AI assistant dates follow it.
+6. **Empty-state guidance**: With no editor tabs open, the center empty state asks context-aware questions from PLAN, calendar, Ideas, and Inbox backlog, and nudges you toward the thinking engine on the right.
 
-Each CLI keeps **one continuous thread**; switching agents preserves separate histories.
+Each AI assistant keeps **one continuous thread**; switching assistants preserves separate histories.
 
 ---
 
@@ -49,20 +49,20 @@ External intel, meetings, connections. See `Intelligence_Home.md`.
 | `2M.md` | Evolution layer: user DNA, protocols, learning log |
 | `AI_Commands_Prompt.md` | Guide to 15 methodology slash commands |
 | `GEMINI.md` / `Claude.md` / `CodeBuddy.md` | Per-CLI collaboration protocols |
-| `.claude/skills/`, `.codebuddy/skills/`, `.gemini/skills/` | Skill files agents load |
+| `.claude/skills/`, `.codebuddy/skills/`, `.gemini/skills/` | Skill files AI assistants load |
 
 ---
 
 ## Methodology commands (15)
 
-Use from the **Agent panel** on the right in MetaMates (no need to type full prompts manually):
+Use from the **thinking engine** on the right in MetaMates (no need to type full prompts manually):
 
 - **Daily**: `/context` `/today` `/closeday` `/schedule` `/sync`
 - **Thinking**: `/trace` `/connect` `/challenge` `/ghost`
 - **Inspiration**: `/ideas` `/graduate` `/drift` `/emerge` `/intel`
 - **Planning**: `/soal` → updates `2M.md` in this folder
 
-> `/intel`: paste a URL or document path; the app extracts locally, then the Agent deepens the note into `04_Intelligence/`.
+> `/intel`: paste a URL or document path; the app extracts locally, then the AI assistant deepens the note into `04_Intelligence/`.
 
 ---
 
@@ -75,4 +75,4 @@ Use from the **Agent panel** on the right in MetaMates (no need to type full pro
 
 ---
 
-**Workspace template version**: 1.4 · synced with MetaMates desktop · 2026-07-07
+**Workspace template version**: 1.5 · synced with MetaMates desktop · 2026-07-10

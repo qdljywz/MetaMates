@@ -20,6 +20,7 @@ import {
   openCommandPaletteE2e,
   sleep,
 } from './lib/electron-e2e-lifecycle.mjs'
+import { bootstrapAuditTheme } from './lib/ui-audit-theme.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
@@ -130,16 +131,19 @@ async function measureContrast(win, selector) {
       while (node) {
         const bg = getComputedStyle(node).backgroundColor
         const rgb = parseRgb(bg)
-        if (rgb && (rgb[0] + rgb[1] + rgb[2] > 10 || bg.includes('0.0') === false)) {
-          if (bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return rgb
-        }
+        if (rgb && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return rgb
         node = node.parentElement
       }
       const body = parseRgb(getComputedStyle(document.body).backgroundColor)
       return body || [24, 24, 27]
     }
 
-    const el = document.querySelector(sel)
+    const wraps = [...document.querySelectorAll('.ant-modal-wrap')]
+    const visibleWrap = wraps.find((wrap) => {
+      const rect = wrap.getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0 && getComputedStyle(wrap).display !== 'none'
+    })
+    const el = (visibleWrap?.querySelector(sel) ?? document.querySelector(sel))
     if (!el) return { found: false, selector: sel }
 
     const fg = parseRgb(getComputedStyle(el).color)
@@ -221,15 +225,7 @@ async function runAudit() {
     await closeModals(win)
     await sleep(1000)
 
-    await win.evaluate(async () => {
-      document.documentElement.setAttribute('data-theme', 'dark')
-      document.body.style.background = '#18181b'
-      document.body.style.color = '#fafafa'
-      const api = window.electronAPI
-      if (api?.saveSettings) {
-        await api.saveSettings({ theme: 'dark', colorScheme: 'default' })
-      }
-    })
+    await bootstrapAuditTheme(win, 'dark')
     await sleep(500)
 
     const theme = await win.evaluate(() => document.documentElement.getAttribute('data-theme'))
@@ -270,7 +266,7 @@ async function runAudit() {
     record('用户操作', '打开帮助', helpOpen)
     if (helpOpen) {
       await win.screenshot({ path: path.join(SHOTS_DIR, '03-help.png') })
-      recordContrast('对比度', '帮助·页脚文字', await measureContrast(win, '.ant-modal-wrap div[style*="text-align: center"]'), 4.5)
+      recordContrast('对比度', '帮助·页脚文字', await measureContrast(win, '.help-modal__footer'), 4.5)
       const tabContrast = await measureContrast(win, '.ant-modal-wrap .ant-tabs-tab')
       recordContrast('对比度', '帮助·标签页', tabContrast, 4.5)
       await closeModals(win)
@@ -283,7 +279,7 @@ async function runAudit() {
       await win.screenshot({ path: path.join(SHOTS_DIR, '04-command-palette.png') })
       recordContrast('对比度', '命令面板·输入框文字', await measureContrast(win, '.ant-modal-wrap .ant-input'), 4.5)
       recordContrast('对比度', '命令面板·快捷键提示', await measureContrast(win, '.command-palette-hints'), 4.5)
-      recordContrast('对比度', '命令面板·列表项描述', await measureContrast(win, '.ant-modal-wrap .ant-typography-secondary'), 4.5)
+      recordContrast('对比度', '命令面板·列表项描述', await measureContrast(win, '.command-palette-item__desc'), 4.5)
       await closeModals(win)
     }
 
@@ -363,12 +359,14 @@ async function runAudit() {
           await win.screenshot({ path: path.join(SHOTS_DIR, `${shot}.png`) })
           if (testId === 'activity-template') {
             recordContrast('对比度', '模板·卡片标题', await measureContrast(win, '.template-selector__card .ant-typography'), 4.5)
-            recordContrast('对比度', '模板·预览区文字', await measureContrast(win, '.template-selector__preview-pane'), 4.5)
             const firstCard = win.locator('.template-selector__card').first()
             if (await firstCard.count()) {
               await firstCard.click()
               await sleep(400)
+              recordContrast('对比度', '模板·预览区文字', await measureContrast(win, '.template-selector__preview-pane .ant-typography'), 4.5)
               recordContrast('对比度', '模板·预览 pre', await measureContrast(win, '.template-selector__pre'), 4.5)
+            } else {
+              recordContrast('对比度', '模板·预览区文字', await measureContrast(win, '.template-selector__preview-pane'), 4.5)
             }
           }
         }

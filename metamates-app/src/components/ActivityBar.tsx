@@ -12,7 +12,6 @@ import {
   MenuUnfoldOutlined,
   CodeOutlined,
 } from '@ant-design/icons'
-import { useTheme } from '../hooks/useTheme'
 import './ActivityBar.css'
 
 interface ActivityBarItem {
@@ -21,7 +20,6 @@ interface ActivityBarItem {
   label: string
   onClick: () => void
   disabled?: boolean
-  color?: string
 }
 
 interface ActivityBarProps {
@@ -50,23 +48,21 @@ const ActivityBar: React.FC<ActivityBarProps> = ({
   fileTreeCollapsed,
 }) => {
   const { t } = useTranslation()
-  const { theme } = useTheme()
-  const isDark = theme.mode === 'dark'
-  const orange = isDark ? '#ff8c28' : '#ff7a00'
-  const teal = isDark ? '#00d4c4' : '#00b4a6'
+  const vaultIcon = 'activity-bar-icon activity-bar-icon--primary'
+  const exploreIcon = 'activity-bar-icon activity-bar-icon--secondary'
 
   const items: ActivityBarItem[] = [
     {
       key: 'toggle',
-      icon: fileTreeCollapsed 
-        ? <MenuUnfoldOutlined style={{ color: orange }} /> 
-        : <MenuFoldOutlined style={{ color: orange }} />,
+      icon: fileTreeCollapsed
+        ? <MenuUnfoldOutlined className={vaultIcon} />
+        : <MenuFoldOutlined className={vaultIcon} />,
       label: fileTreeCollapsed ? t('sidebar:expand') : t('sidebar:collapse'),
       onClick: onToggleFileTree,
     },
     {
       key: 'workspace',
-      icon: <FolderOpenOutlined style={{ color: orange }} />,
+      icon: <FolderOpenOutlined className={vaultIcon} />,
       label: workspacePath ? t('sidebar:switchWorkspace') : t('sidebar:openWorkspace'),
       onClick: onOpenWorkspace,
     },
@@ -75,71 +71,77 @@ const ActivityBar: React.FC<ActivityBarProps> = ({
   const fileManagementItems: ActivityBarItem[] = [
     {
       key: 'newNote',
-      icon: <FileAddOutlined style={{ color: orange }} />,
+      icon: <FileAddOutlined className={vaultIcon} />,
       label: t('sidebar:newNote'),
       onClick: onCreateNote,
       disabled: !workspacePath,
     },
     {
       key: 'newFolder',
-      icon: <FolderAddOutlined style={{ color: orange }} />,
+      icon: <FolderAddOutlined className={vaultIcon} />,
       label: t('sidebar:newFolder'),
       onClick: onCreateFolder,
       disabled: !workspacePath,
     },
     {
       key: 'template',
-      icon: <FileTextOutlined style={{ color: orange }} />,
+      icon: <FileTextOutlined className={vaultIcon} />,
       label: t('sidebar:useTemplate'),
       onClick: onOpenTemplate,
       disabled: !workspacePath,
     },
   ]
 
-  const otherItems: ActivityBarItem[] = [
+  const exploreItems: ActivityBarItem[] = [
     {
       key: 'commandPalette',
-      icon: <CodeOutlined style={{ color: teal }} />,
+      icon: <CodeOutlined className={exploreIcon} />,
       label: t('commands:title'),
       onClick: onOpenCommandPalette,
     },
     {
       key: 'graph',
-      icon: <ApartmentOutlined style={{ color: teal }} />,
+      icon: <ApartmentOutlined className={exploreIcon} />,
       label: t('graph:title'),
       onClick: onOpenGraph,
       disabled: !workspacePath,
     },
     {
       key: 'search',
-      icon: <SearchOutlined style={{ color: teal }} />,
+      icon: <SearchOutlined className={exploreIcon} />,
       label: t('common:actions.search'),
       onClick: onOpenSearch,
     },
   ]
 
-  const allItems = fileTreeCollapsed 
-    ? [...items, ...otherItems]
-    : [...items, ...fileManagementItems, ...otherItems]
+  const vaultGroup = fileTreeCollapsed
+    ? items
+    : [...items, ...fileManagementItems]
+
+  const renderItem = (item: ActivityBarItem) => (
+    <Tooltip key={item.key} title={item.label} placement="right">
+      <button
+        type="button"
+        className={`activity-bar-item ${item.disabled ? 'disabled' : ''}`}
+        data-testid={`activity-${item.key}`}
+        aria-label={item.label}
+        disabled={item.disabled}
+        onClick={item.disabled ? undefined : item.onClick}
+      >
+        {item.icon}
+      </button>
+    </Tooltip>
+  )
 
   return (
-    <div className="activity-bar">
+    <nav className="activity-bar" aria-label={t('common:app.name')}>
       <div className="activity-bar-top">
-        {allItems.map((item) => (
-          <Tooltip key={item.key} title={item.label} placement="right">
-            <div
-              className={`activity-bar-item ${item.disabled ? 'disabled' : ''}`}
-              data-testid={`activity-${item.key}`}
-              onClick={item.disabled ? undefined : item.onClick}
-            >
-              {item.icon}
-            </div>
-          </Tooltip>
-        ))}
+        {vaultGroup.map(renderItem)}
+        <div className="activity-bar-divider" aria-hidden />
+        {exploreItems.map(renderItem)}
       </div>
-      <div className="activity-bar-bottom">
-      </div>
-    </div>
+      <div className="activity-bar-bottom" />
+    </nav>
   )
 }
 

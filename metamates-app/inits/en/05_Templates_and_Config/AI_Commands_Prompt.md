@@ -1,6 +1,6 @@
-# 🤖 MetaMates + Gemini CLI: 15 Core Automation Commands (Prompt Collection)
+# 🤖 MetaMates: 15 Core Slash Commands (Prompt Collection)
 
-This document provides 15 prompts that can be sent directly to an AI assistant (such as Gemini CLI) to build automated workflows within your MetaMates vault.
+This document provides 15 prompts to use directly from the MetaMates **thinking engine** and build automated workflows in your inspiration vault.
 
 ---
 
@@ -31,9 +31,9 @@ This document provides 15 prompts that can be sent directly to an AI assistant (
 ## 🧠 2. Deep Thinking
 
 ### /trace (Trace Idea)
-*   **Function**: Track the evolution of a specific idea across the entire vault.
+*   **Function**: Track the evolution of a specific idea across the inspiration vault.
 *   **Prompt**:
-    > "Track how a specific idea has evolved over time across my MetaMates vault. Take a topic as input, search for all mentions, follow backlinks, and output a timeline."
+    > "Track how a specific idea has evolved over time across my inspiration vault. Take a topic as input, search for all mentions, follow backlinks, and output a timeline."
 
 ### /connect (Find Connections)
 *   **Function**: Find unexpected connections between two seemingly unrelated topics.

@@ -1,7 +1,14 @@
 {
-  "title": "安装 CLI Agent",
-  "hint": "已安装的 CLI 可通过「在 Agent 中使用」开关控制是否出现在右侧 Agent 面板。关闭后仍保留安装，随时可重新启用。",
-  "loading": "正在检测 CLI 状态…",
+  "title": "AI 助手管理",
+  "hint": "安装或卸载 Gemini、Claude、CodeBuddy 等 AI 助手。已安装的助手可通过「在思考引擎中显示」开关控制是否出现在右侧面板。",
+  "loading": "正在检测 AI 助手…",
+  "backendDesc": {
+    "gemini": "Google Gemini 官方助手，支持对话与工具调用",
+    "claude": "Anthropic Claude Code 助手",
+    "codebuddy": "腾讯 CodeBuddy 编程助手",
+    "codex": "OpenAI Codex 助手",
+    "qwen": "阿里通义 Qwen 助手"
+  },
   "status": {
     "installing": "安装中…",
     "installed": "已安装",
@@ -12,15 +19,15 @@
     "install": "安装",
     "uninstall": "卸载",
     "notAvailable": "不可用",
-    "useInApp": "在 Agent 中使用"
+    "useInApp": "在思考引擎中显示"
   },
   "messages": {
     "installSuccess": "{{name}} 安装成功",
     "installFailed": "安装失败",
     "uninstallSuccess": "{{name}} 已卸载",
     "uninstallFailed": "卸载失败",
-    "enabledSuccess": "{{name}} 已在 Agent 面板中启用",
-    "disabledSuccess": "{{name}} 已从 Agent 面板中隐藏",
-    "toggleFailed": "更新 Agent 使用设置失败"
+    "enabledSuccess": "{{name}} 已在思考引擎中显示",
+    "disabledSuccess": "{{name}} 已从思考引擎中隐藏",
+    "toggleFailed": "更新思考引擎显示设置失败"
   }
 }

@@ -5,4 +5,4 @@
 export const E2E_AGENT_LIVE = process.env.E2E_AGENT_LIVE === '1'
 
 export const SKIP_AGENT_LIVE_REASON =
-  'Agent-live steps skipped (set E2E_AGENT_LIVE=1 to run CodeBuddy ping / /today writeback)'
+  'Agent-live steps skipped (set E2E_AGENT_LIVE=1 — default backend is Claude via E2E_AGENT_BACKEND=claude)'

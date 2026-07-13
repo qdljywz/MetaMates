@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
 import { getCurrentWorkspacePath } from '../shared/workspaceState'
-import { getDocumentFormat, isImportableDocument } from '../shared/importableFormats'
+import { getDocumentFormat, isImportableDocument, requiresDocumentImportPlugin } from '../shared/importableFormats'
 import { detectWorkspaceLanguage } from '../workspaceLayout'
 import { prepareIntelligenceImport } from './prepareImport'
 import { prepareUrlIntelligenceImport } from './prepareUrlImport'
@@ -24,6 +24,10 @@ export function registerDocumentExtractHandlers(): void {
 
   ipcMain.handle('is-importable-document', async (_event, filePath: string) => {
     const format = getDocumentFormat(filePath)
-    return { importable: isImportableDocument(filePath), format }
+    return {
+      importable: isImportableDocument(filePath),
+      format,
+      requiresPlugin: format ? requiresDocumentImportPlugin(format) : false,
+    }
   })
 }

@@ -57,6 +57,33 @@ export function mergeRootTreeChildren<T extends { key: Key; children?: T[]; isLe
   })
 }
 
+/**
+ * 从树中移除指定路径的节点（大小写不敏感匹配）。
+ */
+export function removeTreeNodeByPath<T extends { key: Key; children?: T[] }>(
+  nodes: T[],
+  targetPath: string,
+): { tree: T[]; removed: boolean } {
+  let removed = false
+
+  const filter = (list: T[]): T[] =>
+    list.flatMap((node) => {
+      if (treePathsEqual(String(node.key), targetPath)) {
+        removed = true
+        return []
+      }
+      if (node.children?.length) {
+        const nextChildren = filter(node.children)
+        if (nextChildren.length !== node.children.length) {
+          return [{ ...node, children: nextChildren } as T]
+        }
+      }
+      return [node]
+    })
+
+  return { tree: filter(nodes), removed }
+}
+
 export function patchTreeNodeChildren<T extends { key: Key; children?: T[]; isLeaf?: boolean }>(
   nodes: T[],
   nodePath: string,

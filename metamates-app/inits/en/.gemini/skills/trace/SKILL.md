@@ -1,6 +1,6 @@
 ---
 name: trace
-description: Trace Idea - Track the evolution of a specific idea across the entire vault
+description: Trace Idea - Track the evolution of a specific idea across the inspiration vault
 allowed-tools: Read, Glob, Grep
 ---
 

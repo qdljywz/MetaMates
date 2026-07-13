@@ -12,7 +12,7 @@ import {
   isVaultContentFile,
 } from './vaultPaths'
 
-const WS = 'E:/Trae/MetaMates/Test/test0407'
+const WS = 'C:/MetaMatesVault/test-fixture'
 
 describe('vaultPaths', () => {
   it('getRelativeVaultPath 应解析 Windows 绝对路径', () => {

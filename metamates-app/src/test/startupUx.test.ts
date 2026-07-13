@@ -1,7 +1,9 @@
-﻿import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   STARTUP_FORCE_ENTER_MS,
+  STARTUP_MIN_WHEN_SKIP_AGENT_MS,
   STARTUP_SKIP_AGENT_WAIT,
+  STARTUP_SPLASH_CYCLE_MS,
   hasOnboardingSettings,
   shouldCloseWorkspacePicker,
   shouldOpenWorkspacePicker,
@@ -9,8 +11,10 @@ import {
 } from '../utils/startupUx'
 
 describe('startup UX guardrails', () => {
-  it('caps splash at 4 seconds', () => {
-    expect(STARTUP_FORCE_ENTER_MS).toBe(4_000)
+  it('brand splash runs one full cycle before enter', () => {
+    expect(STARTUP_SPLASH_CYCLE_MS).toBe(5_000)
+    expect(STARTUP_MIN_WHEN_SKIP_AGENT_MS).toBe(STARTUP_SPLASH_CYCLE_MS)
+    expect(STARTUP_FORCE_ENTER_MS).toBe(STARTUP_SPLASH_CYCLE_MS + 500)
   })
 
   it('never blocks splash on agent warmup', () => {

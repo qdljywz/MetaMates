@@ -26,6 +26,21 @@ export function isNetworkErrorMessage(message: string): boolean {
   )
 }
 
+/** Billing / plan / account balance — not an auth or network failure. */
+export function isBillingOrPlanError(message: string): boolean {
+  const lower = message.toLowerCase()
+  return (
+    lower.includes('arrearage')
+    || lower.includes('account is in good standing')
+    || lower.includes('overdue-payment')
+    || lower.includes('套餐已到期')
+    || lower.includes('subscription expired')
+    || lower.includes('plan expired')
+    || lower.includes('coding plan')
+    || (lower.includes('glm') && lower.includes('到期'))
+  )
+}
+
 /** Gemini CLI free-tier daily cap on a specific model — not the same as API key balance. */
 export function isGeminiModelDailyQuotaError(message: string): boolean {
   const lower = message.toLowerCase()
@@ -41,6 +56,7 @@ export function isGeminiModelDailyQuotaError(message: string): boolean {
  */
 export function isQuotaError(message: string): boolean {
   if (isNetworkErrorMessage(message)) return false
+  if (isBillingOrPlanError(message)) return true
   if (isGeminiModelDailyQuotaError(message)) return true
 
   const lower = message.toLowerCase()
@@ -58,6 +74,7 @@ export function isQuotaError(message: string): boolean {
 
 export function isAuthErrorMessage(message: string): boolean {
   if (isNetworkErrorMessage(message)) return false
+  if (isBillingOrPlanError(message)) return false
   const lower = message.toLowerCase()
   return (
     lower.includes('not authenticated')
@@ -66,7 +83,7 @@ export function isAuthErrorMessage(message: string): boolean {
     || lower.includes('apikey')
     || lower.includes('invalid credentials')
     || /\b401\b/.test(lower)
-    || /\b403\b/.test(lower)
+    || (/\b403\b/.test(lower) && !lower.includes('access denied'))
     || (lower.includes('auth') && (lower.includes('required') || lower.includes('login')))
   )
 }

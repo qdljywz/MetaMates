@@ -6,6 +6,11 @@ export interface DetectedAgent {
   logo?: { type: 'file' | 'initial'; src?: string; initial?: string; bgColor?: string }
 }
 
+export type AgentRuntimeSnapshot = Omit<
+  import('../../electron/shared/agentRuntimeTypes').AgentRuntimeSnapshot,
+  'spawnEnv'
+>
+
 export interface AcpAuthMethod {
   id: string
   name?: string
@@ -69,6 +74,15 @@ export interface FileChangeEvent {
   type: string
   filename: string
   dirPath: string
+  /** 创建/移动后的完整路径，供文件树定位与展开 */
+  createdPath?: string
+  /** 删除项的完整路径（应用内主动通知） */
+  deletedPath?: string
+  /** 重命名前/后的完整路径（应用内主动通知） */
+  oldPath?: string
+  newPath?: string
+  /** 删除项是否为文件夹 */
+  isDirectory?: boolean
 }
 
 export interface FileInfo {
@@ -86,9 +100,19 @@ export interface UpdaterStatusPayload {
   message?: string
 }
 
+export interface NativeColorScheme {
+  shouldUseDarkColors: boolean
+  shouldUseHighContrastColors: boolean
+  shouldUseInvertedColorScheme: boolean
+}
+
 export interface ElectronAPI {
   getSettings: () => Promise<any>
+  getBootElapsedMs: () => Promise<number>
   saveSettings: (settings: any) => Promise<{ success: boolean; error?: string }>
+  getNativeColorScheme: () => Promise<NativeColorScheme>
+  setNativeThemeSource: (themeMode: 'light' | 'dark' | 'system') => Promise<{ success: boolean }>
+  onNativeColorSchemeChanged: (callback: (scheme: NativeColorScheme) => void) => () => void
   readFile: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>
   readFileBase64: (filePath: string) => Promise<{ success: boolean; data?: string; mimeType?: string; error?: string }>
   writeFile: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>
@@ -101,8 +125,10 @@ export interface ElectronAPI {
   saveFileDialog: () => Promise<{ canceled: boolean; filePath?: string }>
   fileExists: (filePath: string) => Promise<{ exists: boolean }>
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>
+  openUserManual: () => Promise<{ success: boolean; error?: string }>
   writeClipboardText: (text: string) => boolean
   getAppVersion: () => Promise<string>
+  getRuntimeInfo: () => Promise<{ isPackaged: boolean }>
   updater?: {
     check: () => Promise<{ ok?: boolean; dev?: boolean; error?: string; updateInfo?: { version?: string } | null }>
     quitAndInstall: () => Promise<{ ok: boolean; error?: string }>
@@ -201,6 +227,8 @@ export interface ElectronAPI {
     prepareImport: (sourcePath: string) => Promise<{
       success: boolean
       error?: string
+      errorCode?: string
+      pluginId?: string
       format?: string
       mimeType?: string
       text?: string
@@ -221,7 +249,43 @@ export interface ElectronAPI {
       text?: string
       warnings?: string[]
     }>
-    isImportable: (filePath: string) => Promise<{ importable: boolean; format?: string | null }>
+    isImportable: (filePath: string) => Promise<{ importable: boolean; format?: string | null; requiresPlugin?: boolean }>
+  }
+
+  plugins: {
+    getDocumentImportStatus: () => Promise<{
+      id: string
+      installed: boolean
+      version?: string
+      name?: string
+      nameZh?: string
+      description?: string
+      descriptionZh?: string
+      devBundled?: boolean
+    }>
+    getOfflineSpeechStatus: () => Promise<{
+      id: string
+      installed: boolean
+      version?: string
+      name?: string
+      nameZh?: string
+      description?: string
+      descriptionZh?: string
+      sizeHintMb?: number
+      devBundled?: boolean
+    }>
+    listInstalled: () => Promise<{ plugins: string[] }>
+    installDocumentImport: (options?: { version?: string; fromDev?: boolean }) => Promise<{
+      success: boolean
+      error?: string
+      url?: string
+    }>
+    installOfflineSpeech: (options?: { version?: string; fromDev?: boolean }) => Promise<{
+      success: boolean
+      error?: string
+      url?: string
+    }>
+    uninstall: (pluginId: string) => Promise<{ success: boolean }>
   }
 
   ollama: {
@@ -234,9 +298,16 @@ export interface ElectronAPI {
   }
 
   speech: {
-    isAvailable: () => Promise<{ available: boolean; running?: boolean }>
+    isAvailable: () => Promise<{ available: boolean; whisper?: boolean; native?: boolean; running?: boolean }>
     start: (language?: string) => Promise<{ success: boolean; error?: string }>
     stop: () => Promise<{ success: boolean }>
+    transcribeAudio: (payload: {
+      base64?: string
+      mimeType?: string
+      pcmBase64?: string
+      sampleRate?: number
+      language: string
+    }) => Promise<{ success: boolean; text?: string; error?: string }>
     /** E2E only — push transcript through the same IPC channel as native System.Speech */
     e2eInject?: (update: { final?: string; interim?: string }) => Promise<{ success: boolean; error?: string }>
     onTranscript: (callback: (data: { final: string; interim: string }) => void) => () => void
@@ -318,6 +389,10 @@ export interface ElectronAPI {
     authenticate: (backendId: string, methodId?: string, meta?: Record<string, unknown>) => Promise<{ success: boolean; sessionId?: string; error?: string; authMethods?: Array<{ id: string; name?: string }> }>
     getAuthMethods: (backendId: string) => Promise<Array<{ id: string; name?: string }>>
     openGeminiTerminalLogin: () => Promise<{ success: boolean; error?: string }>
+    openClaudeTerminalLogin: () => Promise<{ success: boolean; error?: string }>
+    getClaudePreferredModel: () => Promise<{ modelId: string | null; useEnvModel: boolean }>
+    getAgentRuntime: (backend: string) => Promise<AgentRuntimeSnapshot>
+    getAllAgentRuntimes: () => Promise<AgentRuntimeSnapshot[]>
     checkGeminiAuth: () => Promise<{ authenticated: boolean }>
     reloadSessions: () => Promise<{ results: Array<{ backend: string; success: boolean; sessionId?: string; error?: string }>; agents: DetectedAgent[] }>
     refreshAgents: () => Promise<DetectedAgent[]>
@@ -333,7 +408,7 @@ export interface ElectronAPI {
     }>
     getMcpServersConfig: () => Promise<Array<{ id: string; name: string; enabled: boolean; command: string; args?: string[]; env?: Record<string, string>; builtin?: boolean }>>
     
-    onAcpStreamMessage: (callback: (data: { backend: string; message: import('../../electron/shared/responseMessage').IResponseMessage }) => void) => () => void
+    onAcpStreamMessage: (callback: (data: { backend: string; message: import('../../electron/shared/responseMessage').IResponseMessage; silent?: boolean }) => void) => () => void
     onSessionUpdate: (callback: (data: { backend: string; update: any }) => void) => () => void
     onBackendReady: (callback: (data: AcpBackendReadyEvent) => void) => () => void
     onConnectionStatusChange: (callback: (data: {
@@ -350,7 +425,7 @@ export interface ElectronAPI {
       }
     }) => void) => () => void
     onAgentStatus: (callback: (data: { backend: string; status: string; error?: string }) => void) => () => void
-    onEndTurn: (callback: (data: { backend: string }) => void) => () => void
+    onEndTurn: (callback: (data: { backend: string; silent?: boolean }) => void) => () => void
     onDisconnected: (callback: (data: { code: number | null; signal: NodeJS.Signals | null; backend: string }) => void) => () => void
     onPermissionRequest: (callback: (data: any) => void) => void
     onAuthUrl: (callback: (data: { backend: string; url: string }) => void) => () => void

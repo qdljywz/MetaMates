@@ -14,7 +14,7 @@ export { isPathInsideWorkspace, toWorkspaceRelativePath } from '../../electron/s
 export {
   getUserMemoryIndexRelative,
   getIntelligenceReferenceDirRelative,
-} from '../../electron/shared/intelligencePaths'
+} from '../../electron/shared/intelligencePathLayout'
 
 export type WorkspaceLanguage = 'zh' | 'en'
 

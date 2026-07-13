@@ -257,7 +257,7 @@ export const CliInstallPanel: React.FC<CliInstallPanelProps> = ({ open, onClose 
                   description={
                     <div>
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        {config.description}
+                        {t(`backendDesc.${backend}`, { defaultValue: config.description })}
                       </Typography.Text>
                       {status?.progress && (
                         <div style={{ marginTop: 4, color: 'var(--info)', fontSize: 12 }}>{status.progress}</div>

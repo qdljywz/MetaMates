@@ -18,14 +18,14 @@ const required = [
   'inits/en',
   'scripts/vault-mcp-bridge.mjs',
   'scripts/ollama-acp-bridge.mjs',
+  'docs/user-manual.html',
   'LICENSE',
   'electron-builder.yml',
 ]
 
-const warnings = [
-  'build/icon.icns',
-  'public/assets',
-]
+const warnings = ['build/icon.icns']
+
+const distAssetIds = ['claude', 'gemini', 'codebuddy']
 
 let failed = false
 
@@ -41,6 +41,15 @@ for (const rel of warnings) {
   const full = path.join(ROOT, rel)
   if (!fs.existsSync(full)) {
     console.warn(`[pack] WARN optional: ${rel}`)
+  }
+}
+
+for (const id of distAssetIds) {
+  const rel = path.join('dist', 'assets', `${id}.svg`)
+  const full = path.join(ROOT, rel)
+  if (!fs.existsSync(full)) {
+    console.error(`[pack] MISSING dist asset: ${rel} — run logos:agents before build`)
+    failed = true
   }
 }
 

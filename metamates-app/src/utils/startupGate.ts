@@ -1,10 +1,13 @@
 import { mapBackendSnapshotToStatus, type BackendConnectionSnapshot } from './agentConnectionStatus'
 
+import { STARTUP_SPLASH_CYCLE_MS } from './startupUx'
+
 export const STARTUP_MIN_MS = 1_500
 /** Keep splash aligned with real readiness, avoid overlong waiting. */
 export const STARTUP_MAX_MS = 15_000
 export const STARTUP_POLL_MS = 400
-export const STARTUP_ANIMATION_CYCLE_MS = 5_000
+/** @deprecated Use STARTUP_SPLASH_CYCLE_MS from startupUx — kept for imports that expect this name. */
+export const STARTUP_ANIMATION_CYCLE_MS = STARTUP_SPLASH_CYCLE_MS
 const PRIMARY_BACKEND_PROBE_MS = 3_500
 const EARLY_TIMEOUT_MS = 7_000
 

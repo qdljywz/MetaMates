@@ -108,6 +108,17 @@ const HelpModal: React.FC<HelpModalProps> = ({ visible, onClose }) => {
     await window.electronAPI?.updater?.quitAndInstall?.()
   }
 
+  const handleOpenUserManual = async () => {
+    if (window.electronAPI?.openUserManual) {
+      const result = await window.electronAPI.openUserManual()
+      if (!result?.success) {
+        message.warning(t('openManualFailed'))
+      }
+      return
+    }
+    message.warning(t('openManualFailed'))
+  }
+
   const updateHint = () => {
     switch (updatePhase) {
       case 'checking':
@@ -135,7 +146,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ visible, onClose }) => {
     <Modal
       title={
         <Space>
-          <QuestionCircleOutlined style={{ color: '#ff7a00' }} />
+          <QuestionCircleOutlined className="title-bar-brand-icon" />
           <span>{t('title')}</span>
         </Space>
       }
@@ -214,16 +225,16 @@ const HelpModal: React.FC<HelpModalProps> = ({ visible, onClose }) => {
           key="shortcuts"
         >
           <div style={{ lineHeight: 2.5 }}>
-            <div><Tag color="orange">Ctrl + P</Tag> {t('shortcuts.commandPalette')}</div>
-            <div><Tag color="orange">Ctrl + N</Tag> {t('shortcuts.dailyNote')}</div>
-            <div><Tag color="orange">Ctrl + Shift + P</Tag> {t('shortcuts.dailyPlan')}</div>
-            <div><Tag color="orange">Ctrl + Shift + F</Tag> {t('shortcuts.globalSearch')}</div>
-            <div><Tag color="orange">Ctrl + B</Tag> {t('shortcuts.toggleFileTree')}</div>
-            <div><Tag color="orange">Ctrl + S</Tag> {t('shortcuts.saveFile')}</div>
-            <div><Tag color="orange">Ctrl + W</Tag> {t('shortcuts.closeTab')}</div>
-            <div><Tag color="orange">Ctrl + Tab</Tag> {t('shortcuts.nextTab')}</div>
-            <div><Tag color="orange">Ctrl + Shift + Tab</Tag> {t('shortcuts.prevTab')}</div>
-            <div><Tag color="orange">Ctrl + Shift + L</Tag> {t('shortcuts.toggleTheme')}</div>
+            <div><Tag className="mm-tag mm-tag--accent">Ctrl + P</Tag> {t('shortcuts.commandPalette')}</div>
+            <div><Tag className="mm-tag mm-tag--accent">Ctrl + N</Tag> {t('shortcuts.dailyNote')}</div>
+            <div><Tag className="mm-tag mm-tag--accent">Ctrl + Shift + P</Tag> {t('shortcuts.dailyPlan')}</div>
+            <div><Tag className="mm-tag mm-tag--accent">Ctrl + Shift + F</Tag> {t('shortcuts.globalSearch')}</div>
+            <div><Tag className="mm-tag mm-tag--accent">Ctrl + B</Tag> {t('shortcuts.toggleFileTree')}</div>
+            <div><Tag className="mm-tag mm-tag--accent">Ctrl + S</Tag> {t('shortcuts.saveFile')}</div>
+            <div><Tag className="mm-tag mm-tag--accent">Ctrl + W</Tag> {t('shortcuts.closeTab')}</div>
+            <div><Tag className="mm-tag mm-tag--accent">Ctrl + Tab</Tag> {t('shortcuts.nextTab')}</div>
+            <div><Tag className="mm-tag mm-tag--accent">Ctrl + Shift + Tab</Tag> {t('shortcuts.prevTab')}</div>
+            <div><Tag className="mm-tag mm-tag--accent">Ctrl + Shift + L</Tag> {t('shortcuts.toggleTheme')}</div>
           </div>
           <Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0, fontSize: 12 }}>
             {t('shortcuts.editorNote')}
@@ -235,6 +246,9 @@ const HelpModal: React.FC<HelpModalProps> = ({ visible, onClose }) => {
 
       <div style={{ marginBottom: 12 }}>
         <Space wrap>
+          <Button icon={<BookOutlined />} onClick={() => void handleOpenUserManual()}>
+            {t('openManual')}
+          </Button>
           <Button
             icon={<ReloadOutlined />}
             loading={checking || updatePhase === 'checking'}
@@ -258,7 +272,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ visible, onClose }) => {
         )}
       </div>
       
-      <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+      <div className="help-modal__footer">
         <Space split={<Divider type="vertical" />}>
           <span>{t('version')} {appVersion}</span>
           <button

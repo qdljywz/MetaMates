@@ -3,6 +3,9 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../../hooks/useTheme'
+import type { WorkspaceLanguage } from '../../constants/paths'
+import { computeGraph3DNodePositions, type Graph3DLayoutMode } from '../../utils/graphFocus'
+import { getGraphLabelSpritePalette, paintGraphLabelSprite } from './graphSpriteTheme'
 
 interface GraphNode {
   id: string
@@ -34,16 +37,50 @@ interface NodeObject {
 interface GraphView3DProps {
   nodes: GraphNode[]
   links: GraphLink[]
+  layoutMode?: Graph3DLayoutMode
+  workspaceLanguage?: WorkspaceLanguage
   onNodeClick?: (node: GraphNode) => void
   fileMap?: Map<string, string>
   onFileSelect?: (path: string) => void
   onClose?: () => void
 }
 
-const SPHERE_RADIUS = 200
 const IDLE_AUTO_ROTATE_DELAY_MS = 1800
 const AUTO_ROTATE_SPEED_RAD_PER_SEC = 0.08
 const AUTO_ROTATE_AXIS = new THREE.Vector3(0.25, 1, 0.12).normalize()
+
+function styleRendererCanvas(canvas: HTMLCanvasElement): void {
+  canvas.style.position = 'absolute'
+  canvas.style.inset = '0'
+  canvas.style.width = '100%'
+  canvas.style.height = '100%'
+  canvas.style.display = 'block'
+  canvas.style.zIndex = '0'
+}
+
+function fitCameraToNodes(
+  camera: THREE.PerspectiveCamera,
+  controls: OrbitControls,
+  positions: Iterable<THREE.Vector3>,
+): void {
+  const box = new THREE.Box3()
+  for (const position of positions) {
+    box.expandByPoint(position)
+  }
+  if (box.isEmpty()) {
+    camera.position.set(0, 0, 450)
+    controls.target.set(0, 0, 0)
+    controls.update()
+    return
+  }
+
+  const center = box.getCenter(new THREE.Vector3())
+  const size = box.getSize(new THREE.Vector3())
+  const maxDim = Math.max(size.x, size.y, size.z, 120)
+  camera.position.set(center.x, center.y, center.z + maxDim * 2.15)
+  controls.target.copy(center)
+  controls.update()
+}
 
 function measureGraphContainer(container: HTMLElement): { width: number; height: number } {
   const rect = container.getBoundingClientRect()
@@ -63,7 +100,16 @@ function measureGraphContainer(container: HTMLElement): { width: number; height:
   }
 }
 
-const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fileMap: _fileMap, onFileSelect: _onFileSelect, onClose: _onClose }) => {
+const GraphView3D: React.FC<GraphView3DProps> = ({
+  nodes,
+  links,
+  layoutMode = 'sphere',
+  workspaceLanguage = 'zh',
+  onNodeClick,
+  fileMap: _fileMap,
+  onFileSelect: _onFileSelect,
+  onClose: _onClose,
+}) => {
   const { t } = useTranslation('graph')
   const containerRef = useRef<HTMLDivElement>(null)
   const sceneRef = useRef<THREE.Scene | null>(null)
@@ -87,6 +133,7 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
 
   const { theme } = useTheme()
   const isDark = theme.mode === 'dark'
+  const labelPalette = useMemo(() => getGraphLabelSpritePalette(isDark), [isDark])
 
   const getRelatedNodeIds = useCallback((nodeId: string): Set<string> => {
     const related = new Set<string>([nodeId])
@@ -103,55 +150,7 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
     canvas.width = 720
     canvas.height = 160
 
-    const padding = 20
-    const borderRadius = 12
-
-    if (isSelected) {
-      const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height)
-      gradient.addColorStop(0, 'rgba(37, 99, 235, 0.98)')
-      gradient.addColorStop(1, 'rgba(99, 102, 241, 0.98)')
-      context.fillStyle = gradient
-    } else if (isHighlighted) {
-      context.fillStyle = 'rgba(59, 130, 246, 0.92)'
-    } else {
-      context.fillStyle = 'rgba(15, 15, 26, 0.92)'
-    }
-    
-    context.beginPath()
-    context.roundRect(padding, padding, canvas.width - padding * 2, canvas.height - padding * 2, borderRadius)
-    context.fill()
-
-    if (isHighlighted || isSelected) {
-      context.strokeStyle = 'rgba(255, 255, 255, 0.5)'
-      context.lineWidth = 3
-      context.stroke()
-    } else {
-      context.strokeStyle = 'rgba(255, 255, 255, 0.15)'
-      context.lineWidth = 1
-      context.stroke()
-    }
-
-    const fontSize = isSelected ? 42 : (isHighlighted ? 36 : 32)
-    context.font = `bold ${fontSize}px "Segoe UI", Arial, sans-serif`
-    context.fillStyle = '#ffffff'
-    context.textAlign = 'center'
-    context.textBaseline = 'middle'
-    
-    context.shadowColor = 'rgba(0, 0, 0, 0.5)'
-    context.shadowBlur = 4
-    context.shadowOffsetX = 1
-    context.shadowOffsetY = 1
-    
-    const maxWidth = canvas.width - padding * 4
-    let displayText = text
-    if (context.measureText(text).width > maxWidth) {
-      while (context.measureText(displayText + '...').width > maxWidth && displayText.length > 0) {
-        displayText = displayText.slice(0, -1)
-      }
-      displayText += '...'
-    }
-    
-    context.fillText(displayText, canvas.width / 2, canvas.height / 2)
+    paintGraphLabelSprite(context, canvas, text, isHighlighted, isSelected, labelPalette)
 
     const texture = new THREE.CanvasTexture(canvas)
     texture.needsUpdate = true
@@ -168,7 +167,7 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
     sprite.scale.set(90, 20, 1)
 
     return sprite
-  }, [])
+  }, [labelPalette])
 
   const updateSpriteAppearance = useCallback((sprite: THREE.Sprite, text: string, isHighlighted: boolean, isSelected: boolean = false) => {
     const canvas = document.createElement('canvas')
@@ -176,55 +175,7 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
     canvas.width = 720
     canvas.height = 160
 
-    const padding = 20
-    const borderRadius = 12
-
-    if (isSelected) {
-      const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height)
-      gradient.addColorStop(0, 'rgba(37, 99, 235, 0.98)')
-      gradient.addColorStop(1, 'rgba(99, 102, 241, 0.98)')
-      context.fillStyle = gradient
-    } else if (isHighlighted) {
-      context.fillStyle = 'rgba(59, 130, 246, 0.92)'
-    } else {
-      context.fillStyle = 'rgba(15, 15, 26, 0.92)'
-    }
-    
-    context.beginPath()
-    context.roundRect(padding, padding, canvas.width - padding * 2, canvas.height - padding * 2, borderRadius)
-    context.fill()
-
-    if (isHighlighted || isSelected) {
-      context.strokeStyle = 'rgba(255, 255, 255, 0.5)'
-      context.lineWidth = 3
-      context.stroke()
-    } else {
-      context.strokeStyle = 'rgba(255, 255, 255, 0.15)'
-      context.lineWidth = 1
-      context.stroke()
-    }
-
-    const fontSize = isSelected ? 42 : (isHighlighted ? 36 : 32)
-    context.font = `bold ${fontSize}px "Segoe UI", Arial, sans-serif`
-    context.fillStyle = '#ffffff'
-    context.textAlign = 'center'
-    context.textBaseline = 'middle'
-    
-    context.shadowColor = 'rgba(0, 0, 0, 0.5)'
-    context.shadowBlur = 4
-    context.shadowOffsetX = 1
-    context.shadowOffsetY = 1
-    
-    const maxWidth = canvas.width - padding * 4
-    let displayText = text
-    if (context.measureText(text).width > maxWidth) {
-      while (context.measureText(displayText + '...').width > maxWidth && displayText.length > 0) {
-        displayText = displayText.slice(0, -1)
-      }
-      displayText += '...'
-    }
-    
-    context.fillText(displayText, canvas.width / 2, canvas.height / 2)
+    paintGraphLabelSprite(context, canvas, text, isHighlighted, isSelected, labelPalette)
 
     const texture = new THREE.CanvasTexture(canvas)
     texture.needsUpdate = true
@@ -237,7 +188,7 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
     sprite.material.needsUpdate = true
     
     sprite.scale.set(90, 20, 1)
-  }, [])
+  }, [labelPalette])
 
   const highlightNode = useCallback((nodeId: string | null, _isHover: boolean = false) => {
     if (!nodeId) {
@@ -356,9 +307,10 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
     camera.position.set(0, 0, 450)
     cameraRef.current = camera
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
     renderer.setSize(width, height)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    styleRendererCanvas(renderer.domElement)
     container.appendChild(renderer.domElement)
     rendererRef.current = renderer
 
@@ -367,8 +319,8 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
     controls.dampingFactor = 0.05
     controls.rotateSpeed = 0.5
     controls.zoomSpeed = 0.8
-    controls.minDistance = 150
-    controls.maxDistance = 600
+    controls.minDistance = 80
+    controls.maxDistance = 1200
     controlsRef.current = controls
 
     const markInteraction = () => {
@@ -412,43 +364,45 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
     })
     lineObjectsRef.current = []
 
-    nodes.forEach((node, i) => {
-      const phi = Math.acos(-1 + (2 * i) / nodes.length)
-      const theta = Math.sqrt(nodes.length * Math.PI) * phi
+    const nodePositions3D = computeGraph3DNodePositions(nodes, workspaceLanguage, layoutMode)
+    const meshPositions: THREE.Vector3[] = []
 
-      const x = SPHERE_RADIUS * Math.cos(theta) * Math.sin(phi)
-      const y = SPHERE_RADIUS * Math.sin(theta) * Math.sin(phi)
-      const z = SPHERE_RADIUS * Math.cos(phi)
+    nodes.forEach((node) => {
+      const position = nodePositions3D.get(node.id) ?? { x: 0, y: 0, z: 0 }
+      const x = position.x
+      const y = position.y
+      const z = position.z
+      meshPositions.push(new THREE.Vector3(x, y, z))
 
-      const nodeSize = Math.max(8, node.size / 3)
-      const geometry = new THREE.SphereGeometry(nodeSize, 32, 32)
+      const nodeSize = Math.max(10, node.size / 2.8)
+      const geometry = new THREE.SphereGeometry(nodeSize, 24, 24)
       const material = new THREE.MeshStandardMaterial({
         color: new THREE.Color(node.color),
         emissive: new THREE.Color(node.color),
-        emissiveIntensity: 0.3,
-        metalness: 0.7,
-        roughness: 0.3,
+        emissiveIntensity: 0.48,
+        metalness: 0.65,
+        roughness: 0.28,
         transparent: true,
-        opacity: 1
+        opacity: 1,
       })
 
       const mesh = new THREE.Mesh(geometry, material)
       mesh.position.set(x, y, z)
       mesh.userData = { nodeId: node.id }
 
-      const glowGeometry = new THREE.SphereGeometry(nodeSize * 1.5, 32, 32)
+      const glowGeometry = new THREE.SphereGeometry(nodeSize * 1.55, 24, 24)
       const glowMaterial = new THREE.MeshBasicMaterial({
         color: new THREE.Color(node.color),
         transparent: true,
-        opacity: 0.2,
-        side: THREE.BackSide
+        opacity: 0.24,
+        side: THREE.BackSide,
       })
       const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial)
       glowMesh.position.set(x, y, z)
       glowMesh.visible = false
 
       const sprite = createTextSprite(node.name, false)
-      sprite.position.set(x, y + nodeSize + 12, z)
+      sprite.position.set(x, y + nodeSize + 14, z)
 
       graphRoot.add(mesh)
       graphRoot.add(sprite)
@@ -456,6 +410,8 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
 
       nodeObjectsRef.current.set(node.id, { mesh, sprite, glowMesh, node })
     })
+
+    fitCameraToNodes(camera, controls, meshPositions)
 
     const nodePositions = new Map<string, THREE.Vector3>()
     nodeObjectsRef.current.forEach((obj, id) => {
@@ -560,6 +516,10 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
     const resizeObserver = new ResizeObserver(() => handleResize())
     resizeObserver.observe(container)
     requestAnimationFrame(() => handleResize())
+    requestAnimationFrame(() => {
+      handleResize()
+      fitCameraToNodes(camera, controls, meshPositions)
+    })
 
     return () => {
       window.removeEventListener('resize', handleResize)
@@ -608,7 +568,7 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
         container.removeChild(renderer.domElement)
       }
     }
-  }, [nodes, links, isDark, createTextSprite])
+  }, [nodes, links, isDark, layoutMode, workspaceLanguage, createTextSprite])
 
   useEffect(() => {
     const container = containerRef.current
@@ -723,51 +683,14 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
     <div
       ref={containerRef}
       data-testid="graph-3d-canvas"
-      style={{
-        width: '100%',
-        flex: 1,
-        minHeight: 480,
-        background: isDark ? '#0f0f1a' : '#f0f0f5',
-        borderRadius: 8,
-        overflow: 'hidden',
-        position: 'relative'
-      }}
+      className="graph-3d-canvas"
     >
-      <div style={{
-        position: 'absolute',
-        bottom: 12,
-        left: 12,
-        padding: '8px 12px',
-        background: isDark ? 'rgba(30, 30, 46, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-        borderRadius: 6,
-        fontSize: 12,
-        color: isDark ? '#a6adc8' : '#6b7280',
-        pointerEvents: 'none',
-        zIndex: 10
-      }}>
-        拖拽旋转 | 滚轮缩放 | 空闲自动缓转 | 单击选中 | 双击打开
+      <div className="graph-3d-hint">
+        {t('tips3d')}
       </div>
 
       {selectedNode && (
-        <div style={{
-          position: 'absolute',
-          top: 12,
-          right: 12,
-          padding: '16px 20px',
-          background: isDark 
-            ? 'rgba(30, 30, 46, 0.95)' 
-            : 'rgba(255, 255, 255, 0.95)',
-          borderRadius: 12,
-          boxShadow: isDark 
-            ? '0 8px 32px rgba(0, 0, 0, 0.4)' 
-            : '0 8px 32px rgba(0, 0, 0, 0.15)',
-          minWidth: 280,
-          maxWidth: 360,
-          zIndex: 20,
-          border: isDark 
-            ? '1px solid rgba(255, 255, 255, 0.1)' 
-            : '1px solid rgba(0, 0, 0, 0.08)'
-        }}>
+        <div className="graph-3d-detail">
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -784,7 +707,7 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
             <div style={{
               fontSize: 16,
               fontWeight: 600,
-              color: isDark ? '#f0f0f5' : '#1f2937',
+              color: 'var(--text-primary)',
               wordBreak: 'break-all'
             }}>
               {selectedNode.name}
@@ -796,41 +719,41 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
             flexDirection: 'column',
             gap: 8,
             fontSize: 13,
-            color: isDark ? '#a6adc8' : '#6b7280'
+            color: 'var(--text-muted)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>{t('importance')}</span>
-              <span style={{ color: isDark ? '#f0f0f5' : '#1f2937' }}>
+              <span style={{ color: 'var(--text-primary)' }}>
                 {Math.round(selectedNode.importance)}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>{t('backlinkCount')}</span>
-              <span style={{ color: isDark ? '#f0f0f5' : '#1f2937' }}>
+              <span style={{ color: 'var(--text-primary)' }}>
                 {selectedNode.inDegree}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>{t('mentionCount')}</span>
-              <span style={{ color: isDark ? '#f0f0f5' : '#1f2937' }}>
+              <span style={{ color: 'var(--text-primary)' }}>
                 {selectedNode.mentionCount}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>{t('connections')}</span>
-              <span style={{ color: isDark ? '#f0f0f5' : '#1f2937' }}>
+              <span style={{ color: 'var(--text-primary)' }}>
                 {selectedNode.outDegree}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>{t('nodeSize')}</span>
-              <span style={{ color: isDark ? '#f0f0f5' : '#1f2937' }}>
+              <span style={{ color: 'var(--text-primary)' }}>
                 {Math.round(selectedNode.size)}
               </span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>{t('lastModified')}</span>
-              <span style={{ color: isDark ? '#f0f0f5' : '#1f2937', fontSize: 12 }}>
+              <span style={{ color: 'var(--text-primary)', fontSize: 12 }}>
                 {formatDate(selectedNode.lastModified)}
               </span>
             </div>
@@ -841,8 +764,8 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
                   {selectedNode.tags.map((tag, i) => (
                     <span key={i} style={{
                       padding: '2px 8px',
-                      background: isDark ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.1)',
-                      color: isDark ? '#a5b4fc' : '#6366f1',
+                      background: 'var(--accent-soft)',
+                      color: 'var(--accent)',
                       borderRadius: 4,
                       fontSize: 11
                     }}>
@@ -857,9 +780,9 @@ const GraphView3D: React.FC<GraphView3DProps> = ({ nodes, links, onNodeClick, fi
           <div style={{
             marginTop: 12,
             paddingTop: 12,
-            borderTop: isDark ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.1)',
+            borderTop: '1px solid var(--divider)',
             fontSize: 11,
-            color: isDark ? '#6b7094' : '#9ca3af',
+            color: 'var(--text-dim)',
             textAlign: 'center'
           }}>
             {t('doubleClickOpen')}

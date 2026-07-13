@@ -5,8 +5,58 @@ MetaMates 使用 [electron-builder](https://www.electron.build/) 生成安装包
 | 平台 | 产物 | 命令 |
 |------|------|------|
 | Windows x64 | `release/MetaMates-<version>-win-x64.exe` (NSIS) | `npm run electron:build:win` |
+| 文档导入扩展 | `release/MetaMates-document-import-<version>-win-x64.zip` | `npm run plugin:document-import:pack` |
 | macOS arm64 / x64 | `release/MetaMates-<version>-mac-<arch>.dmg` | `npm run electron:build:mac` |
 | 本地调试目录（不打包） | `release/win-unpacked` 等 | `npm run electron:build:dir` |
+| **绿色便携版（验收用）** | `release/portable-green/win-unpacked/` + `resources/plugin-zips/*.zip` | `npm run electron:build:win:portable` |
+
+## 绿色便携版（portable-green）
+
+带 bundled 插件 zip，首次启动自动安装 **文档导入** + **离线语音**（约 3～4 分钟，全新 userData）。
+
+```powershell
+cd metamates-app
+npm run electron:build:win:portable
+# 产物：release/portable-green/win-unpacked/MetaMates.exe
+```
+
+开发中快速热更新 frontend + 主进程（**非正式发布路径**）：
+
+```powershell
+npm run build && npm run electron:compile && npm run patch:portable-dist
+```
+
+钉死的打包行为见 **`docs/UX_REGRESSION_GUARDRAILS.md` UX-31～UX-38**（打包专区，含灰屏、空态、插件自动安装）。
+
+## 发布前验收（必须事项）
+
+在 tag / GitHub Release **之前**跑（约 15～25 分钟，不要绑进每次 PR）：
+
+```powershell
+cd metamates-app
+npm run acceptance:final
+```
+
+`acceptance:final` 包含：真实 PDF/DOCX 导入、offline-speech 冒烟、便携版 12s 不灰屏 + 插件自动安装、打包空态 spinner、打包 PDF + Whisper 功能 E2E。
+
+可选更全：
+
+```powershell
+npm run test:e2e:packaged:full    # ~16min 全量打包 E2E
+npm run overnight:acceptance        # 单元 + 便携 + packaged full
+```
+
+**改特定区域时只跑对应项：**
+
+| 改动区域 | 命令 |
+|----------|------|
+| 进程清理 / 灰屏 | `npm run verify:acceptance-portable` |
+| 空态转圈 / emptyTurn toast | `npm run test:e2e:packaged:empty-state` |
+| 插件自动安装 / PDF / 语音 | `npm run test:e2e:packaged:plugins` |
+| 文档导入管线 | `npm run verify:document-import-real` |
+| Agent 打包 E2E（耗配额） | `npm run test:e2e:packaged:agent-live` |
+
+日常 PR 仍用 `npm run test:ux-guardrails` + 相关 targeted spec（见 `docs/UX_REGRESSION_GUARDRAILS.md`）。
 
 ## 环境要求
 
@@ -16,7 +66,8 @@ MetaMates 使用 [electron-builder](https://www.electron.build/) 生成安装包
 - 原生模块：`better-sqlite3` — 打包前会自动 `npm run rebuild:native`
 - **体积优化**：
   - `electronLanguages` 仅保留 `en-US` / `zh-CN`
-  - UI 库（React/Ant Design/Three.js 等）在 **`devDependencies`**，由 Vite 打进 `dist/`；**`dependencies` 仅主进程**（SQLite、PDF/OCR/Office 解析）
+  - UI 库（React/Ant Design/Three.js 等）在 **`devDependencies`**，由 Vite 打进 `dist/`；**`dependencies` 仅主进程**（SQLite 等）
+- **Whisper / ONNX 等重型语音依赖**在可选扩展 `offline-speech` 中，不进入主安装包
   - 打包后自动跑 `npm run electron:pack:verify-asar`，防止 UI 依赖再次进入 `app.asar`
   - 内置终端（`node-pty`）已移除；Gemini OAuth 仍用系统外部终端
 
@@ -38,11 +89,22 @@ npm run electron:build:win   # 或 :mac
 6. `electron-builder` — 输出到 `release/`
 7. `npm run electron:pack:verify-asar` — 确认 `app.asar` 不含 React/Ant Design 等重复依赖
 
+发布到 GitHub 时还需（见 `release-pack.yml`）：
+
+```bash
+npm run whisper:download-model
+npm run plugin:offline-speech:pack
+npm run plugin:document-import:pack
+```
+
+并将主安装包与两个扩展 zip 一并上传到 Release。
+
 ## 打包进安装包的资源
 
 通过 `electron-builder.yml` 的 `extraResources` 打入：
 
 - `inits/` — 工作区初始化模板
+- `docs/user-manual.html` — 完整使用手册（应用内「打开完整使用手册」）
 - `scripts/vault-mcp-bridge.mjs`、`ollama-acp-bridge.mjs` — MCP 桥接
 - `public/assets/` — Agent 图标
 - `build/icon.*` — 应用图标

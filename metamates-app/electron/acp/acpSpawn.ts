@@ -66,6 +66,7 @@ export function createGenericSpawnConfig(
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
       shell: isWindows,
+      windowsHide: isWindows,
     },
   }
 }
@@ -91,6 +92,7 @@ export function createSpawnConfigFromResolved(
         stdio: ['pipe', 'pipe', 'pipe'],
         env,
         shell: isWindows,
+        windowsHide: isWindows,
       },
     }
   }

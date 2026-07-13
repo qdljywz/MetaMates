@@ -32,6 +32,6 @@ tags:
 
 ---
 
-## 🤖 Gemini CLI Collaboration Area
-- [ ] **Command Prompt**: Type `/context` to let Gemini CLI scan all documents under the project and output a health assessment.
-- [ ] **Command Prompt**: Type `/emerge` to let Gemini CLI find potential intersections between this project and others.
+## 🤖 Thinking engine collaboration
+- [ ] **Command Prompt**: Type `/context` to let the AI assistant scan all documents under the project and output a health assessment.
+- [ ] **Command Prompt**: Type `/emerge` to let the AI assistant find potential intersections between this project and others.

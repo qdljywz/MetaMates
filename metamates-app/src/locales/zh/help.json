@@ -3,6 +3,8 @@
   "version": "版本",
   "github": "GitHub",
   "feedback": "反馈问题",
+  "openManual": "打开完整使用手册",
+  "openManualFailed": "无法打开使用手册，请从 GitHub 文档页查看",
   "tabs": {
     "quickstart": "快速入门",
     "features": "核心功能",
@@ -11,7 +13,7 @@
   },
   "welcome": {
     "title": "欢迎使用 MetaMates",
-    "description": "为创作者、知识工作者和自我成长者设计：**右侧引擎是主入口**——对话或一条命令，AI 读过你的私人仓库，把计划与洞察写回笔记，而不是聊完即散。"
+    "description": "为创作者、知识工作者和自我成长者设计：**右侧思考引擎是主入口**——对话或一条命令，AI 读过你的灵感仓库，把计划与洞察写回笔记，而不是聊完即散。"
   },
   "gettingStarted": {
     "title": "开始使用",
@@ -40,8 +42,8 @@
     "fileTree": "文件树 - 拖拽移动、右键菜单",
     "search": "命令面板 Ctrl+P，全局搜索 Ctrl+Shift+F，今日 PLAN Ctrl+Shift+P",
     "graph": "关系图谱 — 可视化笔记关联",
-    "ai": "Agent 执行层 — 15 条 slash 命令；结果写回 Vault（Act & Verify）；用户记忆在 04_情报与连接/记忆索引.md",
-    "memory": "用户记忆 — Agent 须同步摘要到 04_情报与连接/记忆索引.md，勿只写 CLI 缓存",
+    "ai": "思考引擎 — 15 条方法论 slash 命令；结果写回灵感仓库；长期记忆会同步到「记忆索引」笔记",
+    "memory": "用户记忆 — AI 助手会把摘要写入灵感仓库内的记忆索引，方便下次对话继续用",
     "calendar": "日记日历 — 点击日期创建/打开日记与 PLAN"
   },
   "markdown": {

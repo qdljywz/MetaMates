@@ -29,6 +29,6 @@ tags:
 
 ---
 
-## 🤖 Gemini CLI Collaboration Area
-- [ ] **Command Prompt**: Type `/closeday` to let Gemini CLI extract the above action items and automatically create/update them in the corresponding daily plan.
+## 🤖 Thinking engine collaboration
+- [ ] **Command Prompt**: Type `/closeday` to let the AI assistant extract the above action items and automatically create/update them in the corresponding daily plan.
 - [ ] **Command Prompt**: Type `/ghost` and ask: "Based on these decisions, how should I sync progress with investors/senior management?"

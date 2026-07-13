@@ -1,6 +1,7 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { RobotOutlined } from '@ant-design/icons'
+import { BRAND_I18N } from '../../constants/brand'
 
 interface AgentCliInstallGuideProps {
   onInstall: () => void
@@ -9,28 +10,32 @@ interface AgentCliInstallGuideProps {
 }
 
 /**
- * Persistent empty-state guide when no CLI agent is detected.
- * Explains MetaMates value depends on the thinking engine and routes users to install.
+ * Persistent empty-state guide when no AI assistant is detected.
+ * Copy is sourced from `common.brand` — the canonical product strings.
  */
 const AgentCliInstallGuide: React.FC<AgentCliInstallGuideProps> = ({
   onInstall,
   onRescan,
   rescanning = false,
 }) => {
-  const { t } = useTranslation('agent')
-  const steps = [t('empty.step1'), t('empty.step2'), t('empty.step3')]
+  const { t } = useTranslation('common')
+  const steps = [
+    t(BRAND_I18N.installStep1),
+    t(BRAND_I18N.installStep2),
+    t(BRAND_I18N.installStep3),
+  ]
 
   return (
     <div className="agent-cli-install-guide" data-testid="agent-cli-install-guide">
       <div className="agent-cli-install-guide__icon" aria-hidden>
         <RobotOutlined />
       </div>
-      <p className="agent-cli-install-guide__eyebrow">{t('empty.panelLabel')}</p>
-      <h2 className="agent-cli-install-guide__title">{t('empty.title')}</h2>
-      <p className="agent-cli-install-guide__value">{t('empty.valueStatement')}</p>
+      <p className="agent-cli-install-guide__eyebrow">{t(BRAND_I18N.thinkingEngine)}</p>
+      <h2 className="agent-cli-install-guide__title">{t(BRAND_I18N.noAssistantTitle)}</h2>
+      <p className="agent-cli-install-guide__value">{t(BRAND_I18N.noAssistantValue)}</p>
 
       <div className="agent-cli-install-guide__steps">
-        <p className="agent-cli-install-guide__steps-title">{t('empty.stepsTitle')}</p>
+        <p className="agent-cli-install-guide__steps-title">{t(BRAND_I18N.installStepsTitle)}</p>
         <ol>
           {steps.map((step, index) => (
             <li key={index}>{step}</li>
@@ -40,7 +45,7 @@ const AgentCliInstallGuide: React.FC<AgentCliInstallGuideProps> = ({
 
       <div className="agent-cli-install-guide__actions">
         <button type="button" className="agent-cli-install-guide__primary" onClick={onInstall}>
-          {t('empty.installButton')}
+          {t(BRAND_I18N.installAssistant)}
         </button>
         {onRescan && (
           <button
@@ -49,7 +54,7 @@ const AgentCliInstallGuide: React.FC<AgentCliInstallGuideProps> = ({
             onClick={onRescan}
             disabled={rescanning}
           >
-            {rescanning ? t('empty.rescanning') : t('empty.rescan')}
+            {rescanning ? t(BRAND_I18N.rescanning) : t(BRAND_I18N.rescan)}
           </button>
         )}
       </div>

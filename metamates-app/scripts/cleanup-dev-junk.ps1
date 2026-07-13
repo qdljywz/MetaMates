@@ -74,6 +74,16 @@ foreach ($file in $obsoleteFiles) {
   Remove-ItemCounted $file
 }
 
+# Stale MetaMates E2E / verify profiles under %TEMP% (each ~500MB when plugins install).
+$tempRoot = $env:TEMP
+if ($tempRoot -and (Test-Path $tempRoot)) {
+  foreach ($pat in @('metamates-*', 'mm-e2e-*')) {
+    Get-ChildItem -Path $tempRoot -Filter $pat -Directory -Force -ErrorAction SilentlyContinue | ForEach-Object {
+      Remove-ItemCounted $_.FullName
+    }
+  }
+}
+
 Write-Host ""
 if ($removed -eq 0) {
   Write-Host "Nothing to remove."

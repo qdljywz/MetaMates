@@ -76,6 +76,7 @@ export interface CommandHistoryItem {
 export interface AppSettings {
   theme: 'dark' | 'light' | 'system'
   colorScheme?: 'default' | 'nordic' | 'cyberpunk' | 'forest' | 'vintage'
+  lightPalette?: 'paper' | 'cold'
   fontSize: number
   autoSave: boolean
   language?: 'zh' | 'en'
@@ -85,6 +86,15 @@ export interface AppSettings {
   vaultApiPort?: number
   recentFiles?: string[]
   lastOpenedFile?: string
+  speechEngine?: 'auto' | 'whisper' | 'web' | 'native'
+  engineDisplayName?: string
+  engineNamingSkippedAt?: number
+  engineNamingPromptCount?: number
+  engineSetupStatus?: 'pending' | 'vault_only' | 'ready'
+  engineSetupSkippedAt?: number
+  preferredAssistant?: string
+  cliAgentEnabled?: Record<string, boolean>
+  lastAgentBackend?: string
 }
 
 export type AppAction =

@@ -1,4 +1,4 @@
-import { archiveGraduatedInboxNotes } from '../services/graduateInboxArchive'
+import { archiveProcessedInboxNotes } from '../services/graduateInboxArchive'
 import { getWorkspaceLanguage } from '../constants/paths'
 import { openSlashWritebackInEditor, pruneMissingOpenTabs } from '../utils/openSlashWriteback'
 import { workspaceIndexService } from '../services/workspaceIndex'
@@ -9,7 +9,9 @@ type E2EWindow = Window & {
     enabled?: boolean
     workspace?: string
     registerSimulateGraduateArchive?: (
-      fn: ((sourceTexts: string[]) => Promise<{ moved: string[]; skipped: string[] }>) | null,
+      fn: ((
+        payload: { sourceTexts?: string[]; explicitPaths?: string[] },
+      ) => Promise<{ moved: string[]; skipped: string[] }>) | null,
     ) => void
     registerSimulateSlashWritebackOpen?: (
       fn: ((cmdId: string) => Promise<string | null>) | null,
@@ -36,13 +38,18 @@ export function registerE2EBridge(options: {
   ;(w as E2EWindow & { __metamatesE2EDispatch?: (action: AppAction) => void }).__metamatesE2EDispatch =
     options.dispatch
 
-  e2e.registerSimulateGraduateArchive?.(async (sourceTexts) => {
+  e2e.registerSimulateGraduateArchive?.(async (payload) => {
     const ws = options.workspacePath || e2e.workspace || ''
     if (!ws) return { moved: [], skipped: [] }
-    const result = await archiveGraduatedInboxNotes({
+    const sourceTexts = Array.isArray(payload)
+      ? payload
+      : payload?.sourceTexts
+    const explicitPaths = Array.isArray(payload) ? [] : payload?.explicitPaths
+    const result = await archiveProcessedInboxNotes({
       workspacePath: ws,
       language: getWorkspaceLanguage(options.language),
       sourceTexts,
+      explicitPaths,
     })
     if (result.moved.length > 0) {
       window.dispatchEvent(new CustomEvent('metamates:empty-state-updated'))

@@ -8,8 +8,12 @@ describe('resolveAcpFailure', () => {
     expect(resolveAcpFailure({ authRequired: true }).action).toBe('auth')
   })
 
-  it('detects disconnect errors', () => {
-    expect(resolveAcpFailure({ error: 'Process exited' }).action).toBe('reconnect')
+  it('detects billing/arrearage as quota not auth', () => {
+    expect(
+      resolveAcpFailure({
+        error: 'API Error: 400 Arrearage Access denied, please make sure your account is in good standing.',
+      }).action,
+    ).toBe('switch_agent')
   })
 })
 

@@ -118,7 +118,7 @@ interface AppSettings {
 }
 ```
 
-> **Note:** Built-in API providers (`aiProvider`, `apiKey`) were removed. Use the ACP Agent panel with local CLI agents.
+> **Note:** Built-in API providers (`aiProvider`, `apiKey`) were removed. Use the **thinking engine** with local CLI-based AI assistants.
 
 ### Actions
 
@@ -134,7 +134,7 @@ type AppAction =
 
 ## AI 服务（ACP only）
 
-内置 OpenAI/智谱 API 已移除。通过右侧 **Agent 面板** 使用本机 CLI。
+内置 OpenAI/智谱 API 已移除。通过右侧**思考引擎**使用本机 AI 助手（ACP CLI）。
 
 ```typescript
 const agents = await window.electronAPI.acp.detectAgents()

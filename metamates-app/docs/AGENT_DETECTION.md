@@ -1,6 +1,6 @@
-# Agent CLI 自动发现
+# AI 助手 CLI 自动发现
 
-> 产品行为：用户安装 CLI 后打开 MetaMates，右侧 Agent 工具栏自动出现对应图标，**无需手动配置**。
+> 产品行为：用户安装 CLI 后打开 MetaMates，右侧**思考引擎**工具栏自动出现对应图标，**无需手动配置**。
 
 ---
 
@@ -13,7 +13,7 @@ app.whenReady
            └─ 并行扫描 acpRegistry
            └─ 缓存 detectedAgents
 
-Renderer Agent 面板
+Renderer 思考引擎
     └─ get-detected-agents / refreshAgents
            └─ 返回缓存或强制重扫
 ```
@@ -42,7 +42,7 @@ Gemini、CodeBuddy、Claude、Qwen、Codex、iFlow、Goose、Augment、Kimi、Op
 
 新增 CLI：在 `acpRegistry.ts` 增加一条 `detectByDefault: true` 的定义即可，检测与安装面板自动对齐。
 
-### Agent 图标
+### AI 助手图标
 
 | 项 | 说明 |
 |----|------|
@@ -66,12 +66,13 @@ node scripts/full-functional-test.mjs --skip-build
 
 ## 与 AionUi 的关系
 
-检测思路对齐 AionUi（注册表 + enhanced PATH + Windows shim），MetaMates 额外增加 npm 全局包回退，并将结果接入「Vault 主场 + 单 Agent 单对话」的执行层 UI，而非聊天 App 三栏布局。
+检测思路对齐 AionUi（注册表 + enhanced PATH + Windows shim），MetaMates 额外增加 npm 全局包回退，并将结果接入「灵感仓库主场 + 单 AI 助手单对话」的思考引擎 UI，而非聊天 App 三栏布局。
 
 **参考源码（勿放入 MetaMates 仓库内，避免 Cursor 锁定 `app.asar`）：**
 
 ```powershell
-git clone --depth 1 https://github.com/iOfficeAI/AionUi.git E:\Trae\AionUi-source
+# Clone outside this repo (any path on your machine is fine)
+git clone --depth 1 https://github.com/iOfficeAI/AionUi.git $env:USERPROFILE\src\AionUi-source
 ```
 
 对照重点：`AcpDetector`、`acpRegistry`、MCP 同步、ACP spawn 参数。

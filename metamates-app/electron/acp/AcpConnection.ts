@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'child_process'
-import { killProcessTree } from '../shared/processTreeKill'
+import { killProcessTree, trackManagedProcess, untrackManagedProcess } from '../shared/processTreeKill'
 import * as fsPromises from 'fs/promises'
 import * as sessionDb from './sessionDb'
 import { sessionStore } from './sessionStore'
@@ -7,6 +7,15 @@ import { buildMetaMatesMcpServers } from './mcpSessionConfig'
 import { BrowserWindow, shell } from 'electron'
 import { POTENTIAL_ACP_CLIS, LOGO_COLORS } from '../shared/acpRegistry'
 import { createSpawnConfigFromResolved } from './acpSpawn'
+import {
+  applyClaudeChildEnvOverrides,
+  buildClaudeSessionNewPayload,
+  getClaudePreferredModelId,
+  getClaudeSpawnEnv,
+  readClaudeSettingsEnv,
+} from '../claudeAuth'
+import { resolveAgentRuntime } from '../agentCliConfig'
+import { isClaudeModelCliLocked } from '../shared/agentCliConfigPolicy'
 import { applyGeminiChildEnvOverrides, getGeminiSpawnEnv } from '../geminiAuth'
 import { classifyAcpError, isAuthErrorMessage } from './acpErrors'
 import { classifySessionFailure } from './agentHealth'
@@ -31,6 +40,8 @@ import {
   type SessionPipelineContext,
 } from '../shared/sessionUpdatePipeline'
 import { resolveToolCallId, sanitizeAcpToolUpdate, type ToolCallUpdatePayload } from '../shared/acpToolCallOutput'
+
+export const BACKGROUND_EMPTY_STATE_DISPLAY = '[background-empty-state]'
 
 export { POTENTIAL_ACP_CLIS, LOGO_COLORS }
 
@@ -115,6 +126,8 @@ export class BackendConnection {
   availableCommands: Array<{ name: string; description?: string }> = []
   private openedAuthUrls = new Set<string>()
   private promptKeepaliveInterval: NodeJS.Timeout | null = null
+  /** Internal prompts (empty-state rethink) — skip chat DB + UI bubbles. */
+  private silentPromptTurn = false
   
   private getWorkspacePath: () => string
 
@@ -212,6 +225,7 @@ export class BackendConnection {
     const spawnEnv = {
       ...this.config.spawnEnv,
       ...(this.config.backend === 'gemini' ? getGeminiSpawnEnv() : {}),
+      ...(this.config.backend === 'claude' ? getClaudeSpawnEnv() : {}),
       ...(workspacePath
         ? {
             METAMATES_WORKSPACE: workspacePath,
@@ -226,14 +240,19 @@ export class BackendConnection {
       workspacePath,
       spawnEnv,
     )
-    if (this.config.backend === 'gemini' && options.env) {
-      options.env = applyGeminiChildEnvOverrides(options.env as Record<string, string>)
+    if (options.env) {
+      if (this.config.backend === 'gemini') {
+        options.env = applyGeminiChildEnvOverrides(options.env as Record<string, string>)
+      } else if (this.config.backend === 'claude') {
+        options.env = applyClaudeChildEnvOverrides(options.env as Record<string, string>)
+      }
     }
 
     const startTime = Date.now()
     console.log(`[${this.config.backend}] spawning:`, spawnCmd, spawnArgs, 'cwd:', options.cwd)
 
     this.child = spawn(spawnCmd, spawnArgs, options)
+    trackManagedProcess(this.child.pid)
 
     this.child.stdout.on('data', (data: Buffer) => {
       const chunk = data.toString()
@@ -271,6 +290,7 @@ export class BackendConnection {
       }
       this.pendingRequests.clear()
       if (pid) {
+        untrackManagedProcess(pid)
         killProcessTree(pid, { force: true })
       }
       this.sendToRenderer('disconnected', { code, signal, backend: this.config.backend })
@@ -366,6 +386,7 @@ export class BackendConnection {
 
   /** Always notify UI when a prompt turn ends — emits finish stream message + legacy end-turn. */
   private emitEndTurn(error?: string): void {
+    const wasSilent = this.silentPromptTurn
     const ctx = this.buildPipelineContext()
     if (error) {
       this.emitStreamMessage(buildTurnErrorMessage(ctx, error))
@@ -373,9 +394,10 @@ export class BackendConnection {
     this.emitStreamMessage(buildTurnFinishMessage(ctx))
     this.currentMsgId = null
     this.currentTurnId = null
+    this.silentPromptTurn = false
     this.stopPromptKeepalive()
     sessionDb.flushAllPendingMessages()
-    this.sendToRenderer('end-turn', { backend: this.config.backend })
+    this.sendToRenderer('end-turn', { backend: this.config.backend, silent: wasSilent })
   }
 
   private buildPipelineContext(): SessionPipelineContext {
@@ -403,6 +425,7 @@ export class BackendConnection {
     this.sendToRenderer('acp-stream-message', {
       backend: this.config.backend,
       message,
+      silent: this.silentPromptTurn,
     })
   }
 
@@ -465,6 +488,7 @@ export class BackendConnection {
   }
 
   private applyDbWrite(conversationId: string, op: DbWriteOp): void {
+    if (this.silentPromptTurn) return
     switch (op.kind) {
       case 'accumulate_text': {
         const { msg_id, content } = op.payload as { msg_id: string; content: string }
@@ -823,6 +847,32 @@ export class BackendConnection {
     }
   }
 
+  private async sendSessionNewRequest(
+    workspacePath: string,
+    mcpServers: ReturnType<typeof buildMetaMatesMcpServers>,
+    resumeSessionId?: string | null,
+  ): Promise<any> {
+    const buildPayload = (servers: typeof mcpServers) =>
+      this.config.backend === 'claude'
+        ? buildClaudeSessionNewPayload(workspacePath, servers, resumeSessionId ?? undefined)
+        : { cwd: workspacePath, mcpServers: servers }
+
+    try {
+      return await this.sendRequest('session/new', buildPayload(mcpServers))
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error)
+      const retryWithoutMcp =
+        this.config.backend === 'claude' &&
+        mcpServers.length > 0 &&
+        /internal error|query closed/i.test(msg)
+      if (!retryWithoutMcp) throw error
+      console.warn(
+        `[claude] session/new with ${mcpServers.length} MCP server(s) failed (${msg}); retrying without MCP`,
+      )
+      return await this.sendRequest('session/new', buildPayload([]))
+    }
+  }
+
   private async doCreateSession(resume = true): Promise<{ sessionId: string; cached?: boolean; resumed?: boolean; models?: any }> {
     if (this.sessionId) {
       console.log(`[${this.config.backend}] session already exists:`, this.sessionId)
@@ -831,7 +881,10 @@ export class BackendConnection {
 
     const workspacePath = this.getWorkspacePath()
     const savedSession = sessionStore.getSession(this.config.backend, workspacePath)
-    const resumeSessionId = resume && savedSession?.sessionId ? savedSession.sessionId : null
+    let resumeSessionId = resume && savedSession?.sessionId ? savedSession.sessionId : null
+    if (this.config.backend === 'claude' && resolveAgentRuntime('claude').capabilities.skipSessionResume) {
+      resumeSessionId = null
+    }
     
     const mcpServers = buildMetaMatesMcpServers()
     
@@ -843,20 +896,23 @@ export class BackendConnection {
         const isClaudeOrCodebuddy = this.config.backend === 'claude' || this.config.backend === 'codebuddy'
         
         if (isClaudeOrCodebuddy) {
-          result = await Promise.race([
-            this.sendRequest('session/new', {
-              cwd: workspacePath,
-              mcpServers,
-              _meta: {
-                claudeCode: {
-                  options: {
-                    resume: resumeSessionId,
+          const resumeRequest =
+            this.config.backend === 'claude'
+              ? this.sendSessionNewRequest(workspacePath, mcpServers, resumeSessionId)
+              : this.sendRequest('session/new', {
+                  cwd: workspacePath,
+                  mcpServers,
+                  _meta: {
+                    claudeCode: {
+                      options: { resume: resumeSessionId },
+                    },
                   },
-                },
-              },
-            }),
+                })
+          result = await Promise.race([
+            resumeRequest,
             new Promise<never>((_, reject) => {
-              setTimeout(() => reject(new Error('Resume timed out')), 15_000)
+              const resumeMs = this.config.backend === 'claude' ? 30_000 : 15_000
+              setTimeout(() => reject(new Error('Resume timed out')), resumeMs)
             }),
           ])
         } else {
@@ -871,7 +927,9 @@ export class BackendConnection {
           this.sessionId = result.sessionId
           this.clearSessionFailure()
           this.currentMode = normalizeAgentMode(savedSession.mode)
-          this.currentModelId = savedSession.modelId || null
+          this.currentModelId = this.config.backend === 'claude'
+            ? this.resolveClaudeSessionModelId(savedSession.modelId)
+            : (savedSession.modelId || null)
           console.log(`[${this.config.backend}] resumed session:`, this.sessionId)
           if (result.models) {
             this.models = result.models
@@ -884,6 +942,13 @@ export class BackendConnection {
               modelId: this.currentModelId,
             }, workspacePath)
           }
+
+          emitAgentLifecycle(this.config.backend, 'session_active')
+          void pushConnectionStatus(this.config.backend, this)
+
+          if (this.config.backend === 'claude') {
+            await this.syncClaudeSessionModelFromCliConfig()
+          }
           
           return { sessionId: this.sessionId, resumed: true }
         }
@@ -895,7 +960,7 @@ export class BackendConnection {
       }
     }
 
-    const result = await this.sendRequest('session/new', { cwd: workspacePath, mcpServers })
+    const result = await this.sendSessionNewRequest(workspacePath, mcpServers)
     this.sessionId = result.sessionId
     this.clearSessionFailure()
     if (Array.isArray(result?.availableCommands)) {
@@ -935,6 +1000,7 @@ export class BackendConnection {
       try {
         const result = await this.doCreateSession(resume)
         await this.ensurePermissionMode()
+        await this.ensureClaudeEnvModelIfNeeded()
         return result
       } catch (error: any) {
         const authRequired = this.isAuthError(error) || !!error.authRequired
@@ -947,6 +1013,7 @@ export class BackendConnection {
               await this.authenticate(method.id)
               const result = await this.doCreateSession(resume)
               await this.ensurePermissionMode()
+              await this.ensureClaudeEnvModelIfNeeded()
               return result
             } catch (authErr: any) {
               console.log(`[${this.config.backend}] authenticate (${method.id || 'default'}) failed:`, authErr.message)
@@ -985,6 +1052,43 @@ export class BackendConnection {
     }
   }
 
+  private resolveClaudeSessionModelId(storedModelId: string | null | undefined): string | null {
+    const settingsEnv = readClaudeSettingsEnv()
+    if (isClaudeModelCliLocked(settingsEnv)) {
+      return getClaudePreferredModelId()
+    }
+    return storedModelId?.trim() || null
+  }
+
+  /** Keep ACP session model aligned with ~/.claude/settings.json — same source as CLI in PowerShell. */
+  private async syncClaudeSessionModelFromCliConfig(): Promise<void> {
+    if (this.config.backend !== 'claude' || !this.sessionId) return
+    const runtime = resolveAgentRuntime('claude')
+    const cliModel = runtime.display.effectiveModel
+    if (!cliModel) return
+
+    this.currentModelId = cliModel
+    await sessionStore.setSession(this.config.backend, {
+      sessionId: this.sessionId,
+      mode: this.currentMode,
+      modelId: cliModel,
+    }, this.getWorkspacePath())
+
+    if (!runtime.capabilities.canSwitchModel) {
+      console.log(`[claude] session model from CLI config: ${cliModel} (${runtime.display.provenanceModel ?? 'settings'})`)
+      try {
+        await this.sendRequest('session/set_model', { sessionId: this.sessionId, modelId: cliModel })
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e)
+        console.log(`[claude] session/set_model to CLI model failed:`, msg)
+      }
+    }
+  }
+
+  private async ensureClaudeEnvModelIfNeeded(): Promise<void> {
+    await this.syncClaudeSessionModelFromCliConfig()
+  }
+
   private async ensureGeminiAutoModelIfNeeded(): Promise<void> {
     if (this.config.backend !== 'gemini' || !this.sessionId) return
     const { models } = normalizeAcpModels(this.models)
@@ -1005,6 +1109,26 @@ export class BackendConnection {
 
   async setModel(modelId: string): Promise<any> {
     if (!this.sessionId) throw new Error('No session')
+    if (this.config.backend === 'claude') {
+      const runtime = resolveAgentRuntime('claude')
+      if (!runtime.capabilities.canSwitchModel) {
+        const cliModel = runtime.display.effectiveModel ?? modelId
+        this.currentModelId = cliModel
+        console.log(`[claude] model locked by CLI settings — syncing session to ${cliModel}`)
+        try {
+          await this.sendRequest('session/set_model', { sessionId: this.sessionId, modelId: cliModel })
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e)
+          console.log(`[claude] session/set_model (locked) failed:`, msg)
+        }
+        await sessionStore.setSession(this.config.backend, {
+          sessionId: this.sessionId,
+          mode: this.currentMode,
+          modelId: cliModel,
+        }, this.getWorkspacePath())
+        return { modelId: cliModel, skipped: true, synced: true }
+      }
+    }
     const result = await this.sendRequest('session/set_model', { sessionId: this.sessionId, modelId })
     this.currentModelId = modelId
     await sessionStore.setSession(this.config.backend, {
@@ -1072,18 +1196,25 @@ export class BackendConnection {
   ): Promise<any> {
     if (!this.sessionId) throw new Error('No session')
 
-    const conversation = getOrCreateConversation(this.config.backend, this.getWorkspacePath())
-    sessionDb.insertMessage({
-      conversation_id: conversation.id,
-      type: 'text',
-      content: {
-        content: text,
-        display: displayContent || text,
-        ...(attachments.length > 0 ? { attachments } : {}),
-      },
-      position: 'right',
-      status: 'finish',
-    }, true)
+    // Some internal/background prompts should not be visible in the chat UI.
+    // We keep the prompt running through the same pipeline but skip inserting
+    // a user-visible message into the session DB.
+    const shouldPersistUserBubble = displayContent !== BACKGROUND_EMPTY_STATE_DISPLAY
+    this.silentPromptTurn = displayContent === BACKGROUND_EMPTY_STATE_DISPLAY
+    if (shouldPersistUserBubble) {
+      const conversation = getOrCreateConversation(this.config.backend, this.getWorkspacePath())
+      sessionDb.insertMessage({
+        conversation_id: conversation.id,
+        type: 'text',
+        content: {
+          content: text,
+          display: displayContent || text,
+          ...(attachments.length > 0 ? { attachments } : {}),
+        },
+        position: 'right',
+        status: 'finish',
+      }, true)
+    }
     this.currentMsgId = null
     this.currentTurnId = sessionDb.generateId()
 
@@ -1146,6 +1277,7 @@ export class BackendConnection {
       } catch {
         /* ignore */
       }
+      untrackManagedProcess(pid)
       killProcessTree(pid, { force: true })
       this.child = null
     }

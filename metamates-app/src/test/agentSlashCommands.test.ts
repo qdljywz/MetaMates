@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+﻿import { describe, expect, it } from 'vitest'
 import { COMMANDS } from '../commands/definitions'
 import { getAgentSlashCommands } from '../commands/agentSlashCommands'
 import { buildWorkspacePathHints } from '../commands/workspacePathHints'
@@ -22,7 +22,7 @@ const EXPECTED_IDS = [
 ] as const
 
 const REQUIRES_INPUT = new Set(['/trace', '/connect', '/challenge', '/ghost', '/soal'])
-const OPTIONAL_INPUT = new Set(['/today', '/closeday', '/schedule', '/sync', '/intel'])
+const OPTIONAL_INPUT = new Set(['/today', '/closeday', '/schedule', '/sync', '/intel', '/graduate'])
 
 describe('getAgentSlashCommands', () => {
   it('exposes all 15 slash commands including /intel', () => {

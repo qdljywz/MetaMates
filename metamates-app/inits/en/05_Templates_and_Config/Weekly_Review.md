@@ -39,6 +39,6 @@ tags:
 
 ---
 
-## 🤖 Gemini CLI Collaboration Area
-- [ ] **Command Prompt**: Type `/ideas` to let Gemini CLI scan all journals this week and generate a weekly report containing potential business opportunities and writing themes.
-- [ ] **Command Prompt**: Type `/schedule` to let Gemini CLI suggest the time allocation weights for next week.
+## 🤖 Thinking engine collaboration
+- [ ] **Command Prompt**: Type `/ideas` to let the AI assistant scan all journals this week and generate a weekly report containing potential business opportunities and writing themes.
+- [ ] **Command Prompt**: Type `/schedule` to let the AI assistant suggest the time allocation weights for next week.

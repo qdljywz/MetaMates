@@ -11,13 +11,16 @@ export function resolveAcpFailure(err: {
   quotaExceeded?: boolean
   authRequired?: boolean
 } | null | undefined): AcpFailureResolution {
-  if (err?.quotaExceeded) {
+  const text = (err?.error || err?.message || '').toLowerCase()
+  if (
+    err?.quotaExceeded
+    || /arrearage|account is in good standing|overdue-payment|套餐已到期|plan expired|coding plan/i.test(text)
+  ) {
     return { kind: 'quota', action: 'switch_agent' }
   }
   if (err?.authRequired) {
     return { kind: 'auth_required', action: 'auth' }
   }
-  const text = (err?.error || err?.message || '').toLowerCase()
   if (
     text.includes('disconnect')
     || text.includes('not connected')

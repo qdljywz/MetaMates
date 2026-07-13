@@ -9,12 +9,20 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
-const EXE = path.join(ROOT, 'release', 'win-unpacked', 'MetaMates.exe')
+const EXE_CANDIDATES = [
+  process.env.METAMATES_PACKAGED_EXE,
+  path.join(ROOT, 'release', 'win-unpacked', 'MetaMates.exe'),
+  path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe'),
+].filter(Boolean)
+const EXE = EXE_CANDIDATES.find((p) => fs.existsSync(p))
 const PROBE = path.join(ROOT, 'scripts', 'lib', 'fresh-user-db-probe.cjs')
 
-if (!fs.existsSync(EXE)) {
-  console.error('[fresh-user] Missing release/win-unpacked/MetaMates.exe — run npm run electron:build:win first')
+if (!EXE) {
+  console.error('[fresh-user] No Electron runtime found — run npm ci or electron:build:win')
   process.exit(1)
+}
+if (!EXE.includes('win-unpacked')) {
+  console.warn('[fresh-user] Using dev Electron (packaged MetaMates.exe not found) — ABI smoke only')
 }
 
 const freshRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'metamates-fresh-user-'))

@@ -12,6 +12,7 @@ import zhHelp from './locales/zh/help.json'
 import zhWelcome from './locales/zh/welcome.json'
 import zhCli from './locales/zh/cli.json'
 import zhAgent from './locales/zh/agent.json'
+import zhEngineSetup from './locales/zh/engineSetup.json'
 import zhDesktop from './locales/zh/desktop.json'
 
 import enCommon from './locales/en/common.json'
@@ -26,6 +27,7 @@ import enWelcome from './locales/en/welcome.json'
 import enCli from './locales/en/cli.json'
 import enAgent from './locales/en/agent.json'
 import enDesktop from './locales/en/desktop.json'
+import enEngineSetup from './locales/en/engineSetup.json'
 
 const resources = {
   zh: {
@@ -40,7 +42,8 @@ const resources = {
     welcome: zhWelcome,
     cli: zhCli,
     agent: zhAgent,
-    desktop: zhDesktop
+    desktop: zhDesktop,
+    engineSetup: zhEngineSetup,
   },
   en: {
     common: enCommon,
@@ -54,8 +57,9 @@ const resources = {
     welcome: enWelcome,
     cli: enCli,
     agent: enAgent,
-    desktop: enDesktop
-  }
+    desktop: enDesktop,
+    engineSetup: enEngineSetup,
+  },
 }
 
 const savedLanguage = localStorage.getItem('metamates-language') || 'zh'
@@ -67,7 +71,7 @@ i18n
     lng: savedLanguage,
     fallbackLng: 'zh',
     defaultNS: 'common',
-    ns: ['common', 'sidebar', 'editor', 'terminal', 'graph', 'commands', 'templates', 'help', 'welcome', 'cli', 'agent', 'desktop'],
+    ns: ['common', 'sidebar', 'editor', 'terminal', 'graph', 'commands', 'templates', 'help', 'welcome', 'cli', 'agent', 'desktop', 'engineSetup'],
     interpolation: {
       escapeValue: false
     }

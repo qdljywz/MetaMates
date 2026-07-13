@@ -5,10 +5,20 @@ MyM2/
 
 # Build outputs (large; lock app.asar during pack)
 metamates-app/release/
+metamates-app/release/**/*
 metamates-app/release-build/
+metamates-app/release-build-*/
+metamates-app/release-local*/
+metamates-app/release2/
 metamates-app/dist/
 metamates-app/dist-electron/
 metamates-app/node_modules/
+metamates-app/test-results/
+metamates-app/playwright-report/
+metamates-app/e2e-results.json
+metamates-app/e2e-packaged-results.json
+metamates-app/*.sqlite
+metamates-app/*.sqlite-*
 
 # Packaged app bundles
 **/*.asar

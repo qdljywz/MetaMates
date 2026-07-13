@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Verify every runtime CLI has public/assets/{backendId}.svg and branded icons are real SVGs.
+ * Verify source SVGs in public/assets/ (dev + Vite public dir).
+ * Packaged main-process resolution is covered by verify-agent-logo-resolution.mjs.
  */
 import fs from 'node:fs'
 import path from 'node:path'

@@ -3,31 +3,51 @@ import { Modal, Form, Select, Button, Switch, message, Row, Col, Typography, Inp
 import { FolderOpenOutlined, SyncOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { storageService } from '../services/storage'
+import { hasCustomEngineDisplayName, isDefaultPartnerName, normalizeEngineDisplayName, validateCustomEngineDisplayName } from '../utils/engineDisplayName'
 import { useTheme } from '../hooks/useTheme'
 import { useAppContext } from '../store/AppContext'
 import CliInstallPanel from './CliInstallPanel'
 import McpSettingsPanel from './McpSettingsPanel'
+import PluginSettingsPanel from './PluginSettingsPanel'
+import AgentCliStatusPanel from './AgentCliStatusPanel'
 
 const { Option } = Select
 const { Text, Paragraph } = Typography
 
-const COMMON_TIMEZONES: Array<{ label: string; value: string }> = [
-  { label: '北京时间（Asia/Shanghai）', value: 'Asia/Shanghai' },
-  { label: '香港（Asia/Hong_Kong）', value: 'Asia/Hong_Kong' },
-  { label: '台北（Asia/Taipei）', value: 'Asia/Taipei' },
-  { label: '东京（Asia/Tokyo）', value: 'Asia/Tokyo' },
-  { label: '首尔（Asia/Seoul）', value: 'Asia/Seoul' },
-  { label: '新加坡（Asia/Singapore）', value: 'Asia/Singapore' },
-  { label: '悉尼（Australia/Sydney）', value: 'Australia/Sydney' },
-  { label: '伦敦（Europe/London）', value: 'Europe/London' },
-  { label: '巴黎（Europe/Paris）', value: 'Europe/Paris' },
-  { label: '柏林（Europe/Berlin）', value: 'Europe/Berlin' },
-  { label: '纽约（America/New_York）', value: 'America/New_York' },
-  { label: '芝加哥（America/Chicago）', value: 'America/Chicago' },
-  { label: '丹佛（America/Denver）', value: 'America/Denver' },
-  { label: '洛杉矶（America/Los_Angeles）', value: 'America/Los_Angeles' },
-  { label: 'UTC（Etc/UTC）', value: 'Etc/UTC' },
-]
+const COMMON_TIMEZONE_IDS = [
+  'Asia/Shanghai',
+  'Asia/Hong_Kong',
+  'Asia/Taipei',
+  'Asia/Tokyo',
+  'Asia/Seoul',
+  'Asia/Singapore',
+  'Australia/Sydney',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'Etc/UTC',
+] as const
+
+function buildTimezoneOptions(locale: string): Array<{ label: string; value: string }> {
+  const displayLocale = locale.startsWith('zh') ? 'zh' : 'en'
+  let display: Intl.DisplayNames | undefined
+  try {
+    display = new Intl.DisplayNames([displayLocale], { type: 'timeZone' as Intl.DisplayNamesType })
+  } catch {
+    display = undefined
+  }
+  return COMMON_TIMEZONE_IDS.map((value) => {
+    const name = display?.of(value)
+    return {
+      value,
+      label: name ? `${name} (${value})` : value,
+    }
+  })
+}
 
 function isValidTimezone(value: string): boolean {
   try {
@@ -38,15 +58,45 @@ function isValidTimezone(value: string): boolean {
   }
 }
 
+function SettingsSection({
+  title,
+  children,
+}: {
+  title?: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="settings-section">
+      {title ? <h3 className="settings-section__title">{title}</h3> : null}
+      <div className="settings-section__body">{children}</div>
+    </section>
+  )
+}
+
+function SettingsHint({ children }: { children: React.ReactNode }) {
+  return (
+    <Paragraph type="secondary" className="settings-hint">
+      {children}
+    </Paragraph>
+  )
+}
+
 interface SettingsModalProps {
   visible: boolean
   onClose: () => void
+  initialTabKey?: 'general' | 'agent' | 'advanced'
+  focusPluginId?: string
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({
+  visible,
+  onClose,
+  initialTabKey = 'general',
+  focusPluginId,
+}) => {
   const { t, i18n } = useTranslation('common')
   const { state, dispatch } = useAppContext()
-  const { setThemeMode, setColorScheme } = useTheme()
+  const { setThemeMode, setColorScheme, setLightPalette } = useTheme()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [vaultApiStatus, setVaultApiStatus] = useState<{ running: boolean; port: number } | null>(null)
@@ -56,6 +106,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
   const [cliInstallOpen, setCliInstallOpen] = useState(false)
   const [mcpOpen, setMcpOpen] = useState(false)
   const [syncingSkills, setSyncingSkills] = useState(false)
+  const [activeTabKey, setActiveTabKey] = useState<'general' | 'agent' | 'advanced'>(initialTabKey)
   const [agentSnapshot, setAgentSnapshot] = useState({
     vaultApiEnabled: false,
     vaultApiPort: 17333,
@@ -69,11 +120,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
     if (visible) loadSettings()
   }, [visible])
 
+  useEffect(() => {
+    if (visible) setActiveTabKey(initialTabKey)
+  }, [initialTabKey, visible])
+
   const loadSettings = async () => {
     const settings = await storageService.getSettings()
     form.setFieldsValue({
       theme: settings.theme || 'dark',
       colorScheme: (settings as any).colorScheme || 'default',
+      lightPalette: settings.lightPalette === 'cold' ? 'cold' : 'paper',
       fontSize: settings.fontSize || 14,
       autoSave: settings.autoSave !== false,
       language: settings.language || 'zh',
@@ -86,6 +142,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
       ollamaBaseUrl: settings.ollamaBaseUrl || 'http://127.0.0.1:11434',
       ollamaModel: settings.ollamaModel || 'llama3.2',
       mobileReaderEnabled: settings.mobileReaderEnabled !== false,
+      speechEngine: settings.speechEngine || 'auto',
+      engineDisplayName: settings.engineDisplayName || '',
     })
 
     setAgentSnapshot({
@@ -144,6 +202,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
     [vaultApiEnabled, effectivePort]
   )
 
+  const timezoneOptions = useMemo(
+    () => buildTimezoneOptions(i18n.language),
+    [i18n.language]
+  )
+
   const appendVaultToken = (url: string) => {
     if (!vaultLanToken || !url) return url
     const sep = url.includes('?') ? '&' : '?'
@@ -179,8 +242,28 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
         ollamaBaseUrl: values.ollamaBaseUrl || 'http://127.0.0.1:11434',
         ollamaModel: values.ollamaModel || 'llama3.2',
         mobileReaderEnabled: values.mobileReaderEnabled !== false,
+        speechEngine: values.speechEngine || 'auto',
       }
       if (values.colorScheme) saveData.colorScheme = values.colorScheme
+      if (values.lightPalette) saveData.lightPalette = values.lightPalette
+
+      const engineTrimmed = normalizeEngineDisplayName(String(values.engineDisplayName ?? ''))
+      if (!engineTrimmed || isDefaultPartnerName(engineTrimmed)) {
+        saveData.engineDisplayName = undefined
+      } else {
+        const validated = validateCustomEngineDisplayName(engineTrimmed)
+        if (!validated.ok) {
+          message.warning(
+            validated.reason === 'default'
+              ? t('settings.engineDisplayNameIsDefault')
+              : t('settings.engineDisplayNameInvalid'),
+          )
+          return
+        }
+        saveData.engineDisplayName = validated.name
+      }
+
+      const hadCustomPartnerName = hasCustomEngineDisplayName(state.settings)
 
       await storageService.saveSettings(saveData)
       if (window.electronAPI?.saveSettings) {
@@ -188,8 +271,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
       }
       dispatch({ type: 'UPDATE_SETTINGS', payload: saveData })
 
+      const hasCustomPartnerName = hasCustomEngineDisplayName({
+        engineDisplayName: saveData.engineDisplayName,
+      })
+      if (hadCustomPartnerName !== hasCustomPartnerName) {
+        window.dispatchEvent(new CustomEvent('metamates:engine-name-updated'))
+        window.dispatchEvent(new CustomEvent('metamates:empty-state-force-refresh'))
+      }
+
       if (values.theme) setThemeMode(values.theme as 'light' | 'dark' | 'system')
       if (values.colorScheme) setColorScheme(values.colorScheme as 'default' | 'nordic' | 'cyberpunk' | 'forest' | 'vintage')
+      if (values.lightPalette) setLightPalette(values.lightPalette as 'paper' | 'cold')
       if (values.language) {
         i18n.changeLanguage(values.language)
         localStorage.setItem('metamates-language', values.language)
@@ -243,7 +335,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
       if (needsAgentReload && window.electronAPI?.acp?.reloadSessions) {
         await window.electronAPI.acp.refreshAgents?.()
         await window.electronAPI.acp.reloadSessions()
-        message.info(t('settings.mcpReconnectHint') || 'Agent 会话已尝试重载以应用设置')
+        message.info(t('settings.mcpReconnectHint'))
       }
     } catch (error: any) {
       message.error(t('settings.saveFailed') + ': ' + error.message)
@@ -299,8 +391,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
       open={visible}
       onCancel={onClose}
       title={t('settings.title')}
-      width={520}
-      styles={{ body: { maxHeight: '72vh', overflowY: 'auto' } }}
+      width={580}
+      className="settings-modal"
+      data-testid="settings-modal"
+      styles={{ body: { maxHeight: '72vh', overflowY: 'auto', paddingTop: 4 } }}
       footer={[
         <Button key="cancel" className="settings-modal__cancel" onClick={onClose}>
           {t('settings.cancel')}
@@ -312,31 +406,77 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
     >
       <Form form={form} layout="vertical" size="small">
         <Tabs
-          defaultActiveKey="general"
+          className="settings-modal__tabs"
+          activeKey={activeTabKey}
+          onChange={(key) => setActiveTabKey(key as 'general' | 'agent' | 'advanced')}
           items={[
             {
               key: 'general',
               label: t('settings.tabGeneral'),
               children: (
-                <>
+                <div className="settings-tab-panel">
+        <SettingsSection title={t('settings.appearance')}>
         <Row gutter={16}>
           <Col span={12}>
             <Form.Item name="theme" label={t('settings.theme')}>
-              <Select>
-                <Option value="dark">{t('settings.dark')}</Option>
-                <Option value="light">{t('settings.light')}</Option>
-                <Option value="system">{t('settings.system') || '跟随系统'}</Option>
-              </Select>
+              <Select
+                options={[
+                  { value: 'dark', label: t('settings.dark') },
+                  { value: 'light', label: t('settings.light') },
+                  { value: 'system', label: t('settings.system') },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item noStyle shouldUpdate={(prev, cur) => prev.theme !== cur.theme}>
+              {({ getFieldValue }) => {
+                const theme = getFieldValue('theme') as string
+                const systemHint = theme === 'system' ? t('settings.systemHint') : null
+                return (
+                  <>
+                    {systemHint ? <SettingsHint>{systemHint}</SettingsHint> : null}
+                    <SettingsHint>{t('settings.themeShortcutHint')}</SettingsHint>
+                  </>
+                )
+              }}
+            </Form.Item>
+            <Form.Item noStyle shouldUpdate={(prev, cur) => prev.theme !== cur.theme}>
+              {({ getFieldValue }) => {
+                const theme = getFieldValue('theme') as string
+                if (theme === 'dark') return null
+                return (
+                  <Form.Item name="lightPalette" label={t('settings.lightPalette')}>
+                    <Select
+                      options={[
+                        { value: 'paper', label: t('settings.lightPalettePaper') },
+                        { value: 'cold', label: t('settings.lightPaletteCold') },
+                      ]}
+                    />
+                  </Form.Item>
+                )
+              }}
+            </Form.Item>
+            <Form.Item noStyle shouldUpdate={(prev, cur) => prev.theme !== cur.theme || prev.lightPalette !== cur.lightPalette}>
+              {({ getFieldValue }) => {
+                const theme = getFieldValue('theme') as string
+                if (theme === 'dark') return null
+                const palette = getFieldValue('lightPalette') as string
+                const hint = palette === 'cold'
+                  ? t('settings.lightPaletteColdHint')
+                  : t('settings.lightPalettePaperHint')
+                return (
+                  <SettingsHint>{hint}</SettingsHint>
+                )
+              }}
             </Form.Item>
           </Col>
           <Col span={12}>
             <Form.Item name="colorScheme" label={t('settings.colorScheme')}>
               <Select>
                 <Option value="default">{t('settings.colorSchemeDefault')}</Option>
-                <Option value="nordic">Nordic</Option>
-                <Option value="cyberpunk">Cyberpunk</Option>
-                <Option value="forest">Forest</Option>
-                <Option value="vintage">Vintage</Option>
+                <Option value="nordic">{t('settings.colorSchemeNordic')}</Option>
+                <Option value="cyberpunk">{t('settings.colorSchemeCyberpunk')}</Option>
+                <Option value="forest">{t('settings.colorSchemeForest')}</Option>
+                <Option value="vintage">{t('settings.colorSchemeVintage')}</Option>
               </Select>
             </Form.Item>
           </Col>
@@ -353,15 +493,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
               </Select>
             </Form.Item>
           </Col>
-          <Col span={12}>
-            <Form.Item name="language" label={t('settings.language')}>
-              <Select>
-                <Option value="zh">{t('language.zh')}</Option>
-                <Option value="en">{t('language.en')}</Option>
-              </Select>
-            </Form.Item>
-          </Col>
         </Row>
+        </SettingsSection>
+
+        <SettingsSection title={t('settings.sectionLanguageTime')}>
+        <Form.Item name="language" label={t('settings.language')}>
+          <Select>
+            <Option value="zh">{t('language.zh')}</Option>
+            <Option value="en">{t('language.en')}</Option>
+          </Select>
+        </Form.Item>
 
         <Form.Item
           name="userTimezone"
@@ -381,7 +522,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
         >
           <Select
             showSearch
-            options={COMMON_TIMEZONES}
+            options={timezoneOptions}
             placeholder="Asia/Shanghai"
             filterOption={(input, option) =>
               String(option?.label ?? '')
@@ -393,25 +534,45 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
             }
           />
         </Form.Item>
-        <Paragraph type="secondary" style={{ fontSize: 12, marginTop: -8 }}>
-          {t('settings.timezoneHint')}
-        </Paragraph>
+        <SettingsHint>{t('settings.timezoneHint')}</SettingsHint>
+        </SettingsSection>
+
+        <SettingsSection title={t('settings.sectionInputBehavior')}>
+        <Form.Item name="speechEngine" label={t('settings.speechEngine')}>
+          <Select>
+            <Option value="auto">{t('settings.speechEngineAuto')}</Option>
+            <Option value="whisper">{t('settings.speechEngineWhisper')}</Option>
+            <Option value="native">{t('settings.speechEngineNative')}</Option>
+            <Option value="web">{t('settings.speechEngineWeb')}</Option>
+          </Select>
+        </Form.Item>
+        <SettingsHint>{t('settings.speechEngineHint')}</SettingsHint>
 
         <Form.Item name="autoSave" label={t('settings.autoSave')} valuePropName="checked">
           <Switch />
         </Form.Item>
-        <Paragraph type="secondary" style={{ fontSize: 12, marginTop: -8 }}>
-          {t('settings.shortcutHint')}
-        </Paragraph>
-                </>
+        <SettingsHint>{t('settings.autoSaveHint')}</SettingsHint>
+        </SettingsSection>
+                </div>
               ),
             },
             {
               key: 'agent',
               label: t('settings.tabAgent'),
               children: (
-                <>
-        <Form.Item label={t('settings.vaultApi')} style={{ marginBottom: 8 }}>
+                <div data-testid="settings-agent-tab" className="settings-tab-panel">
+        <SettingsSection title={t('settings.engineDisplayName')}>
+        <Form.Item name="engineDisplayName">
+          <Input
+            maxLength={12}
+            placeholder={t('settings.engineDisplayNamePlaceholder')}
+            allowClear
+          />
+        </Form.Item>
+        <SettingsHint>{t('settings.engineDisplayNameHint')}</SettingsHint>
+        </SettingsSection>
+
+        <SettingsSection title={t('settings.vaultApi')}>
           <Row gutter={16} align="middle">
             <Col>
               <Form.Item name="vaultApiEnabled" valuePropName="checked" noStyle>
@@ -420,7 +581,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
             </Col>
             <Col flex="auto">
               <Form.Item name="vaultApiPort" noStyle>
-                <InputNumber min={1024} max={65535} style={{ width: 120 }} addonBefore="Port" />
+                <InputNumber min={1024} max={65535} style={{ width: 120 }} addonBefore={t('settings.vaultApiPort')} />
               </Form.Item>
             </Col>
             <Col>
@@ -441,15 +602,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
           </Row>
 
           {showMobileAccess && vaultApiLanAccess && (
-            <div
-              style={{
-                marginTop: 12,
-                padding: '12px 14px',
-                borderRadius: 10,
-                border: '1px solid rgba(255, 140, 40, 0.35)',
-                background: 'rgba(255, 140, 40, 0.06)',
-              }}
-            >
+            <div className="settings-vault-callout">
               {vaultApiStatus?.running ? (
                 <>
                   <Text type="success" style={{ display: 'block', fontSize: 12 }}>
@@ -511,7 +664,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
             </div>
           )}
 
-          <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
+          <Paragraph type="secondary" className="settings-hint settings-hint--tight">
             {t('settings.vaultApiHint')}
             {showMobileAccess && vaultApiStatus?.running && mobileLocalUrl && (
               <span style={{ display: 'block', marginTop: 4 }}>
@@ -521,21 +674,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
               </span>
             )}
           </Paragraph>
-        </Form.Item>
+        </SettingsSection>
 
-        <Form.Item label={t('settings.mcpTitle')}>
+        <SettingsSection title={t('settings.mcpTitle')}>
           <Button onClick={() => setMcpOpen(true)}>
-            {t('settings.manageMcp') || '管理 MCP 服务器'}
+            {t('settings.manageMcp')}
           </Button>
-          <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-            {t('settings.mcpHint')}
-          </Paragraph>
-        </Form.Item>
+          <SettingsHint>{t('settings.mcpHint')}</SettingsHint>
+        </SettingsSection>
 
-        <Form.Item label={t('settings.cliAgents') || 'AI CLI 安装'}>
-          <Space wrap>
+        <SettingsSection title={t('settings.pluginsTitle')}>
+          <PluginSettingsPanel focusPluginId={focusPluginId} />
+        </SettingsSection>
+
+        <SettingsSection title={t('settings.cliAgents')}>
+          <AgentCliStatusPanel />
+          <Space wrap style={{ marginTop: 12 }}>
             <Button onClick={() => setCliInstallOpen(true)}>
-              {t('settings.manageCliAgents') || '管理 CLI Agent'}
+              {t('settings.manageCliAgents')}
             </Button>
             <Button
               icon={<SyncOutlined />}
@@ -545,15 +701,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
               {t('settings.syncCliSkills')}
             </Button>
           </Space>
-          <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-            {t('settings.cliAgentsHint') || '安装或卸载 Gemini、Claude、CodeBuddy 等 ACP CLI'}
-          </Paragraph>
-          <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 4, marginBottom: 0 }}>
-            {t('settings.syncCliSkillsHint')}
-          </Paragraph>
-        </Form.Item>
+          <SettingsHint>{t('settings.cliAgentsHint')}</SettingsHint>
+          <SettingsHint>{t('settings.syncCliSkillsHint')}</SettingsHint>
+        </SettingsSection>
 
-        <Form.Item label={t('settings.ollama')}>
+        <SettingsSection title={t('settings.ollama')}>
           <Row gutter={16} align="middle" style={{ marginBottom: 8 }}>
             <Col>
               <Form.Item name="ollamaEnabled" valuePropName="checked" noStyle>
@@ -566,27 +718,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item name="ollamaModel" label={t('settings.ollamaModel')} style={{ marginBottom: 0 }}>
+          <Form.Item name="ollamaModel" label={t('settings.ollamaModel')}>
             <Input placeholder="llama3.2" />
           </Form.Item>
-          <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
+          <SettingsHint>
             {t('settings.ollamaHint')}
             {ollamaStatus?.running && (
               <Text type="success" style={{ display: 'block', marginTop: 4 }}>
                 {t('settings.ollamaRunning', { count: ollamaStatus.models.length })}
               </Text>
             )}
-          </Paragraph>
-        </Form.Item>
-                </>
+          </SettingsHint>
+        </SettingsSection>
+                </div>
               ),
             },
             {
               key: 'advanced',
               label: t('settings.tabAdvanced'),
               children: (
-                <>
-        <Form.Item label={t('settings.calendar')}>
+                <div className="settings-tab-panel">
+        <SettingsSection title={t('settings.calendar')}>
           <Space.Compact style={{ width: '100%' }}>
             <Form.Item name="calendarIcsPath" noStyle>
               <Input placeholder={t('settings.calendarPlaceholder')} readOnly />
@@ -595,11 +747,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onClose }) => {
               {t('settings.calendarBrowse')}
             </Button>
           </Space.Compact>
-          <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-            {t('settings.calendarHint')}
-          </Paragraph>
-        </Form.Item>
-                </>
+          <SettingsHint>{t('settings.calendarHint')}</SettingsHint>
+        </SettingsSection>
+                </div>
               ),
             },
           ]}

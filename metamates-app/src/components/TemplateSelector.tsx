@@ -107,7 +107,7 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({ visible, onClose, o
                 <span>
                   {template.name}
                   {!isCustomTemplate(template) && (
-                    <Tag color="blue" style={{ marginLeft: 8 }}>{t('builtin')}</Tag>
+                    <Tag className="mm-tag mm-tag--accent" style={{ marginLeft: 8 }}>{t('builtin')}</Tag>
                   )}
                 </span>
               }

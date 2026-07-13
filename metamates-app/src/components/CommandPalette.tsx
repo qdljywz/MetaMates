@@ -12,7 +12,6 @@ import {
   FolderOpenOutlined,
   ImportOutlined,
 } from '@ant-design/icons'
-import { useTheme } from '../hooks/useTheme'
 
 const { Text } = Typography
 
@@ -56,8 +55,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   onSwitchWorkspace,
 }) => {
   const { t } = useTranslation('commands')
-  const { theme } = useTheme()
-  const isDark = theme.mode === 'dark'
   const [search, setSearch] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [newFileMode, setNewFileMode] = useState(false)
@@ -75,7 +72,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       id: 'daily-note',
       label: t('commands.dailyNote.label'),
       description: t('commands.dailyNote.description'),
-      icon: <CalendarOutlined style={{ color: '#52c41a' }} />,
+      icon: <CalendarOutlined style={{ color: 'var(--accent)' }} />,
       category: 'command',
       action: onCreateDailyNote,
       keywords: ['daily', 'today', 'note', 'diary'],
@@ -84,7 +81,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       id: 'daily-plan',
       label: t('commands.dailyPlan.label'),
       description: t('commands.dailyPlan.description'),
-      icon: <CalendarOutlined style={{ color: '#3b82f6' }} />,
+      icon: <CalendarOutlined style={{ color: 'var(--accent)' }} />,
       category: 'command',
       action: onCreateDailyPlan,
       keywords: ['daily', 'today', 'plan'],
@@ -93,7 +90,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       id: 'new-file',
       label: t('commands.newFile.label'),
       description: t('commands.newFile.description'),
-      icon: <FileAddOutlined style={{ color: '#1890ff' }} />,
+      icon: <FileAddOutlined style={{ color: 'var(--accent)' }} />,
       category: 'command',
       action: () => {
         setNewFileMode(true)
@@ -105,7 +102,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       id: 'import-intelligence',
       label: t('commands.importIntelligence.label'),
       description: t('commands.importIntelligence.description'),
-      icon: <ImportOutlined style={{ color: '#722ed1' }} />,
+      icon: <ImportOutlined style={{ color: 'var(--accent)' }} />,
       category: 'command',
       action: () => {
         onImportIntelligence()
@@ -117,7 +114,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       id: 'show-tags',
       label: t('commands.showTags.label'),
       description: t('commands.showTags.description'),
-      icon: <TagOutlined style={{ color: '#fa8c16' }} />,
+      icon: <TagOutlined style={{ color: 'var(--accent)' }} />,
       category: 'navigation',
       action: onShowTags,
       keywords: ['tag'],
@@ -126,7 +123,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       id: 'show-graph',
       label: t('commands.showGraph.label'),
       description: t('commands.showGraph.description'),
-      icon: <LinkOutlined style={{ color: '#13c2c2' }} />,
+      icon: <LinkOutlined style={{ color: 'var(--accent)' }} />,
       category: 'navigation',
       action: onShowGraph,
       keywords: ['graph', 'relation'],
@@ -135,7 +132,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       id: 'switch-workspace',
       label: t('commands.switchWorkspace.label'),
       description: t('commands.switchWorkspace.description'),
-      icon: <FolderOpenOutlined style={{ color: '#fa8c16' }} />,
+      icon: <FolderOpenOutlined style={{ color: 'var(--accent)' }} />,
       category: 'command',
       action: () => {
         onSwitchWorkspace()
@@ -147,7 +144,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       id: 'settings',
       label: t('commands.settings.label'),
       description: t('commands.settings.description'),
-      icon: <SettingOutlined style={{ color: '#8c8c8c' }} />,
+      icon: <SettingOutlined style={{ color: 'var(--text-muted)' }} />,
       category: 'command',
       action: onOpenSettings,
       keywords: ['settings', 'config'],
@@ -166,7 +163,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         id: `file-${f.path}`,
         label: f.name,
         description: f.path,
-        icon: <FileTextOutlined style={{ color: '#52c41a' }} />,
+        icon: <FileTextOutlined style={{ color: 'var(--accent)' }} />,
         category: 'file' as const,
         action: () => onFileSelect(f.path),
       }))
@@ -247,14 +244,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     }
   }, [filteredItems, selectedIndex, onClose, newFileMode, handleConfirmNewFile, runCommand])
 
-  const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
-      file: 'green',
-      command: 'blue',
-      navigation: 'cyan',
-    }
-    return colors[category] || 'default'
-  }
+  const getCategoryTagClass = () => 'mm-tag mm-tag--accent'
 
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {
@@ -281,7 +271,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       <div style={{ padding: '12px' }}>
         {newFileMode ? (
           <div>
-            <Text strong style={{ display: 'block', marginBottom: 8, color: isDark ? '#e6e6e6' : undefined }}>
+            <Text strong style={{ display: 'block', marginBottom: 8, color: 'var(--text-primary)' }}>
               {t('commands.newFile.label')}
             </Text>
             <Input
@@ -313,7 +303,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
               style={{ marginBottom: 8 }}
             />
             
-            <div style={{ maxHeight: 400, overflow: 'auto' }}>
+            <div style={{ maxHeight: 400, overflow: 'auto' }} role="listbox" aria-label={t('searchPlaceholder')}>
               {filteredItems.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
                   <SearchOutlined style={{ fontSize: 32, marginBottom: 8 }} />
@@ -324,31 +314,23 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                   dataSource={filteredItems}
                   renderItem={(item, index) => (
                     <div
+                      role="option"
+                      aria-selected={index === selectedIndex}
+                      id={`command-palette-option-${index}`}
                       onClick={() => runCommand(item)}
-                      style={{
-                        padding: '8px 12px',
-                        cursor: 'pointer',
-                        background: index === selectedIndex 
-                          ? (isDark ? 'rgba(38, 99, 235, 0.3)' : 'rgba(24, 144, 255, 0.1)') 
-                          : 'transparent',
-                        borderRadius: 4,
-                        marginBottom: 2,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 12,
-                      }}
+                      className={`command-palette-item${index === selectedIndex ? ' command-palette-item--selected' : ''}`}
                       onMouseEnter={() => setSelectedIndex(index)}
                     >
                       {item.icon}
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <Text strong>{item.label}</Text>
-                          <Tag color={getCategoryColor(item.category)} style={{ fontSize: 10, padding: '0 4px' }}>
+                          <Tag className={getCategoryTagClass()} style={{ fontSize: 10, padding: '0 4px' }}>
                             {getCategoryLabel(item.category)}
                           </Tag>
                         </div>
                         {item.description && (
-                          <Text type="secondary" style={{ fontSize: 12 }}>
+                          <Text className="command-palette-item__desc" style={{ fontSize: 12 }}>
                             {item.description}
                           </Text>
                         )}

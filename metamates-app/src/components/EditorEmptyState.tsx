@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo } from 'react'
-import { Button, Spin, Tag } from 'antd'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Button, Input, Popover, Spin, Tag, message } from 'antd'
 import {
   BulbOutlined,
   CloudDownloadOutlined,
@@ -12,6 +12,8 @@ import {
 import { useTranslation } from 'react-i18next'
 import { useAppContext } from '../store/AppContext'
 import { useEmptyStateDisplay } from '../hooks/useEmptyStatePlanner'
+import { normalizeEmptyStateQuestionText } from '../../electron/shared/emptyStateRethinkLeak'
+import { useEngineName } from '../hooks/useEngineName'
 import { useWelcomeAgentHint } from '../hooks/useWelcomeAgentHint'
 import {
   formatRecentFileLabel,
@@ -19,26 +21,33 @@ import {
 } from '../utils/editorEmptyState'
 import {
   focusAgentPanel,
-  openCliInstall,
+  openEngineSetup,
   openWorkspacePicker,
   prefillAgentPrompt,
   runSlashCommand,
 } from '../utils/agentBridge'
 import { recordEmptyStateShown } from '../utils/emptyStatePlanner'
+import { resolveContextFileForQuestion } from '../utils/emptyStateContextFile'
+import { persistEngineDisplayName, skipEngineNamingPrompt } from '../services/engineNaming'
 import type { WelcomeAgentHint } from '../utils/welcomeContent'
 
-function agentStatusLabel(hint: WelcomeAgentHint, t: (key: string) => string): string {
+const ENGINE_NAME_PRESETS = ['copilot', 'sage', 'mate'] as const
+
+function agentStatusLabel(
+  hint: WelcomeAgentHint,
+  t: (key: string, options?: Record<string, string | number>) => string,
+): string {
   switch (hint) {
     case 'ready':
-      return t('emptyState.agentStatus.ready')
+      return t('emptyState.agentStatus.readyDefault')
     case 'connecting':
-      return t('emptyState.agentStatus.connecting')
+      return t('emptyState.agentStatus.connectingDefault')
     case 'auth_required':
       return t('emptyState.agentStatus.authRequired')
     case 'no_agent':
       return t('emptyState.agentStatus.noAgent')
     default:
-      return t('emptyState.agentStatus.idle')
+      return t('emptyState.agentStatus.idleDefault')
   }
 }
 
@@ -103,11 +112,20 @@ function buildCompactCards(
 const EditorEmptyState: React.FC = () => {
   const { t } = useTranslation('editor')
   const { state, dispatch } = useAppContext()
+  const { displayName: partnerName } = useEngineName()
   const agentHint = useWelcomeAgentHint(state.workspacePath)
   const { context, snapshot, loading, refreshNow } = useEmptyStateDisplay(
     state.workspacePath,
     agentHint,
   )
+  const [draftName, setDraftName] = useState('')
+  const [namingBusy, setNamingBusy] = useState(false)
+  const isNamingQuestion = snapshot?.questionId === 'name-engine'
+
+  useEffect(() => {
+    if (!isNamingQuestion) return
+    setDraftName('')
+  }, [isNamingQuestion, snapshot?.questionId])
 
   useEffect(() => {
     if (!snapshot?.questionId || !state.workspacePath) return
@@ -118,6 +136,21 @@ const EditorEmptyState: React.FC = () => {
     if (!snapshot) return []
     return buildCompactCards(snapshot.suggestions, snapshot.primaryAction?.id, t)
   }, [snapshot, t])
+
+  const contextFile = useMemo(() => {
+    if (!snapshot) return undefined
+    return resolveContextFileForQuestion(snapshot.questionId, context)
+  }, [snapshot, context])
+
+  const previewBody = contextFile?.preview || contextFile?.summary
+  const canHoverPreview = !!contextFile?.path && !!previewBody
+  const previewItems = useMemo(() => {
+    if (!previewBody) return []
+    return previewBody
+      .split(/\n| · /)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  }, [previewBody])
 
   const openFile = (path: string) => {
     const name = path.split(/[/\\]/).pop() || path
@@ -137,7 +170,7 @@ const EditorEmptyState: React.FC = () => {
         focusAgentPanel()
         break
       case 'install_agent':
-        openCliInstall()
+        openEngineSetup()
         focusAgentPanel()
         break
       case 'focus_agent':
@@ -167,7 +200,7 @@ const EditorEmptyState: React.FC = () => {
       return
     }
     if (agentHint === 'no_agent') {
-      openCliInstall()
+      openEngineSetup()
       focusAgentPanel()
       return
     }
@@ -206,7 +239,38 @@ const EditorEmptyState: React.FC = () => {
       ? t('emptyState.actions.installAgent.title')
       : agentHint === 'auth_required'
         ? t('emptyState.actions.authAgent.title')
-        : t('emptyState.askAgent')
+        : t('emptyState.askAgentNamed', { name: partnerName })
+
+  const handleConfirmName = async () => {
+    if (namingBusy) return
+    setNamingBusy(true)
+    try {
+      const result = await persistEngineDisplayName(draftName, dispatch)
+      if (!result.ok) {
+        message.warning(
+          result.reason === 'default'
+            ? t('emptyState.nameEngine.isDefault')
+            : t('emptyState.nameEngine.invalid'),
+        )
+        return
+      }
+      message.success(t('emptyState.nameEngine.saved', { name: result.name }))
+      refreshNow()
+    } finally {
+      setNamingBusy(false)
+    }
+  }
+
+  const handleSkipNaming = async () => {
+    if (namingBusy) return
+    setNamingBusy(true)
+    try {
+      await skipEngineNamingPrompt(dispatch)
+      refreshNow()
+    } finally {
+      setNamingBusy(false)
+    }
+  }
 
   return (
     <div className="editor-empty-state" data-testid="editor-empty-state">
@@ -223,12 +287,81 @@ const EditorEmptyState: React.FC = () => {
                 className="editor-empty-state__title"
                 data-testid="editor-empty-state-question"
               >
-                {snapshot.questionText || t(snapshot.questionKey, snapshot.questionParams)}
+                {normalizeEmptyStateQuestionText(snapshot.questionText)
+                  || t(snapshot.questionKey, snapshot.questionParams)}
               </h1>
-              {(snapshot.contextLineText || snapshot.contextLineKey) && (
-                <p className="editor-empty-state__context-line">
-                  {snapshot.contextLineText || t(snapshot.contextLineKey!, snapshot.contextLineParams)}
-                </p>
+              {(snapshot.contextLineText || snapshot.contextLineKey) && (() => {
+                const contextText =
+                  snapshot.contextLineText
+                  || t(snapshot.contextLineKey!, snapshot.contextLineParams)
+
+                if (!canHoverPreview) {
+                  return (
+                    <p className="editor-empty-state__context-line">
+                      {contextText}
+                    </p>
+                  )
+                }
+
+                return (
+                  <Popover
+                    trigger="hover"
+                    placement="bottomLeft"
+                    mouseEnterDelay={0.2}
+                    overlayClassName="editor-empty-state__context-file-popover"
+                    content={(
+                      <div className="editor-empty-state__context-file-preview">
+                        <p className="editor-empty-state__context-file-preview-title">
+                          {contextFile!.label}
+                        </p>
+                        {contextFile!.summary && contextFile!.summary !== previewBody && (
+                          <p className="editor-empty-state__context-file-preview-summary">
+                            {contextFile!.summary}
+                          </p>
+                        )}
+                        {previewItems.length > 1 ? (
+                          <ul className="editor-empty-state__context-file-preview-list">
+                            {previewItems.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="editor-empty-state__context-file-preview-body">
+                            {previewBody}
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          className="editor-empty-state__context-file-preview-action"
+                          onClick={() => openFile(contextFile!.path)}
+                        >
+                          {t('emptyState.contextFile.previewOpen')}
+                        </button>
+                      </div>
+                    )}
+                  >
+                    <p className="editor-empty-state__context-line editor-empty-state__context-line--hoverable">
+                      {contextText}
+                    </p>
+                  </Popover>
+                )
+              })()}
+              {contextFile && !canHoverPreview && (
+                <div className="editor-empty-state__context-file">
+                  {contextFile.summary && (
+                    <p className="editor-empty-state__context-line">
+                      {t('emptyState.contextFile.summary', { summary: contextFile.summary })}
+                    </p>
+                  )}
+                  <Button
+                    type="link"
+                    size="small"
+                    style={{ paddingInline: 0, marginTop: contextFile.summary ? -6 : 0 }}
+                    onClick={() => openFile(contextFile.path)}
+                  >
+                    {t(contextFile.openLabelKey)}
+                  </Button>
+                </div>
               )}
               {context.hasWorkspace && (
                 <Tag color={agentStatusColor(agentHint)} className="editor-empty-state__agent-tag">
@@ -241,18 +374,67 @@ const EditorEmptyState: React.FC = () => {
 
         {!loading && snapshot && (
           <>
-            <Button
-              type="primary"
-              size="large"
-              className="editor-empty-state__primary"
-              data-testid="editor-empty-state-primary"
-              icon={canPrefillAgent(agentHint) ? <MessageOutlined /> : suggestionIcon(snapshot.primaryAction!)}
-              onClick={handlePrimary}
-            >
-              {primaryLabel}
-            </Button>
+            {isNamingQuestion ? (
+              <div
+                className="editor-empty-state__naming"
+                data-testid="editor-empty-state-naming"
+              >
+                <Input
+                  size="large"
+                  value={draftName}
+                  maxLength={12}
+                  placeholder={t('emptyState.nameEngine.placeholder')}
+                  onChange={(event) => setDraftName(event.target.value)}
+                  onPressEnter={() => void handleConfirmName()}
+                  data-testid="editor-empty-state-name-input"
+                />
+                <div className="editor-empty-state__naming-presets">
+                  {ENGINE_NAME_PRESETS.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      className="editor-empty-state__naming-preset"
+                      onClick={() => setDraftName(t(`emptyState.nameEngine.presets.${preset}`))}
+                    >
+                      {t(`emptyState.nameEngine.presets.${preset}`)}
+                    </button>
+                  ))}
+                </div>
+                <div className="editor-empty-state__naming-actions">
+                  <Button
+                    type="primary"
+                    size="large"
+                    loading={namingBusy}
+                    data-testid="editor-empty-state-name-confirm"
+                    onClick={() => void handleConfirmName()}
+                  >
+                    {t('emptyState.nameEngine.confirm')}
+                  </Button>
+                  <button
+                    type="button"
+                    className="editor-empty-state__naming-skip"
+                    disabled={namingBusy}
+                    data-testid="editor-empty-state-name-skip"
+                    onClick={() => void handleSkipNaming()}
+                  >
+                    {t('emptyState.nameEngine.skip')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                type="primary"
+                size="large"
+                className="editor-empty-state__primary"
+                data-testid="editor-empty-state-primary"
+                icon={canPrefillAgent(agentHint) ? <MessageOutlined /> : suggestionIcon(snapshot.primaryAction!)}
+                onClick={handlePrimary}
+              >
+                {primaryLabel}
+              </Button>
+            )}
 
-            {cards.length > 0 && (
+            {!isNamingQuestion && cards.length > 0 && (
               <div className="editor-empty-state__grid">
                 {cards.map((suggestion) => (
                   <button
@@ -271,7 +453,7 @@ const EditorEmptyState: React.FC = () => {
 
             <div className="editor-empty-state__footer-row">
               <p className="editor-empty-state__hint">{t('emptyState.footerHint')}</p>
-              {context.hasWorkspace && (
+              {context.hasWorkspace && !isNamingQuestion && (
                 <button
                   type="button"
                   className="editor-empty-state__refresh"

@@ -15,7 +15,7 @@ import {
   getE2EWorkspace,
   removeE2EFile,
 } from '../helpers/myM2Fixtures'
-import { pickContextMenuItem, rightClickTreeTitle } from '../helpers/contextMenu'
+import { contextMenuPickOnTreeTitle } from '../helpers/contextMenu'
 import { ensureFolderExpanded } from '../helpers/treeActions'
 import { expectVaultFileMissing, vaultFileExists } from '../helpers/vaultAssert'
 import { WORKSPACE_LAYOUT } from '../../src/constants/paths'
@@ -76,10 +76,9 @@ test.describe.serial('@suite File operations', () => {
       timeout: 10_000,
     })
 
-    await rightClickTreeTitle(page, noteBaseName)
-    await pickContextMenuItem(page, /重命名|Rename/i)
+    await contextMenuPickOnTreeTitle(page, noteBaseName, /重命名|Rename/i)
 
-    const renameModal = page.locator('.ant-modal').filter({ hasText: /重命名|Rename/i })
+    const renameModal = page.locator('.ant-modal').filter({ hasText: /重命名|Rename/i }).last()
     await renameModal.locator('input').fill(renamedBaseName)
     await renameModal.locator('input').press('Enter')
 
@@ -99,10 +98,9 @@ test.describe.serial('@suite File operations', () => {
   })
 
   test('delete removes file from disk and closes tab', async () => {
-    await rightClickTreeTitle(page, renamedBaseName)
-    await pickContextMenuItem(page, /^删除$|^Delete$/i)
+    await contextMenuPickOnTreeTitle(page, renamedBaseName, /^删除$|^Delete$/i)
 
-    const deleteModal = page.locator('.ant-modal').filter({ hasText: /确认删除|Confirm delete/i })
+    const deleteModal = page.locator('.ant-modal').filter({ hasText: /确认删除|Confirm delete/i }).last()
     await deleteModal.getByRole('button', { name: /删\s*除|Delete/i }).click()
 
     await expect(

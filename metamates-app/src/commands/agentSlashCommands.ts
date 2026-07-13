@@ -1,4 +1,4 @@
-import { COMMANDS } from './definitions'
+﻿import { COMMANDS } from './definitions'
 import {
   getTemplatesDir,
   getWorkspaceLanguage,
@@ -129,6 +129,12 @@ function buildSchedulePrompt(lang: WorkspaceLanguage): string {
   return '基于当前项目和优先级，为本周生成时间安排，并将结构化结果写回合适的规划文件。如果用户补充了额外说明，请把它视为硬性排期约束。\n用户补充：{INPUT}'
 }
 
+function buildGraduatePrompt(lang: WorkspaceLanguage): string {
+  if (lang === 'en') {
+    return `Scan my daily notes from the past 14 days. Find ideas that deserve their own note and create standalone files for them. If the user supplied extra guidance, use it to bias which ideas to promote, where to save them, or how to prioritize the output.\nUser input: {INPUT}`
+  }
+  return '扫描我过去 14 天的日记，找出值得升级为独立笔记的想法并创建对应文件。如果用户提供了额外说明，请用它来偏置筛选哪些想法、保存到哪里，或如何排序输出。\n用户输入：{INPUT}'
+}
 function resolvePrompt(cmdId: string, basePrompt: string, lang: WorkspaceLanguage): string {
   switch (cmdId) {
     case '/today':
@@ -137,6 +143,8 @@ function resolvePrompt(cmdId: string, basePrompt: string, lang: WorkspaceLanguag
       return buildClosedayPrompt(lang)
     case '/schedule':
       return buildSchedulePrompt(lang)
+    case '/graduate':
+      return buildGraduatePrompt(lang)
     case '/sync':
       return buildSyncPrompt(lang)
     case '/soal':

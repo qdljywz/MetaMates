@@ -1,4 +1,5 @@
 import { composeChatMessages, type ComposeChatMessage } from '../../../electron/shared/chatCompose'
+import { shouldHideAgentRethinkLeak } from '../../../electron/shared/emptyStateRethinkLeak'
 import { sanitizeAgentDisplayText, unescapeLiteralEscapes } from '../../../electron/shared/textNormalize'
 import { extractFilePathFromToolText, extractLineNumberFromToolText, extractToolCallFilePath, extractPathFromStructuredContent, mergeToolCallBubble } from './mergeChatBubble'
 
@@ -108,10 +109,22 @@ export function normalizeHistoryBubble(raw: Record<string, unknown>): ChatBubble
   }
 
   const body = extractBubbleText(raw.content)
+  const agentContent = raw.status === 'streaming'
+    ? body
+    : sanitizeAgentDisplayText(body)
+  if (raw.position !== 'right' && shouldHideAgentRethinkLeak(agentContent || body)) {
+    return {
+      id: String(raw.id),
+      type: 'agent',
+      content: '',
+      position: 'left',
+      status: String(raw.status || 'finish'),
+    }
+  }
   return {
     id: String(raw.id),
     type: 'agent',
-    content: raw.status === 'streaming' ? body : sanitizeAgentDisplayText(body),
+    content: agentContent,
     position: 'left',
     status: String(raw.status || 'finish'),
   }
@@ -125,10 +138,16 @@ export function composeChatBubble(list: ChatBubble[], incoming: ChatBubble): Cha
   if (incoming.type === 'agent' && incoming.status === 'streaming') {
     const last = list[list.length - 1]
     if (last?.type === 'agent' && last.status === 'streaming' && last.msg_id === incoming.msg_id) {
+      const combined = (last.content || '') + (incoming.content || '')
+      if (shouldHideAgentRethinkLeak(combined)) {
+        const next = [...list]
+        next[next.length - 1] = { ...last, content: '', status: 'finish' }
+        return next
+      }
       const next = [...list]
       next[next.length - 1] = {
         ...last,
-        content: (last.content || '') + (incoming.content || ''),
+        content: combined,
       }
       return next
     }

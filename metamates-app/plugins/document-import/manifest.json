@@ -1,0 +1,16 @@
+{
+  "id": "document-import",
+  "name": "Document Import",
+  "nameZh": "文档导入",
+  "version": "0.1.0",
+  "description": "PDF, Word, Excel, and image OCR import for intelligence notes",
+  "descriptionZh": "支持 PDF、Word、Excel 与图片 OCR 的情报笔记导入",
+  "main": "extractExtended.cjs",
+  "apiVersion": 1,
+  "formats": ["pdf", "docx", "xlsx", "image"],
+  "github": {
+    "owner": "qdljywz",
+    "repo": "MetaMates",
+    "assetTemplate": "MetaMates-document-import-{version}-win-x64.zip"
+  }
+}

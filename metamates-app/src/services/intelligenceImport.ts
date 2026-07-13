@@ -4,6 +4,7 @@ import {
   resolveWorkspaceFilePath,
   type WorkspaceLanguage,
 } from '../constants/paths'
+import { detectInboxSourcePath, archiveProcessedInboxNotes } from './graduateInboxArchive'
 import {
   buildIntelligenceNoteFileName,
   summarizeExtractedText,
@@ -23,6 +24,8 @@ import {
 export interface IntelligencePreparePayload {
   success: boolean
   error?: string
+  errorCode?: string
+  pluginId?: string
   format?: string
   mimeType?: string
   text?: string
@@ -41,11 +44,17 @@ export interface IntelligencePreparePayload {
 export interface IntelligenceImportResult {
   success: boolean
   error?: string
+  errorCode?: string
+  pluginId?: string
   notePath?: string
   noteName?: string
   warnings?: string[]
   sourceLabel?: string
   extractedPreview?: string
+  /** Inbox clip path when /intel imported from Inbox/ (archived after writeback). */
+  inboxSourcePath?: string
+  /** Number of Inbox sources moved to processed/ after import. */
+  inboxArchivedCount?: number
 }
 
 export interface IntelligenceNoteParams {
@@ -57,6 +66,7 @@ export interface IntelligenceNoteParams {
   language: WorkspaceLanguage
   extractedText: string
   warnings?: string[]
+  inboxSourcePath?: string
 }
 
 /**
@@ -73,7 +83,7 @@ export function buildIntelligenceNoteContent(params: IntelligenceNoteParams): st
 
   const keyPointsBlock = summary.keyPoints.length
     ? summary.keyPoints.map((p) => `- ${p}`).join('\n')
-    : '- （暂无自动提取要点，可在下方补充或由 Agent 深化）'
+    : '- （暂无自动提取要点，可在下方补充或由 AI 助手深化）'
 
   const dataBlock = summary.dataSection
     ? `\n## 关键数据\n\n${summary.dataSection}\n`
@@ -152,6 +162,20 @@ async function writeIntelligenceNote(
     await workspaceIndexService.rebuild(workspacePath)
   }
 
+  let inboxArchivedCount = 0
+  if (params.inboxSourcePath) {
+    const archive = await archiveProcessedInboxNotes({
+      workspacePath,
+      language: lang,
+      explicitPaths: [params.inboxSourcePath],
+    })
+    inboxArchivedCount = archive.moved.length
+    if (inboxArchivedCount > 0) {
+      window.dispatchEvent(new CustomEvent('metamates:empty-state-updated'))
+      await workspaceIndexService.signalVaultItemDeleted(params.inboxSourcePath)
+    }
+  }
+
   return {
     success: true,
     notePath,
@@ -159,6 +183,8 @@ async function writeIntelligenceNote(
     warnings: params.warnings,
     sourceLabel: params.sourceUrl || params.sourceRelativePath,
     extractedPreview: params.extractedText,
+    inboxSourcePath: params.inboxSourcePath,
+    inboxArchivedCount,
   }
 }
 
@@ -173,10 +199,16 @@ export async function importDocumentAsIntelligence(
 
   const prepared = await window.electronAPI.intelligence.prepareImport(sourcePath) as IntelligencePreparePayload
   if (!prepared.success || !prepared.text) {
-    return { success: false, error: prepared.error || 'Failed to prepare import' }
+    return {
+      success: false,
+      error: prepared.error || 'Failed to prepare import',
+      errorCode: prepared.errorCode,
+      pluginId: prepared.pluginId,
+    }
   }
 
   const title = titleFromSourceFileName(prepared.sourceFileName || 'intel')
+  const inboxSourcePath = await detectInboxSourcePath(workspacePath, language, sourcePath)
   return writeIntelligenceNote(workspacePath, language, {
     title,
     format: prepared.format || 'file',
@@ -184,6 +216,7 @@ export async function importDocumentAsIntelligence(
     importedAt: new Date().toISOString(),
     extractedText: prepared.text,
     warnings: prepared.warnings,
+    inboxSourcePath,
   })
 }
 
@@ -265,6 +298,7 @@ export async function captureIntelligenceFromInput(
     }
 
     const title = titleFromSourceFileName(prepared.sourceFileName || 'intel')
+    const inboxSourcePath = await detectInboxSourcePath(workspacePath, language, primaryPath)
     const primary = await writeIntelligenceNote(workspacePath, language, {
       title,
       format: prepared.format || 'file',
@@ -272,6 +306,7 @@ export async function captureIntelligenceFromInput(
       importedAt: new Date().toISOString(),
       extractedText,
       warnings: prepared.warnings,
+      inboxSourcePath,
     })
 
     for (const extraPath of attachmentPaths.slice(1)) {

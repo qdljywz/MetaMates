@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, session } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, session, nativeTheme } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
 import type { FSWatcher } from 'fs'
@@ -16,6 +16,8 @@ import { detectWorkspaceLanguage } from './workspaceLayout'
 import { assertWithinWorkspace, pathAssertError, pathAssertResolved, type PathAssertResult } from './shared/pathSafety'
 import { getCurrentWorkspacePath, setCurrentWorkspacePath } from './shared/workspaceState'
 import { registerDocumentExtractHandlers } from './documentExtract/ipcHandlers'
+import { registerPluginHandlers } from './pluginRuntime/ipcHandlers'
+import { ensureBundledPluginsInstalled } from './pluginRuntime/ensureBundledPlugins'
 import { registerSpeechHandlers } from './speech/ipcHandlers'
 import { stopWindowsSpeech } from './speech/windowsSpeech'
 import { getMimeTypeFromPath } from './documentExtract/mimeType'
@@ -24,15 +26,30 @@ import { ensureWindowsFirewallRule } from './vaultApi/firewall'
 import { ensureIntelligenceMemoryLayout, type WorkspaceLanguage as IntelLanguage } from './shared/intelligencePaths'
 import { isImmediateQuitAllowed, registerShutdownTask, runAppShutdown } from './processLifecycle'
 import { registerUpdaterHandlers } from './updater'
+import { registerNativeThemeBridge, syncNativeThemeSource } from './nativeThemeBridge'
 import { disconnectAllAcpBackends } from './acp/ipcHandlers'
 import {
-  killOrphanMetaMatesHelpers,
+  killAllSessionChildProcesses,
   killSiblingDevProcesses,
   killStaleMetaMatesProcesses,
 } from './shared/processTreeKill'
-import { getResourcesRoot, resolveBuildIconPath, resolveInitsRoot } from './shared/appPaths'
+import { getResourcesRoot, resolveBuildIconPath, resolveInitsRoot, resolveUserManualPath } from './shared/appPaths'
+import {
+  appendSessionLifecycleEvent,
+  installSessionLifecycleLog,
+} from './sessionLifecycleLog'
 
 let mainWindow: BrowserWindow | null = null
+/** When instant boot splash first painted (packaged cold start). */
+let bootSplashAnchorMs: number | null = null
+
+function markBootSplashAnchor(): void {
+  if (bootSplashAnchorMs == null) bootSplashAnchorMs = Date.now()
+}
+
+function getBootElapsedMs(): number {
+  return bootSplashAnchorMs == null ? 0 : Date.now() - bootSplashAnchorMs
+}
 
 let resolveDesktopReady: (() => void) | null = null
 const desktopReadyPromise = new Promise<void>((resolve) => {
@@ -59,16 +76,20 @@ if (process.platform === 'win32' && process.env.METAMATES_DISABLE_GPU !== '0') {
   app.disableHardwareAcceleration()
   app.commandLine.appendSwitch('disable-gpu')
   app.commandLine.appendSwitch('disable-gpu-compositing')
-  // Force software rendering paths to avoid immediate GPU process crashes on some hosts.
   app.commandLine.appendSwitch('use-gl', 'swiftshader')
   app.commandLine.appendSwitch('use-angle', 'swiftshader')
 }
 
 const gotSingleInstanceLock = skipSingleInstanceLock || app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
+  appendSessionLifecycleEvent('single_instance_denied', {
+    detail: 'Another MetaMates instance holds the lock',
+  })
   app.quit()
   process.exit(0)
 }
+
+installSessionLifecycleLog()
 
 function getDialogParentWindow(): BrowserWindow | undefined {
   if (mainWindow && !mainWindow.isDestroyed()) return mainWindow
@@ -119,33 +140,110 @@ function registerAppShutdownHooks(): void {
     }
   })
   registerShutdownTask(() => {
-    killOrphanMetaMatesHelpers(appRoot)
+    const stats = killAllSessionChildProcesses(appRoot, process.pid)
+    if (stats.tracked + stats.descendants + stats.orphans > 0) {
+      console.log(
+        `[Shutdown] Child process cleanup: tracked=${stats.tracked} descendants=${stats.descendants} orphans=${stats.orphans}`,
+      )
+    }
   })
   registerShutdownTask(() => {
     closeDatabase()
   })
 }
 
+/** Keep window foreground through full startup splash (~5.5s). */
+const STARTUP_FOREGROUND_MS = 6_000
+
+let foregroundTimer: ReturnType<typeof setTimeout> | null = null
+
 function focusMainWindow(): void {
-  if (!mainWindow) return
+  if (!mainWindow || mainWindow.isDestroyed()) return
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
-  mainWindow.focus()
   if (process.platform === 'win32') {
     mainWindow.setAlwaysOnTop(true)
-    setTimeout(() => mainWindow?.setAlwaysOnTop(false), 2500)
+    if (foregroundTimer) clearTimeout(foregroundTimer)
+    foregroundTimer = setTimeout(() => {
+      foregroundTimer = null
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setAlwaysOnTop(false)
+    }, STARTUP_FOREGROUND_MS)
   }
+  mainWindow.focus()
+  void app.focus()
+}
+
+function resolveWindowBackgroundColor(): string {
+  const settings = readAppSettings()
+  const palette = settings.lightPalette === 'cold' ? 'cold' : 'paper'
+  const lightBg = palette === 'cold' ? '#fafaf9' : '#f0eeea'
+  const theme = settings.theme || 'dark'
+  if (theme === 'light') return lightBg
+  if (theme === 'system') {
+    return nativeTheme.shouldUseDarkColors ? '#18181b' : lightBg
+  }
+  return '#18181b'
 }
 
 const DEV_RENDERER_URL = 'http://127.0.0.1:3000/'
 
+type LoadErrorLocale = 'zh' | 'en'
+
+function resolveLoadErrorLocale(): LoadErrorLocale {
+  const settings = readAppSettings()
+  const lang = typeof settings.language === 'string' ? settings.language.toLowerCase() : ''
+  if (lang.startsWith('en')) return 'en'
+  if (lang.startsWith('zh')) return 'zh'
+  const sys = app.getLocale().toLowerCase()
+  return sys.startsWith('zh') ? 'zh' : 'en'
+}
+
+const LOAD_ERROR_COPY: Record<
+  LoadErrorLocale,
+  {
+    devTitle: string
+    devDetail: string
+    devHint: string
+    missingBuildTitle: string
+    missingBuildDetail: (path: string) => string
+    missingBuildHint: string
+    loadFailedTitle: string
+    loadFailedHint: string
+    didFailHint: string
+  }
+> = {
+  zh: {
+    devTitle: '界面加载失败',
+    devDetail: '无法连接开发服务器 http://127.0.0.1:3000 。请完全退出 MetaMates 后，在 metamates-app 目录运行 npm run start。',
+    devHint: '不要单独运行 electron . — 需要 Vite 与 Electron 同时启动。',
+    missingBuildTitle: '缺少前端构建产物',
+    missingBuildDetail: (p) => `未找到 ${p}`,
+    missingBuildHint: '请在 metamates-app 目录执行 npm run build，或使用 npm run electron:build:win 重新打包。',
+    loadFailedTitle: '界面加载失败',
+    loadFailedHint: '请重新安装 MetaMates，或在 metamates-app 目录执行 npm run build 后重试。',
+    didFailHint: '请完全退出 MetaMates 后重新打开；开发环境请运行 npm run start。',
+  },
+  en: {
+    devTitle: 'UI failed to load',
+    devDetail: 'Could not connect to the dev server at http://127.0.0.1:3000. Quit MetaMates completely, then run npm run start from metamates-app.',
+    devHint: 'Do not run electron . alone — Vite and Electron must start together.',
+    missingBuildTitle: 'Missing frontend build',
+    missingBuildDetail: (p) => `Not found: ${p}`,
+    missingBuildHint: 'Run npm run build in metamates-app, or repackage with npm run electron:build:win.',
+    loadFailedTitle: 'UI failed to load',
+    loadFailedHint: 'Reinstall MetaMates, or run npm run build in metamates-app and try again.',
+    didFailHint: 'Quit MetaMates completely and reopen; for dev use npm run start.',
+  },
+}
+
 /**
  * Inline HTML shown when the renderer fails to load (avoids blank white window).
  */
-function buildLoadErrorHtml(title: string, detail: string, hint: string): string {
+function buildLoadErrorHtml(title: string, detail: string, hint: string, locale: LoadErrorLocale): string {
   const safe = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"/><title>${safe(title)}</title>
+  const lang = locale === 'zh' ? 'zh-CN' : 'en'
+  return `<!DOCTYPE html><html lang="${lang}"><head><meta charset="UTF-8"/><title>${safe(title)}</title>
 <style>
   body{margin:0;font-family:"Segoe UI","PingFang SC",sans-serif;background:#18181b;color:#fafafa;
   display:flex;align-items:center;justify-content:center;min-height:100vh;padding:32px;}
@@ -166,17 +264,15 @@ function buildLoadErrorHtml(title: string, detail: string, hint: string): string
  * @param isDev - Whether running unpackaged dev build
  */
 function loadRenderer(win: BrowserWindow, isDev: boolean): void {
+  const locale = resolveLoadErrorLocale()
+  const copy = LOAD_ERROR_COPY[locale]
   if (isDev) {
     win.loadURL(DEV_RENDERER_URL).catch((err: Error) => {
       console.error('[MAIN] Dev renderer load failed:', err.message)
       void win.loadURL(
         'data:text/html;charset=utf-8,' +
           encodeURIComponent(
-            buildLoadErrorHtml(
-              '界面加载失败',
-              '无法连接开发服务器 http://127.0.0.1:3000 。请完全退出 MetaMates 后，在 metamates-app 目录运行 npm run start。',
-              '不要单独运行 electron . — 需要 Vite 与 Electron 同时启动。',
-            ),
+            buildLoadErrorHtml(copy.devTitle, copy.devDetail, copy.devHint, locale),
           ),
       )
     })
@@ -190,32 +286,35 @@ function loadRenderer(win: BrowserWindow, isDev: boolean): void {
       'data:text/html;charset=utf-8,' +
         encodeURIComponent(
           buildLoadErrorHtml(
-            '缺少前端构建产物',
-            `未找到 ${indexPath}`,
-            '请在 metamates-app 目录执行 npm run build，或使用 npm run electron:build:win 重新打包。',
+            copy.missingBuildTitle,
+            copy.missingBuildDetail(indexPath),
+            copy.missingBuildHint,
+            locale,
           ),
         ),
     )
     return
   }
 
-  win.loadFile(indexPath).catch((err: Error) => {
+  loadPackagedRenderer(win, indexPath, locale)
+}
+
+function loadPackagedRenderer(win: BrowserWindow, indexPath: string, locale: LoadErrorLocale): void {
+  const copy = LOAD_ERROR_COPY[locale]
+  void win.loadFile(indexPath).catch((err: Error) => {
     console.error('[MAIN] Production renderer load failed:', err.message)
     void win.loadURL(
       'data:text/html;charset=utf-8,' +
         encodeURIComponent(
-          buildLoadErrorHtml(
-            '界面加载失败',
-            err.message,
-            '请重新安装 MetaMates，或在 metamates-app 目录执行 npm run build 后重试。',
-          ),
+          buildLoadErrorHtml(copy.loadFailedTitle, err.message, copy.loadFailedHint, locale),
         ),
     )
   })
 }
 
 function createWindow() {
-  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged
+  // Packaged builds must always load dist/ — ignore NODE_ENV=development in the shell.
+  const isDev = !app.isPackaged
   const preferredIcon = isDev
     ? path.join(__dirname, '../build/icon.ico')
     : resolveBuildIconPath(process.platform === 'darwin' ? 'icon.icns' : 'icon.ico')
@@ -242,42 +341,63 @@ function createWindow() {
     frame: false,
     titleBarStyle: 'hidden',
     icon: icon,
+    backgroundColor: resolveWindowBackgroundColor(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
     },
-    // In dev, show immediately so startup issues are visible (instead of a hidden window
-    // waiting forever for `ready-to-show` when Vite fails to load).
-    show: isDev,
+    // Packaged: show immediately — inline #boot-splash in index.html paints before JS bundle.
+    show: true,
   })
 
   setAcpMainWindow(mainWindow)
 
+  // Foreground immediately — dev launches from terminal/IDE otherwise miss the splash.
+  focusMainWindow()
+
   loadRenderer(mainWindow, isDev)
+
+  mainWindow.webContents.once('dom-ready', () => {
+    if (!isDev) markBootSplashAnchor()
+    focusMainWindow()
+    if (!isDev) console.log('[MAIN] Boot splash DOM ready')
+  })
+  // Safety: never leave the user staring at a hidden window if dom-ready is slow.
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      console.warn('[MAIN] Force-showing window after 400ms (dom-ready slow)')
+      focusMainWindow()
+    }
+  }, 400)
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     if (validatedURL.startsWith('data:text/html')) return
     console.error('[MAIN] did-fail-load:', errorCode, errorDescription, validatedURL)
     if (!mainWindow || mainWindow.isDestroyed()) return
-    const hint = isDev
-      ? '请确认 metamates-app 下 Vite 已启动（npm run start），且 3000 端口未被占用。'
-      : '请重新执行 npm run build 后再启动应用。'
+    const locale = resolveLoadErrorLocale()
+    const copy = LOAD_ERROR_COPY[locale]
     void mainWindow.loadURL(
       'data:text/html;charset=utf-8,' +
         encodeURIComponent(
           buildLoadErrorHtml(
-            'MetaMates 界面未能加载',
+            copy.loadFailedTitle,
             `${errorDescription} (${errorCode}) — ${validatedURL}`,
-            hint,
+            copy.didFailHint,
+            locale,
           ),
         ),
     )
   })
 
   mainWindow.webContents.on('did-finish-load', () => {
+    const url = mainWindow?.webContents.getURL() ?? ''
+    if (url.startsWith('data:text/html')) return
+    if (isDev) focusMainWindow()
     console.log('[MAIN] Renderer loaded, electronAPI exposed:', !!mainWindow?.webContents.getURL())
-    void startAcpStartupWarmup()
+    // Defer agent warmup until after first shell paint.
+    setTimeout(() => void startAcpStartupWarmup(), 1_500)
   })
 
   mainWindow.once('ready-to-show', () => {
@@ -286,18 +406,43 @@ function createWindow() {
   })
 
   mainWindow.on('closed', () => {
+    appendSessionLifecycleEvent('main_window_closed')
     mainWindow = null
   })
 }
 
-app.whenReady().then(async () => {
-  registerAppShutdownHooks()
-  // In dev, killing "stale" processes is too aggressive because Vite/Electron can be launched
-  // from different shells/parents (making a healthy Vite look "stale"). Keep cleanup for
-  // packaged builds where orphaned helpers are the bigger problem.
-  if (app.isPackaged) {
-    killStaleMetaMatesProcesses(appRoot, process.pid)
+/** Recover when the process is alive but no visible window (zombie shell on Windows). */
+function scheduleWindowWatchdog(): void {
+  if (process.env.METAMATES_E2E === '1') return
+  setTimeout(() => {
+    const win = mainWindow
+    if (!win || win.isDestroyed()) {
+      console.warn('[MAIN] Window watchdog: recreating missing window')
+      appendSessionLifecycleEvent('window_watchdog_recreate')
+      createWindow()
+      return
+    }
+    if (!win.isVisible() && !win.isMinimized()) {
+      console.warn('[MAIN] Window watchdog: forcing show on hidden window')
+      appendSessionLifecycleEvent('window_watchdog_force_show')
+      focusMainWindow()
+    }
+  }, 15_000)
+}
+
+function ensureMainWindowFocused(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow()
+    return
   }
+  focusMainWindow()
+}
+
+app.whenReady().then(async () => {
+  createWindow()
+  scheduleWindowWatchdog()
+
+  registerAppShutdownHooks()
 
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(permission === 'media' || (permission as string) === 'audioCapture')
@@ -306,44 +451,72 @@ app.whenReady().then(async () => {
     return permission === 'media' || (permission as string) === 'audioCapture'
   })
 
-  registerSpeechHandlers(() => mainWindow)
+  setTimeout(() => {
+    registerSpeechHandlers(() => mainWindow)
+    registerNativeThemeBridge()
+    registerDocumentExtractHandlers()
+    registerPluginHandlers()
+  }, 0)
 
-  warmupDatabase()
-  registerDocumentExtractHandlers()
+  if (app.isPackaged && process.env.METAMATES_E2E !== '1') {
+    setTimeout(() => killStaleMetaMatesProcesses(appRoot, process.pid), 8_000)
+  }
 
-  // Create the window early so startup can't be blocked by slow ACP init,
-  // CLI detection, network checks, or native module probes.
-  createWindow()
+  setTimeout(() => warmupDatabase(), 0)
 
   void (async () => {
-    await sessionStore.load()
-    await registerAcpIpcHandlers()
-    registerUpdaterHandlers(() => mainWindow)
-    markDesktopReady()
-  })().catch((err) => {
-    console.error('[MAIN] Post-window init failed:', err)
-    markDesktopReady()
-  })
+    try {
+      // Wait for boot splash paint, then run DB/ACP init off the critical path.
+      await new Promise<void>((resolve) => {
+        if (!mainWindow || mainWindow.isDestroyed()) {
+          resolve()
+          return
+        }
+        if (mainWindow.webContents.isLoading()) {
+          mainWindow.webContents.once('dom-ready', () => resolve())
+        } else {
+          resolve()
+        }
+      })
+      await new Promise<void>((resolve) => setTimeout(resolve, 200))
+      await sessionStore.load()
+      await registerAcpIpcHandlers()
+      registerUpdaterHandlers(() => mainWindow)
+      markDesktopReady()
+      if (app.isPackaged && (process.env.METAMATES_E2E !== '1' || process.env.METAMATES_E2E_ALLOW_BUNDLED_PLUGINS === '1')) {
+        void ensureBundledPluginsInstalled()
+      }
+    } catch (err) {
+      console.error('[MAIN] Post-window init failed:', err)
+      markDesktopReady()
+      if (app.isPackaged && (process.env.METAMATES_E2E !== '1' || process.env.METAMATES_E2E_ALLOW_BUNDLED_PLUGINS === '1')) {
+        void ensureBundledPluginsInstalled()
+      }
+    }
+  })()
 
   app.on('second-instance', () => {
-    focusMainWindow()
+    appendSessionLifecycleEvent('second_instance')
+    ensureMainWindowFocused()
   })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
     } else {
-      focusMainWindow()
+      ensureMainWindowFocused()
     }
   })
 })
 
 app.on('before-quit', (event) => {
   if (quitAfterShutdown || isImmediateQuitAllowed()) return
+  appendSessionLifecycleEvent('before_quit')
   event.preventDefault()
   registerAppShutdownHooks()
   const forceQuitTimer = setTimeout(() => {
     console.warn('[MAIN] Shutdown timed out; forcing quit')
+    appendSessionLifecycleEvent('shutdown_timeout')
     quitAfterShutdown = true
     app.quit()
   }, 15_000)
@@ -355,6 +528,7 @@ app.on('before-quit', (event) => {
 })
 
 app.on('window-all-closed', () => {
+  appendSessionLifecycleEvent('window_all_closed')
   app.quit()
 })
 
@@ -362,6 +536,8 @@ ipcMain.handle('wait-desktop-ready', async () => {
   await desktopReadyPromise
   return { ready: true }
 })
+
+ipcMain.handle('get-boot-elapsed-ms', () => getBootElapsedMs())
 
 /** 同步主进程工作区根路径（文件 IPC 沙箱依赖；不触发 Agent 重连） */
 ipcMain.handle('sync-workspace-path', async (_event, workspacePath: string) => {
@@ -521,6 +697,10 @@ ipcMain.handle('save-settings', async (_event, settings: any) => {
     fs.writeFileSync(settingsPath, JSON.stringify(mergedSettings, null, 2), 'utf-8')
     console.log('[MAIN] Settings saved:', settings)
 
+    if (settings?.theme === 'light' || settings?.theme === 'dark' || settings?.theme === 'system') {
+      syncNativeThemeSource(settings.theme)
+    }
+
     if (settings?.cliAgentEnabled && typeof settings.cliAgentEnabled === 'object') {
       try {
         syncCliAgentEnabledPreferences(
@@ -582,6 +762,18 @@ ipcMain.handle('open-external', async (_event, url: string) => {
     return { success: false, error: 'Invalid URL' }
   }
   await shell.openExternal(url)
+  return { success: true }
+})
+
+ipcMain.handle('open-user-manual', async () => {
+  const manualPath = resolveUserManualPath()
+  if (!manualPath) {
+    return { success: false, error: 'User manual not found' }
+  }
+  const openError = await shell.openPath(manualPath)
+  if (openError) {
+    return { success: false, error: openError }
+  }
   return { success: true }
 })
 

@@ -1,6 +1,7 @@
 import React, { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import AgentIcon, { type AgentIconAgent } from './AgentIcon'
+import { useEngineName } from '../../hooks/useEngineName'
 import type { AgentConnStatus } from '../../utils/agentConnectionStatus'
 import './AgentPanel.css'
 
@@ -16,7 +17,7 @@ function statusDotClass(status: AgentConnStatus): string {
   switch (status) {
     case 'connected': return 'var(--success)'
     case 'connecting': return 'var(--warning)'
-    case 'auth_required': return '#f59e0b'
+    case 'auth_required': return 'var(--warning)'
     case 'error': return 'var(--error)'
     default: return 'var(--text-dim)'
   }
@@ -46,13 +47,19 @@ const AgentToolbar = memo(({
   onSelectAgent,
 }: AgentToolbarProps) => {
   const { t } = useTranslation('agent')
+  const { displayName: partnerName } = useEngineName()
 
   if (agents.length === 0) return null
 
   return (
     <header className="agent-panel__toolbar agent-panel__toolbar--slim" data-testid="agent-toolbar">
       <div className="agent-panel__toolbar-row">
-        <span className="agent-panel__label">{t('panel.title')}</span>
+        <span
+          className="agent-panel__label agent-panel__label--partner"
+          title={partnerName}
+        >
+          {partnerName}
+        </span>
         <div className="agent-panel__agents">
           {agents.map((agent) => {
             const status = agentStatus.get(agent.backend) || 'disconnected'
@@ -69,6 +76,8 @@ const AgentToolbar = memo(({
                   isWarming ? 'agent-panel__agent-btn--warming' : '',
                 ].filter(Boolean).join(' ')}
                 onClick={() => onSelectAgent(agent.backend)}
+                aria-label={`${agent.name} — ${statusLabel(status, t)}`}
+                aria-pressed={isActive}
                 title={`${agent.name} — ${statusLabel(status, t)}`}
               >
                 <AgentIcon agent={agent} size={22} />

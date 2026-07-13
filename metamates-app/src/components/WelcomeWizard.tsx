@@ -1,16 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { Modal, Steps, Button, Result, Typography, Tag, Spin, message } from 'antd'
+import React, { useState, useEffect } from 'react'
+import { Modal, Steps, Button, Result, Typography, message } from 'antd'
 import {
-  CheckCircleOutlined,
   RocketOutlined,
   FolderOpenOutlined,
-  RobotOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons'
 import { storageService } from '../services/storage'
 import { useTranslation } from 'react-i18next'
 import { BRAND_I18N } from '../constants/brand'
-import { CliInstallPanel } from './CliInstallPanel'
-import type { DetectedAgent } from '../types/electron'
+import { engineSetupPendingPatch } from '../utils/engineSetupPolicy'
 import logoPng from '../assets/logo.png'
 
 const { Paragraph, Text } = Typography
@@ -32,36 +30,11 @@ const WelcomeWizard: React.FC<WelcomeWizardProps> = ({
   const { t: tCommon } = useTranslation('common')
   const [currentStep, setCurrentStep] = useState(0)
   const [localWorkspace, setLocalWorkspace] = useState(workspacePath ?? '')
-  const [agents, setAgents] = useState<DetectedAgent[]>([])
-  const [detectingAgents, setDetectingAgents] = useState(false)
-  const [cliPanelOpen, setCliPanelOpen] = useState(false)
   const [selectingWorkspace, setSelectingWorkspace] = useState(false)
 
   useEffect(() => {
     if (workspacePath) setLocalWorkspace(workspacePath)
   }, [workspacePath])
-
-  const refreshAgents = useCallback(async () => {
-    if (!window.electronAPI?.acp?.detectAgents) {
-      setAgents([])
-      return
-    }
-    setDetectingAgents(true)
-    try {
-      const list = await window.electronAPI.acp.detectAgents()
-      setAgents(list ?? [])
-    } catch {
-      setAgents([])
-    } finally {
-      setDetectingAgents(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (visible && currentStep === 2) {
-      refreshAgents()
-    }
-  }, [visible, currentStep, refreshAgents])
 
   const handleSelectWorkspace = async () => {
     if (!window.electronAPI) {
@@ -95,26 +68,16 @@ const WelcomeWizard: React.FC<WelcomeWizardProps> = ({
       autoSave: true,
       language: i18n.language?.startsWith('en') ? 'en' : 'zh',
       ...(localWorkspace ? { workspacePath: localWorkspace } : {}),
+      ...engineSetupPendingPatch(),
     })
 
-    if (localWorkspace && window.electronAPI?.acp) {
+    if (localWorkspace && window.electronAPI?.acp?.setWorkspacePath) {
       const syncResult = await window.electronAPI.acp.setWorkspacePath(localWorkspace) as {
         success?: boolean
         skillsCreated?: string[]
       } | undefined
       if (syncResult?.skillsCreated?.length) {
         message.success(t('steps.workspace.skillsSynced', { count: syncResult.skillsCreated.length }))
-      }
-      const list = agents.length > 0 ? agents : await window.electronAPI.acp.detectAgents()
-      if (list.length > 0) {
-        const backend = list[0].backend
-        try {
-          await window.electronAPI.acp.connect(backend, { autoStart: true })
-          await window.electronAPI.acp.newSession(backend)
-          message.success(t('steps.agent.connected', { name: list[0].name || backend }))
-        } catch {
-          message.info(t('steps.agent.connectLater'))
-        }
       }
     }
 
@@ -184,71 +147,19 @@ const WelcomeWizard: React.FC<WelcomeWizardProps> = ({
       ),
     },
     {
-      title: t('steps.agent.title'),
-      icon: <RobotOutlined />,
-      content: (
-        <div style={{ padding: '12px 0', textAlign: 'center' }}>
-          <Paragraph>{t('steps.agent.description')}</Paragraph>
-          {detectingAgents ? (
-            <Spin tip={t('steps.agent.detecting')} />
-          ) : agents.length > 0 ? (
-            <Paragraph>
-              <Text type="success">{t('steps.agent.found', { count: agents.length })}</Text>
-              <div style={{ marginTop: 12 }}>
-                {agents.map((a) => (
-                  <Tag key={a.backend} color="blue" style={{ marginBottom: 4 }}>
-                    {a.name || a.backend}
-                  </Tag>
-                ))}
-              </div>
-            </Paragraph>
-          ) : (
-            <Paragraph type="secondary">{t('steps.agent.none')}</Paragraph>
-          )}
-          <Button type="primary" onClick={() => setCliPanelOpen(true)} style={{ marginTop: 8 }}>
-            {t('steps.agent.installButton')}
-          </Button>
-          <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 16 }}>
-            {t('steps.agent.skipHint')}
-          </Paragraph>
-        </div>
-      ),
-    },
-    {
       title: t('steps.complete.title'),
       icon: <CheckCircleOutlined />,
       content: (
         <Result
-          status={agents.length > 0 || detectingAgents ? 'success' : 'warning'}
+          status="success"
           title={t('steps.complete.title')}
-          subTitle={
-            agents.length > 0 || detectingAgents
-              ? t('steps.complete.subtitle')
-              : t('steps.complete.noAgentSubtitle')
-          }
-          extra={
-            agents.length > 0 || detectingAgents
-              ? [
-                  <Button type="primary" key="start" onClick={handleComplete}>
-                    {t('steps.complete.startButton')}
-                  </Button>,
-                ]
-              : [
-                  <Button type="primary" key="install" onClick={() => setCliPanelOpen(true)}>
-                    {t('steps.complete.installButton')}
-                  </Button>,
-                  <Button key="skip" onClick={handleComplete}>
-                    {t('steps.complete.startButton')}
-                  </Button>,
-                ]
-          }
-        >
-          {agents.length === 0 && !detectingAgents && (
-            <Paragraph type="secondary" style={{ maxWidth: 420, margin: '0 auto', textAlign: 'left' }}>
-              {t('steps.complete.noAgentHint')}
-            </Paragraph>
-          )}
-        </Result>
+          subTitle={t('steps.complete.subtitle')}
+          extra={[
+            <Button type="primary" key="start" onClick={handleComplete} data-testid="welcome-enable-engine">
+              {t('steps.complete.startButton')}
+            </Button>,
+          ]}
+        />
       ),
     },
   ]
@@ -274,45 +185,35 @@ const WelcomeWizard: React.FC<WelcomeWizardProps> = ({
   }
 
   return (
-    <>
-      <Modal
-        open={visible}
-        closable={false}
-        maskClosable={false}
-        footer={null}
-        width={620}
-        data-testid="welcome-wizard"
-      >
-        <Steps current={currentStep} items={steps.map((s) => ({ title: s.title, icon: s.icon }))} />
+    <Modal
+      open={visible}
+      closable={false}
+      maskClosable={false}
+      footer={null}
+      width={620}
+      data-testid="welcome-wizard"
+    >
+      <Steps current={currentStep} items={steps.map((s) => ({ title: s.title, icon: s.icon }))} />
 
-        <div style={{ marginTop: 24 }}>{steps[currentStep].content}</div>
+      <div style={{ marginTop: 24 }}>{steps[currentStep].content}</div>
 
-        {!isLastStep && (
-          <div style={{ marginTop: 24, textAlign: 'center' }}>
-            {currentStep > 0 && (
-              <Button style={{ marginRight: 8 }} onClick={handlePrev}>
-                {t('buttons.previous')}
-              </Button>
-            )}
-            <Button
-              type="primary"
-              onClick={handleNext}
-              disabled={currentStep === 1 && !localWorkspace}
-            >
-              {t('buttons.next')}
+      {!isLastStep && (
+        <div style={{ marginTop: 24, textAlign: 'center' }}>
+          {currentStep > 0 && (
+            <Button style={{ marginRight: 8 }} onClick={handlePrev}>
+              {t('buttons.previous')}
             </Button>
-          </div>
-        )}
-      </Modal>
-
-      <CliInstallPanel
-        open={cliPanelOpen}
-        onClose={() => {
-          setCliPanelOpen(false)
-          refreshAgents()
-        }}
-      />
-    </>
+          )}
+          <Button
+            type="primary"
+            onClick={handleNext}
+            disabled={currentStep === 1 && !localWorkspace}
+          >
+            {t('buttons.next')}
+          </Button>
+        </div>
+      )}
+    </Modal>
   )
 }
 

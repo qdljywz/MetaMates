@@ -3,7 +3,12 @@ import path from 'path'
 import { WORKSPACE_LAYOUT } from '../../src/constants/paths'
 import { resolveE2EWorkspacePath } from './launchElectron'
 
-/** Dedicated sandbox under the user's MyM2 vault — tests only touch files here. */
+/** Dedicated sandbox under the E2E vault — tests only touch files here. */
+
+/**
+ * Default E2E workspace: e2e/.workspace/vault (seeded from inits/zh), or METAMATES_WORKSPACE override.
+ * Never uses the developer's private vault or mutates inits/zh directly.
+ */
 export const E2E_SANDBOX_DIR_NAME = '_MetaMates_E2E'
 
 export const E2E_NOTE_PREFIX = 'e2e-note-'
@@ -17,8 +22,8 @@ export const E2E_DRAG_SUB_DIR = 'e2e-drag-sub'
 export const E2E_DRAG_ITEM_FILE = 'e2e-drag-item.md'
 
 /**
- * Default E2E workspace: METAMATES_WORKSPACE or E:\MyM2.
- * Uses the real user vault; never delete the workspace root.
+ * Default E2E workspace: e2e/.workspace/vault (seeded from inits/zh), or METAMATES_WORKSPACE override.
+ * Never uses the developer's private vault or mutates inits/zh directly.
  */
 export function getE2EWorkspace(): string {
   return resolveE2EWorkspacePath()

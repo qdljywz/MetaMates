@@ -11,8 +11,8 @@ export type GraphLinkLike = { source: string; target: string; kind?: 'wiki' | 's
 const FOLDER_COLOR_MAP: Record<string, string> = {
   [WORKSPACE_LAYOUT.zh.LOG_AND_PLAN]: '#f97316',
   [WORKSPACE_LAYOUT.en.LOG_AND_PLAN]: '#f97316',
-  [WORKSPACE_LAYOUT.zh.PROJECTS]: '#3b82f6',
-  [WORKSPACE_LAYOUT.en.PROJECTS]: '#3b82f6',
+  [WORKSPACE_LAYOUT.zh.PROJECTS]: '#00b4a6',
+  [WORKSPACE_LAYOUT.en.PROJECTS]: '#00b4a6',
   [WORKSPACE_LAYOUT.zh.INSIGHTS]: '#22c55e',
   [WORKSPACE_LAYOUT.en.INSIGHTS]: '#22c55e',
   [WORKSPACE_LAYOUT.zh.INTELLIGENCE]: '#a855f7',
@@ -78,6 +78,205 @@ export function collectFocusNeighborhood(
 }
 
 export type GraphViewMode = 'focus' | 'full' | 'orphans' | 'activity'
+
+/** Panorama view lays out notes as folder-colored islands (not a separate mode). */
+export function usesGraphFolderIslandLayout(mode: GraphViewMode): boolean {
+  return mode === 'full'
+}
+
+export interface FolderClusterCenter {
+  folder: string
+  x: number
+  y: number
+  color: string
+  label: string
+}
+
+/** Top-level vault folder segment (01_… / 02_…). */
+export function getGraphNodeFolder(nodeId: string): string {
+  return nodeId.replace(/\\/g, '/').split('/')[0] ?? 'other'
+}
+
+/** Pentagonal (or smaller) layout of folder cluster anchors. */
+export function computeFolderClusterCenters(
+  nodes: Array<{ id: string }>,
+  language: WorkspaceLanguage = 'zh',
+  spread = 420,
+): Map<string, FolderClusterCenter> {
+  const layout = WORKSPACE_LAYOUT[language]
+  const folderOrder = [
+    layout.LOG_AND_PLAN,
+    layout.PROJECTS,
+    layout.INSIGHTS,
+    layout.INTELLIGENCE,
+    layout.TEMPLATES,
+  ]
+
+  const counts = new Map<string, number>()
+  for (const node of nodes) {
+    const folder = getGraphNodeFolder(node.id)
+    counts.set(folder, (counts.get(folder) ?? 0) + 1)
+  }
+
+  const activeFolders = folderOrder.filter((folder) => (counts.get(folder) ?? 0) > 0)
+  const folderOrderSet = new Set<string>(folderOrder)
+  const unknownFolders = [...counts.keys()].filter((folder) => !folderOrderSet.has(folder))
+  const ordered = [...activeFolders, ...unknownFolders]
+  const result = new Map<string, FolderClusterCenter>()
+
+  ordered.forEach((folder, index) => {
+    const angle = (index / Math.max(ordered.length, 1)) * Math.PI * 2 - Math.PI / 2
+    const ring = ordered.length <= 1 ? 0 : spread * (ordered.length <= 5 ? 0.68 : 0.92)
+    result.set(folder, {
+      folder,
+      x: Math.cos(angle) * ring,
+      y: Math.sin(angle) * ring,
+      color: FOLDER_COLOR_MAP[folder] ?? DEFAULT_NODE_COLOR,
+      label: folder.split('_').pop() ?? folder,
+    })
+  })
+
+  return result
+}
+
+/** Seed nodes around their folder cluster center (compact local circle). */
+export function layoutGraphFolderClusters(
+  nodes: GraphLayoutNode[],
+  language: WorkspaceLanguage = 'zh',
+  spread?: number,
+): Map<string, FolderClusterCenter> {
+  const byFolder = new Map<string, GraphLayoutNode[]>()
+
+  for (const node of nodes) {
+    const folder = getGraphNodeFolder(node.id)
+    if (!byFolder.has(folder)) byFolder.set(folder, [])
+    byFolder.get(folder)!.push(node)
+  }
+
+  const maxLocalRadius = Math.max(
+    56,
+    ...[...byFolder.values()].map((group) =>
+      Math.min(140, 28 + Math.sqrt(group.length) * 11),
+    ),
+  )
+  const clusterSpread = spread ?? Math.max(300, maxLocalRadius * 2.15 + Math.cbrt(nodes.length) * 28)
+  const centers = computeFolderClusterCenters(nodes, language, clusterSpread)
+
+  const golden = Math.PI * (3 - Math.sqrt(5))
+  for (const [folder, group] of byFolder) {
+    const center = centers.get(folder) ?? { x: 0, y: 0, folder, color: DEFAULT_NODE_COLOR, label: folder }
+    const localRadius = Math.min(140, 28 + Math.sqrt(group.length) * 11)
+    const step = Math.max(5.5, localRadius / Math.sqrt(Math.max(group.length, 1)))
+    group.forEach((node, index) => {
+      const ring = step * Math.sqrt(index + 1)
+      const angle = index * golden
+      node.x = center.x + Math.cos(angle) * ring
+      node.y = center.y + Math.sin(angle) * ring
+      node.vx = 0
+      node.vy = 0
+    })
+  }
+
+  return centers
+}
+
+/** Min pairwise distance between folder centroids — audit metric for cluster mode. */
+export function measureFolderClusterSeparation(
+  nodes: Array<{ id: string; x: number; y: number }>,
+): number {
+  const sums = new Map<string, { x: number; y: number; count: number }>()
+  for (const node of nodes) {
+    const folder = getGraphNodeFolder(node.id)
+    const entry = sums.get(folder) ?? { x: 0, y: 0, count: 0 }
+    entry.x += node.x
+    entry.y += node.y
+    entry.count += 1
+    sums.set(folder, entry)
+  }
+
+  const centroids = [...sums.values()].map((entry) => ({
+    x: entry.x / entry.count,
+    y: entry.y / entry.count,
+  }))
+  if (centroids.length < 2) return Number.POSITIVE_INFINITY
+
+  let minDist = Number.POSITIVE_INFINITY
+  for (let i = 0; i < centroids.length; i++) {
+    for (let j = i + 1; j < centroids.length; j++) {
+      minDist = Math.min(
+        minDist,
+        Math.hypot(centroids[i].x - centroids[j].x, centroids[i].y - centroids[j].y),
+      )
+    }
+  }
+  return minDist
+}
+
+export function isCrossFolderGraphLink(sourceId: string, targetId: string): boolean {
+  return getGraphNodeFolder(sourceId) !== getGraphNodeFolder(targetId)
+}
+
+export type Graph3DLayoutMode = 'sphere' | 'folders'
+
+export interface Graph3DPosition {
+  x: number
+  y: number
+  z: number
+}
+
+/** Place nodes on a sphere or in folder-colored 3D clusters. */
+export function computeGraph3DNodePositions(
+  nodes: Array<{ id: string }>,
+  language: WorkspaceLanguage = 'zh',
+  layoutMode: Graph3DLayoutMode = 'sphere',
+): Map<string, Graph3DPosition> {
+  const positions = new Map<string, Graph3DPosition>()
+  if (nodes.length === 0) return positions
+
+  if (layoutMode === 'sphere') {
+    nodes.forEach((node, index) => {
+      const phi = Math.acos(-1 + (2 * index) / nodes.length)
+      const theta = Math.sqrt(nodes.length * Math.PI) * phi
+      const radius = 200
+      positions.set(node.id, {
+        x: radius * Math.cos(theta) * Math.sin(phi),
+        y: radius * Math.sin(theta) * Math.sin(phi),
+        z: radius * Math.cos(phi),
+      })
+    })
+    return positions
+  }
+
+  const layoutNodes: GraphLayoutNode[] = nodes.map((node) => ({ id: node.id, x: 0, y: 0 }))
+  const centers = layoutGraphFolderClusters(layoutNodes, language, 240)
+  const byFolder = new Map<string, string[]>()
+
+  for (const node of nodes) {
+    const folder = getGraphNodeFolder(node.id)
+    if (!byFolder.has(folder)) byFolder.set(folder, [])
+    byFolder.get(folder)!.push(node.id)
+  }
+
+  let folderIndex = 0
+  for (const [folder, ids] of byFolder) {
+    const center = centers.get(folder) ?? { x: 0, y: 0, folder, color: DEFAULT_NODE_COLOR, label: folder }
+    const zBase = (folderIndex - (byFolder.size - 1) / 2) * 42
+    folderIndex += 1
+
+    ids.forEach((id, index) => {
+      const phi = Math.acos(-1 + (2 * index) / ids.length)
+      const theta = Math.sqrt(ids.length * Math.PI) * phi
+      const radius = Math.min(78, 26 + ids.length * 5)
+      positions.set(id, {
+        x: center.x + radius * Math.cos(theta) * Math.sin(phi),
+        y: center.y + radius * Math.sin(theta) * Math.sin(phi),
+        z: zBase + radius * Math.cos(phi) * 0.5,
+      })
+    })
+  }
+
+  return positions
+}
 
 export function isOrphanGraphNode(node: { inDegree: number; outDegree: number }): boolean {
   return node.inDegree === 0 && node.outDegree === 0

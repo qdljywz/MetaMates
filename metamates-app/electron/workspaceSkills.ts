@@ -5,7 +5,7 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
-import { app } from 'electron'
+import { resolveInitsRoot } from './shared/appPaths'
 import { COMMAND_SKILL_NAMES } from './shared/skillCatalog'
 import {
   getBackendSkillLayout,
@@ -26,16 +26,11 @@ export interface EnsureSkillsResult {
 }
 
 /**
- * Resolve inits/{lang} root (dev vs packaged).
+ * Resolve inits/{lang} root (dev vs packaged) — uses resolveInitsRoot() from appPaths.
  */
 export function resolveInitsLangPath(language: 'zh' | 'en'): string {
-  const isPackaged = typeof app?.isPackaged === 'boolean' ? app.isPackaged : false
-  const isDev = process.env.NODE_ENV === 'development' || !isPackaged
-  const baseInitsPath = isDev
-    ? path.join(__dirname, '..', 'inits')
-    : path.join(process.resourcesPath, 'inits')
   const langDir = language === 'en' ? 'en' : 'zh'
-  return path.join(baseInitsPath, langDir)
+  return path.join(resolveInitsRoot(), langDir)
 }
 
 /**

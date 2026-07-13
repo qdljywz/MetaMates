@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo, startTransition } from 'react'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
-import 'highlight.js/styles/github-dark.css'
+import hljsDarkThemeUrl from 'highlight.js/styles/github-dark.min.css?url'
+import hljsLightThemeUrl from 'highlight.js/styles/github.min.css?url'
 import { useTranslation } from 'react-i18next'
 import { message } from 'antd'
 import { useTheme } from '../hooks/useTheme'
@@ -28,19 +29,24 @@ import {
   buildIntelligenceEnhancePrompt,
 } from '../services/intelligenceImport'
 import { shouldCaptureAsIntelligence } from '../utils/intelligenceCapture'
+import { augmentAgentPromptIfIntro } from '../utils/agentSelfIntro'
 import { composeChatBubble, normalizeHistoryBubble, extractToolCallFilePath, extractLineNumberFromToolText, inferToolCallKind, sanitizeAgentDisplayText } from '../services/agent-bridge/composeChatBubble'
 import { applyStreamMessage } from '../services/message/acpStreamReducer'
+import { shouldHideAgentRethinkLeak } from '../../electron/shared/emptyStateRethinkLeak'
 import { useAcpStreamState } from '../hooks/useAcpStreamState'
+import { useAgentRuntime } from '../hooks/useAgentRuntime'
 import type { IResponseMessage } from '../../electron/shared/responseMessage'
 import AgentChatInput, { buildAttachmentContext, type ChatAttachment } from './agent/AgentChatInput'
 import AgentToolbar from './agent/AgentToolbar'
 import AgentInputControls from './agent/AgentInputControls'
+import AgentAuthBanner from './agent/AgentAuthBanner'
 import AgentModePill from './agent/AgentModePill'
 import AgentThinkingPlaceholder from './agent/AgentThinkingPlaceholder'
 import AgentSlashBar from './agent/AgentSlashBar'
 import AgentVaultContext from './agent/AgentVaultContext'
 import AgentConnectingSkeleton from './agent/AgentConnectingSkeleton'
 import AgentCliInstallGuide from './agent/AgentCliInstallGuide'
+import EngineSetupReminder from './agent/EngineSetupReminder'
 import CliInstallPanel from './CliInstallPanel'
 import VirtualAgentMessageList, { type VirtualMessageListHandle } from './agent/VirtualAgentMessageList'
 import type { AgentMessage } from './agent/AgentMessageItem'
@@ -51,13 +57,20 @@ import { mergeHistoryWithStreaming } from '../utils/messageMerge'
 import { finalizeInProgressToolCalls, isToolCallInProgress, sanitizeStaleSessionMessages } from '../utils/toolCallStatus'
 import { resolveAcpFailure } from '../utils/acpFailureResolution'
 import { getModeOptionsForBackend } from '../utils/agentModes'
-import { isPlanExpiredError, resolveAgentDisplayName, formatAcpErrorForDisplay } from '../utils/acpErrorMessages'
-import { isGeminiModelDailyQuotaError, isNetworkErrorMessage } from '../../electron/acp/acpErrors'
+import { resolveAgentDisplayName } from '../utils/acpErrorMessages'
+import {
+  buildAgentChatErrorContent,
+  normalizeAgentErrorText,
+  resolveAgentChatErrorKind,
+} from '../utils/agentChatErrorContent'
 import { pickAllowPermissionOption } from '../../electron/shared/acpPermission'
 import { buildAgentToolbarCachePatch, readCachedAgentToolbarSync } from '../utils/agentToolbarCache'
+import { BRAND_I18N } from '../constants/brand'
 import { consumeStartupHistoryCache, hasStartupHistoryCache } from '../utils/startupPreload'
-import { archiveGraduatedInboxNotes } from '../services/graduateInboxArchive'
+import { archiveProcessedInboxNotes } from '../services/graduateInboxArchive'
 import { openSlashWritebackInEditor } from '../utils/openSlashWriteback'
+import { AGENT_PANEL_THEME } from '../utils/designTokens'
+import { shouldShowVaultOnlyReminder, vaultReminderSessionKey } from '../utils/engineSetupPolicy'
 
 function getBootAgentSnapshot() {
   return readCachedAgentToolbarSync()
@@ -70,10 +83,26 @@ function isE2ENoAgentsMode(): boolean {
   )
 }
 
+/** True when Playwright / Electron E2E harness is active. */
+function isE2EEnabled(): boolean {
+  return !!(
+    typeof window !== 'undefined' &&
+    (window as Window & { __METAMATES_E2E__?: { enabled?: boolean } }).__METAMATES_E2E__?.enabled
+  )
+}
+
+/**
+ * Detect installed AI assistants with backoff.
+ * E2E caps total wait ~90s so Playwright beforeAll does not outlive agent scan.
+ */
 async function fetchAgentsWithRetry(maxAttempts = 30): Promise<AgentInfo[]> {
-  const e2eNoAgents = (window as Window & { __METAMATES_E2E__?: { noAgents?: boolean } }).__METAMATES_E2E__
-    ?.noAgents
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  const e2eNoAgents = isE2ENoAgentsMode()
+  const e2eEnabled = isE2EEnabled()
+  const deadline = e2eEnabled ? Date.now() + 90_000 : Number.POSITIVE_INFINITY
+  const attempts = e2eNoAgents ? 1 : e2eEnabled ? 24 : maxAttempts
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (Date.now() > deadline) break
     try {
       const agents = await window.electronAPI?.acp?.detectAgents?.()
       if (Array.isArray(agents)) {
@@ -82,7 +111,8 @@ async function fetchAgentsWithRetry(maxAttempts = 30): Promise<AgentInfo[]> {
     } catch {
       // IPC may not be ready yet on cold start
     }
-    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
+    const delay = e2eEnabled ? Math.min(400 * (attempt + 1), 2500) : 500 * (attempt + 1)
+    await new Promise((resolve) => setTimeout(resolve, delay))
   }
   return []
 }
@@ -98,7 +128,12 @@ interface AgentInfo {
 type Message = AgentMessage
 
 function isVisibleChatMessage(msg: Message): boolean {
-  return msg.type !== 'thinking'
+  if (msg.type === 'thinking') return false
+  if (msg.type === 'agent') {
+    if (!msg.content?.trim()) return false
+    if (shouldHideAgentRethinkLeak(msg.content)) return false
+  }
+  return true
 }
 
 /** Recent tail only on switch — AionUi-style; load earlier on demand. */
@@ -113,31 +148,28 @@ function isGoogleOAuthMethod(methodId: string): boolean {
 
 function resolveAuthMethodLabel(
   method: { id: string; name?: string },
-  t: (key: string) => string
+  t: (key: string) => string,
+  backend?: string,
 ): string {
   const name = method.name?.trim()
   if (name && name !== '...' && name.length > 1) return name
   if (method.id === 'gemini-api-key') return t('auth.apiKeyMethod')
+  if (method.id === 'claude-terminal') return t('auth.claudeTerminalLogin')
+  if (backend === 'claude' && (method.id === 'default' || method.id === 'terminal')) {
+    return t('auth.claudeTerminalLogin')
+  }
   if (isGoogleOAuthMethod(method.id)) return t('auth.googleLogin')
   return method.id
 }
 
-const getTheme = (isDark: boolean) => ({
-  bg: isDark ? '#1c1c1f' : '#ffffff',
-  bgSecondary: isDark ? '#1c1c1f' : '#ffffff',
-  bgTertiary: isDark ? '#202024' : '#fafaf9',
-  surface: isDark ? '#202024' : '#f4f4f5',
-  border: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.08)',
-  text: isDark ? '#fafafa' : '#09090b',
-  textSecondary: isDark ? '#d4d4d8' : '#3f3f46',
-  primary: isDark ? '#ff8c28' : '#ff7a00',
-  primaryText: isDark ? '#fff' : '#ffffff',
-  primaryHover: isDark ? '#ffa050' : '#e66a00',
-  success: isDark ? '#22c55e' : '#16a34a',
-  warning: isDark ? '#eab308' : '#ca8a04',
-  error: isDark ? '#ef4444' : '#dc2626',
-  info: isDark ? '#00d4c4' : '#00b4a6',
-})
+function defaultAuthMethodsForBackend(
+  backend: string,
+  t: (key: string) => string,
+): Array<{ id: string; name: string }> {
+  if (backend === 'claude') return [{ id: 'claude-terminal', name: t('auth.claudeTerminalLogin') }]
+  if (backend === 'gemini') return [{ id: 'default', name: t('auth.googleLogin') }]
+  return [{ id: 'default', name: t('actions.login') }]
+}
 
 const RECONNECT_DELAYS_MS = [5000, 15000, 30000]
 
@@ -146,6 +178,7 @@ type WarmupPhase = 'idle' | 'preparing' | 'ready' | 'error'
 const AgentChatPanel: React.FC = () => {
   const { t: tCmd, i18n } = useTranslation('commands')
   const { t } = useTranslation('agent')
+  const { t: tBrand } = useTranslation('common')
   const staticSlashCommands = useMemo(() => getAgentSlashCommands(i18n.language), [i18n.language])
   const { state, dispatch } = useAppContext()
   const messageListRef = useRef<VirtualMessageListHandle>(null)
@@ -162,6 +195,9 @@ const AgentChatPanel: React.FC = () => {
   const [agentsScanReady, setAgentsScanReady] = useState(() => isE2ENoAgentsMode())
   const [cliInstallOpen, setCliInstallOpen] = useState(false)
   const [rescanningAgents, setRescanningAgents] = useState(false)
+  const [vaultReminderDismissed, setVaultReminderDismissed] = useState(
+    () => typeof sessionStorage !== 'undefined' && sessionStorage.getItem(vaultReminderSessionKey()) === '1',
+  )
   const [chatDbUnavailable, setChatDbUnavailable] = useState(false)
   const [messages, setMessages] = useState<Map<string, Message[]>>(new Map())
   const [status, setStatus] = useState<AgentConnStatus>('disconnected')
@@ -174,6 +210,7 @@ const AgentChatPanel: React.FC = () => {
   const [userScrolled, setUserScrolled] = useState(false)
   const [models, setModels] = useState<{ id: string; name: string }[]>([])
   const [selectedModel, setSelectedModel] = useState<string>('')
+  const { modelReadOnly, modelProvenance, resetModelRuntime, applyRuntimeMetadata } = useAgentRuntime()
   const [selectedMode, setSelectedMode] = useState<string>(DEFAULT_AGENT_MODE)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [currentCommand, setCurrentCommand] = useState<AgentSlashCommand | null>(null)
@@ -232,11 +269,24 @@ const AgentChatPanel: React.FC = () => {
   const reconnectAttemptRef = useRef(0)
   const messagesRef = useRef<Map<string, Message[]>>(new Map())
   const pendingSlashVerifyRef = useRef<{ cmdId: string; turnStartedAt: number } | null>(null)
+  const turnHadAgentOutputRef = useRef(false)
   const runSlashWritebackVerifyRef = useRef<(backend?: string) => Promise<void>>(async () => {})
 
   const { theme: appTheme } = useTheme()
   const isDark = appTheme.mode === 'dark'
-  const theme = useMemo(() => getTheme(isDark), [isDark])
+  const theme = AGENT_PANEL_THEME
+
+  useEffect(() => {
+    const linkId = 'metamates-agent-hljs-theme'
+    let link = document.getElementById(linkId) as HTMLLinkElement | null
+    if (!link) {
+      link = document.createElement('link')
+      link.id = linkId
+      link.rel = 'stylesheet'
+      document.head.appendChild(link)
+    }
+    link.href = isDark ? hljsDarkThemeUrl : hljsLightThemeUrl
+  }, [isDark])
 
   const syncAcpConnection = useCallback(
     (
@@ -450,7 +500,7 @@ const AgentChatPanel: React.FC = () => {
         const rawInputText = typeof rawInputValue === 'string'
           ? rawInputValue
           : (rawInputValue ? JSON.stringify(rawInputValue, null, 2) : undefined)
-        const toolTitle = msg.title || 'Tool'
+        const toolTitle = msg.title || t('toolCall.kind.unknown')
         const toolKind = msg.kind || inferToolCallKind(toolTitle)
         const toolContent = extractText(msg.content) || ''
         const structuredContent = msg.structuredContent ?? msg.content
@@ -489,7 +539,7 @@ const AgentChatPanel: React.FC = () => {
           id: msg.id || Date.now().toString(),
           type: 'plan',
           content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2),
-          title: msg.title || 'Plan',
+          title: msg.title || t('modes.plan'),
           position: 'left',
         }
       }
@@ -499,7 +549,7 @@ const AgentChatPanel: React.FC = () => {
       messagesRef.current = newMap
       return newMap
     })
-  }, [extractText])
+  }, [extractText, t])
 
   const runSlashWritebackVerify = useCallback(async (backend?: string) => {
     const pending = pendingSlashVerifyRef.current
@@ -555,7 +605,7 @@ const AgentChatPanel: React.FC = () => {
           .slice(-30)
           .map((msg) => (typeof msg.content === 'string' ? msg.content : ''))
           .filter((text) => text.trim().length > 0)
-        const archiveResult = await archiveGraduatedInboxNotes({
+        const archiveResult = await archiveProcessedInboxNotes({
           workspacePath: state.workspacePath,
           language,
           sourceTexts,
@@ -574,7 +624,7 @@ const AgentChatPanel: React.FC = () => {
           if (key === 'writeback.failedDetail') return code
           return t(key, { cmd: cmdName, defaultValue: code })
         })
-        .join('；') || t('writeback.detailNotUpdated')
+        .join(t('writeback.detailSeparator')) || t('writeback.detailNotUpdated')
       addMessageToState(activeBackend, {
         type: 'text',
         content: t('writeback.failedDetail', { cmd: cmdName, paths: targetPaths, detail }),
@@ -631,62 +681,81 @@ const AgentChatPanel: React.FC = () => {
     })
   }, [i18n.language, log, state.workspacePath])
 
-  const handlePromptFailure = useCallback((backend: string, err: { error?: string; message?: string; quotaExceeded?: boolean; authRequired?: boolean }) => {
+  const markAuthRequired = useCallback((
+    backend: string,
+    sessionResult: { authMethods?: Array<{ id: string; name?: string }>; error?: string },
+    options?: { showModal?: boolean },
+  ) => {
+    setAgentStatus(prev => {
+      const newMap = new Map(prev)
+      newMap.set(backend, 'auth_required')
+      return newMap
+    })
+    const showModal = options?.showModal ?? false
+    if (!showModal || backend !== currentBackendRef.current) {
+      return
+    }
+    setPendingAuth({
+      backend,
+      methods: sessionResult.authMethods || [],
+      error: sessionResult.error,
+    })
+    setStatus('auth_required')
+    setStatusText(t('status.authRequired'))
+    const alternateHint = formatAlternateAgentHint(backend)
+    if (alternateHint) setFailureHint({ action: 'switch_agent', backend })
+    log(`${backend} 需要认证`, 'error')
+  }, [log, t, formatAlternateAgentHint])
+
+  const handlePromptFailure = useCallback((
+    backend: string,
+    err: { error?: string; message?: string; quotaExceeded?: boolean; authRequired?: boolean },
+    options?: { context?: 'prompt' | 'connect' },
+  ) => {
     pendingSlashVerifyRef.current = null
     finalizeStreamingTurn(backend)
-    const errorText = formatAcpErrorForDisplay(err?.error || err?.message || 'unknown')
-    const resolution = resolveAcpFailure(err)
+    const errorText = normalizeAgentErrorText(err)
+    const resolution = resolveAcpFailure({ ...err, error: errorText })
     const alternateHint = formatAlternateAgentHint(backend)
     const agentName = resolveAgentDisplayName(backend, detectedAgents)
+    const kind = resolveAgentChatErrorKind(err, errorText, backend)
+    const context = options?.context ?? 'prompt'
 
-    if (isGeminiModelDailyQuotaError(errorText) && backend === 'gemini') {
-      addMessageToState(backend, {
-        type: 'text',
-        content: `${t('status.geminiModelDailyQuotaDetail', { agent: agentName, error: errorText })}${alternateHint ? `\n\n${alternateHint}` : ''}`,
-      })
-      if (alternateHint) setFailureHint({ action: 'switch_agent', backend })
-    } else if (isNetworkErrorMessage(errorText)) {
+    if (kind === 'network') {
       void window.electronAPI?.acp.invalidateCloudReachability?.(backend)
       void syncAllAgentStatuses([backend])
-      addMessageToState(backend, {
-        type: 'text',
-        content: `${t('status.networkErrorDetail', { agent: agentName, error: errorText })}${alternateHint ? `\n\n${alternateHint}` : ''}`,
-      })
       setFailureHint({ action: 'reconnect', backend })
-    } else if (resolution.kind === 'quota') {
-      const planExpired = isPlanExpiredError(errorText)
-      addMessageToState(backend, {
-        type: 'text',
-        content: `${t(planExpired ? 'status.planExpiredDetail' : 'status.quotaExceededDetail', { agent: agentName, error: errorText })}${alternateHint ? `\n\n${alternateHint}` : ''}`,
-      })
+    } else if (kind === 'upstream_billing' || kind === 'upstream_quota' || kind === 'gemini_daily_quota') {
       if (alternateHint) setFailureHint({ action: 'switch_agent', backend })
-    } else if (resolution.kind === 'auth_required') {
+    } else if (kind === 'auth') {
       void (async () => {
         const methods = (await window.electronAPI?.acp.getAuthMethods?.(backend)) || []
         markAuthRequired(backend, { authMethods: methods, error: errorText }, { showModal: true })
       })()
-      addMessageToState(backend, {
-        type: 'text',
-        content: t('status.authRequired'),
-      })
-      if (alternateHint) {
-        addMessageToState(backend, { type: 'text', content: alternateHint })
-        setFailureHint({ action: 'switch_agent', backend })
-      }
-    } else if (resolution.kind === 'disconnected') {
+      if (alternateHint) setFailureHint({ action: 'switch_agent', backend })
+    } else if (kind === 'disconnected' || resolution.kind === 'disconnected') {
       setFailureHint({ action: 'reconnect', backend })
-      addMessageToState(backend, {
-        type: 'text',
-        content: t('status.reconnectHint'),
-      })
-    } else {
-      addMessageToState(backend, {
-        type: 'text',
-        content: `${t('status.promptFailed', { error: errorText })}${alternateHint ? `\n\n${alternateHint}` : ''}`,
-      })
     }
+
+    addMessageToState(backend, {
+      type: 'text',
+      content: buildAgentChatErrorContent({
+        backend,
+        agentName,
+        errorText,
+        kind,
+        t,
+        alternateHint: kind === 'auth' ? undefined : (alternateHint ?? undefined),
+        context,
+      }),
+    })
+
+    if (kind === 'auth' && alternateHint) {
+      addMessageToState(backend, { type: 'text', content: alternateHint })
+    }
+
     log(`Error: ${errorText}`, 'error')
-  }, [addMessageToState, finalizeStreamingTurn, log, t, formatAlternateAgentHint, detectedAgents, syncAllAgentStatuses])
+  }, [addMessageToState, finalizeStreamingTurn, log, t, formatAlternateAgentHint, detectedAgents, syncAllAgentStatuses, markAuthRequired])
 
   const autoOpenedPathsRef = useRef<Set<string>>(new Set())
 
@@ -779,31 +848,16 @@ const AgentChatPanel: React.FC = () => {
     setAuthInProgress(false)
   }, [currentBackend])
 
-  const markAuthRequired = useCallback((
-    backend: string,
-    sessionResult: { authMethods?: Array<{ id: string; name?: string }>; error?: string },
-    options?: { showModal?: boolean },
-  ) => {
-    setAgentStatus(prev => {
-      const newMap = new Map(prev)
-      newMap.set(backend, 'auth_required')
-      return newMap
-    })
-    const showModal = options?.showModal ?? false
-    if (!showModal || backend !== currentBackendRef.current) {
-      return
-    }
-    setPendingAuth({
-      backend,
-      methods: sessionResult.authMethods || [],
-      error: sessionResult.error,
-    })
-    setStatus('auth_required')
-    setStatusText(t('status.authRequired'))
-    const alternateHint = formatAlternateAgentHint(backend)
-    if (alternateHint) setFailureHint({ action: 'switch_agent', backend })
-    log(`${backend} 需要认证`, 'error')
-  }, [log, t, formatAlternateAgentHint])
+  const openAuthForCurrentBackend = useCallback(async () => {
+    const backend = currentBackendRef.current
+    if (!backend) return
+    const methods = (await window.electronAPI?.acp.getAuthMethods?.(backend)) || []
+    const runtime = await window.electronAPI?.acp.getAgentRuntime?.(backend)
+    markAuthRequired(backend, {
+      authMethods: methods,
+      error: runtime?.display.authHint || undefined,
+    }, { showModal: true })
+  }, [markAuthRequired])
 
   const persistAcpPreference = useCallback(async (backend: string, patch: { mode?: string; modelId?: string }) => {
     try {
@@ -823,59 +877,15 @@ const AgentChatPanel: React.FC = () => {
   /** Apply readiness after session exists — status first; models/commands load in background. */
   const hydrateBackendMetadata = useCallback(async (backend: string) => {
     if (backend !== currentBackendRef.current) return
-
-    try {
-      const settings = await storageService.getSettings()
-      const pref = settings.acpPreferences?.[backend]
-
-      if (pref?.mode) {
-        try {
-          await window.electronAPI?.acp.setMode(pref.mode)
-          setSelectedMode(pref.mode)
-        } catch {
-          const modeResult = await window.electronAPI?.acp.getMode()
-          setSelectedMode(modeResult?.mode || DEFAULT_AGENT_MODE)
-        }
-      } else {
-        const modeResult = await window.electronAPI?.acp.getMode()
-        setSelectedMode(modeResult?.mode || DEFAULT_AGENT_MODE)
-      }
-
-      const modelsResult = await window.electronAPI?.acp.getModels()
-      if (modelsResult?.models) {
-        setModels(modelsResult.models)
-        if (modelsResult.models.length > 0) {
-          const sessionInfo = await window.electronAPI?.acp.getSessionInfo?.(backend)
-          const userModelId = pref?.modelId
-          const sessionModelId = sessionInfo?.modelId
-          const autoModel = backend === 'gemini'
-            ? modelsResult.models.find((m) => /auto/i.test(m.id) || /auto/i.test(m.name))
-            : undefined
-          const pick = userModelId && modelsResult.models.some((m) => m.id === userModelId)
-            ? userModelId
-            : (backend === 'gemini' && autoModel?.id)
-              ? autoModel.id
-              : sessionModelId && modelsResult.models.some((m) => m.id === sessionModelId)
-                ? sessionModelId
-                : modelsResult.models[0].id
-          try {
-            await window.electronAPI?.acp.setModel(pick)
-          } catch {
-            // best-effort
-          }
-          setSelectedModel(pick)
-          void persistAcpPreference(backend, { modelId: pick })
-        }
-      }
-
-      const acpCommands = await window.electronAPI?.acp.getAvailableCommands?.(backend)
-      if (acpCommands && acpCommands.length > 0) {
-        setAcpDynamicCommands(acpCommands)
-      }
-    } catch {
-      // metadata is best-effort — chat works without it
-    }
-  }, [persistAcpPreference])
+    await applyRuntimeMetadata({
+      backend,
+      persistAcpPreference,
+      setSelectedMode,
+      setModels,
+      setSelectedModel,
+      setAcpDynamicCommands,
+    })
+  }, [persistAcpPreference, applyRuntimeMetadata])
 
   const finalizeBackendSession = useCallback(async (
     backend: string,
@@ -1113,16 +1123,18 @@ const AgentChatPanel: React.FC = () => {
     }
 
     if (!result.success) {
+      handlePromptFailure(backend, result, { context: 'connect' })
       setAgentStatus(prev => {
         const newMap = new Map(prev)
         newMap.set(backend, 'error')
         return newMap
       })
       setStatus('error')
-      setStatusText(t('status.error', { error: result.error || 'Unknown error' }))
-      syncAcpConnection(backend, 'error', { error: result.error || 'Unknown error' })
+      const unknownError = t('status.unknownError')
+      setStatusText(t('status.error', { error: result.error || unknownError }))
+      syncAcpConnection(backend, 'error', { error: result.error || unknownError })
       setWarmupPhase('error')
-      log(`Failed to switch to ${backend}: ${result.error || 'Unknown error'}`, 'error')
+      log(`Failed to switch to ${backend}: ${result.error || unknownError}`, 'error')
     }
   }, [syncAllAgentStatuses, markAuthRequired, finalizeBackendSession, log, t, syncAcpConnection, handlePromptFailure])
 
@@ -1182,7 +1194,7 @@ const AgentChatPanel: React.FC = () => {
       void (async () => {
         const methods = (await window.electronAPI?.acp.getAuthMethods?.(backend)) || []
         if (backend !== currentBackendRef.current) return
-        markAuthRequired(backend, { authMethods: methods }, { showModal: true })
+        markAuthRequired(backend, { authMethods: methods }, { showModal: false })
       })()
     }
 
@@ -1195,7 +1207,7 @@ const AgentChatPanel: React.FC = () => {
         if (health && !health.available) {
           if (health.needsAuth) {
             const methods = (await window.electronAPI?.acp.getAuthMethods?.(backend)) || []
-            markAuthRequired(backend, { authMethods: methods, error: health.error }, { showModal: true })
+            markAuthRequired(backend, { authMethods: methods, error: health.error }, { showModal: false })
           } else {
             setAgentStatus(prev => {
               const newMap = new Map(prev)
@@ -1218,48 +1230,23 @@ const AgentChatPanel: React.FC = () => {
         setStatus('connecting')
         setStatusText(t('status.connecting', { name: agentName }))
 
-        const result = await window.electronAPI?.acp.selectBackend(backend)
+        /** User-initiated switch — await full session (avoids 2s poll gap after selectBackend pending). */
+        const result = await window.electronAPI?.acp.switchBackend(backend)
         if (backend !== currentBackendRef.current) return
 
         if (result?.sessionId) {
-          await handleBackendReady(backend, result)
-        } else if (result?.pending) {
-          const pendingBackend = backend
-          const deadline = Date.now() + 45_000
-          const pollPending = async () => {
-            if (pendingBackend !== currentBackendRef.current) return
-            const snap = await window.electronAPI?.acp.getConnectionStatus?.(pendingBackend)
-            const mapped = mapBackendSnapshotToStatus(snap)
-            if (mapped === 'connected') {
-              const info = await window.electronAPI?.acp.getSessionInfo?.(pendingBackend)
-              if (info?.sessionId) {
-                await handleBackendReady(pendingBackend, {
-                  success: true,
-                  sessionId: info.sessionId,
-                  mode: info.mode,
-                })
-              }
-              return
-            }
-            if (mapped === 'auth_required') {
-              const methods = (await window.electronAPI?.acp.getAuthMethods?.(pendingBackend)) || []
-              markAuthRequired(pendingBackend, { authMethods: methods }, { showModal: true })
-              return
-            }
-            if (mapped === 'error') {
-              void syncAllAgentStatuses([pendingBackend])
-              return
-            }
-            if (Date.now() < deadline) {
-              setTimeout(() => void pollPending(), 2000)
-            } else {
-              await handleBackendReady(pendingBackend, {
-                success: false,
-                error: t('status.connectionTimeout', { name: agentName }),
-              })
-            }
-          }
-          setTimeout(() => void pollPending(), 2000)
+          await handleBackendReady(backend, {
+            success: true,
+            sessionId: result.sessionId,
+            mode: result.mode,
+          })
+        } else if (result?.authRequired) {
+          await handleBackendReady(backend, {
+            success: false,
+            authRequired: true,
+            authMethods: result.authMethods,
+            error: result.error,
+          })
         } else if (!result?.success) {
           await handleBackendReady(backend, { success: false, error: result?.error })
         }
@@ -1308,6 +1295,7 @@ const AgentChatPanel: React.FC = () => {
 
     if (isActive) {
       setWarmupPhase('preparing')
+      resetModelRuntime()
     }
     setAgentStatus(prev => {
       const newMap = new Map(prev)
@@ -1328,17 +1316,35 @@ const AgentChatPanel: React.FC = () => {
         { freshSession: options?.freshSession },
       )
       if (sessionResult?.authRequired) {
-        markAuthRequired(backend, sessionResult, { showModal: isActive })
+        if (isActive) handlePromptFailure(backend, sessionResult, { context: 'connect' })
+        markAuthRequired(backend, sessionResult, { showModal: false })
         if (isActive) setWarmupPhase('error')
         return
       }
       if (sessionResult?.quotaExceeded) {
-        if (isActive) handlePromptFailure(backend, sessionResult)
+        if (isActive) handlePromptFailure(backend, sessionResult, { context: 'connect' })
         if (isActive) setWarmupPhase('error')
         return
       }
       if (!sessionResult?.success || !sessionResult?.sessionId) {
-        throw new Error(sessionResult?.error || 'Failed to create session')
+        const connectErr = sessionResult?.error || 'Failed to create session'
+        if (isActive) {
+          handlePromptFailure(
+            backend,
+            { error: connectErr, quotaExceeded: sessionResult?.quotaExceeded, authRequired: sessionResult?.authRequired },
+            { context: 'connect' },
+          )
+          setWarmupPhase('error')
+          setAgentStatus((prev) => {
+            const newMap = new Map(prev)
+            newMap.set(backend, 'error')
+            return newMap
+          })
+          setStatus('error')
+          setStatusText(t('status.error', { error: connectErr }))
+        }
+        await syncAllAgentStatuses([backend])
+        return
       }
 
       const ready = await finalizeBackendSession(backend, {
@@ -1363,7 +1369,10 @@ const AgentChatPanel: React.FC = () => {
       }
       
     } catch (err: any) {
-      if (isActive) setWarmupPhase('error')
+      if (isActive) {
+        setWarmupPhase('error')
+        handlePromptFailure(backend, { error: err?.message || t('status.unknownError') }, { context: 'connect' })
+      }
       setAgentStatus(prev => {
         const newMap = new Map(prev)
         newMap.set(backend, 'error')
@@ -1387,7 +1396,7 @@ const AgentChatPanel: React.FC = () => {
     })
     warmupPromiseRef.current.set(backend, promise)
     return promise
-  }, [log, convertHistoryMessage, finalizeBackendSession, t, markAuthRequired, scrollToLatestMessages, detectedAgents, syncAllAgentStatuses, formatAlternateAgentHint, loadAgentHistory, handlePromptFailure])
+  }, [log, convertHistoryMessage, finalizeBackendSession, t, markAuthRequired, scrollToLatestMessages, detectedAgents, syncAllAgentStatuses, formatAlternateAgentHint, loadAgentHistory, handlePromptFailure, resetModelRuntime])
 
   const warmupBackend = useCallback(async (backend?: string | null) => {
     const target = backend ?? currentBackendRef.current
@@ -1408,13 +1417,15 @@ const AgentChatPanel: React.FC = () => {
     let mapped = mapBackendSnapshotToStatus(snapshot)
     if (mapped === 'connected') return true
     if (mapped === 'error') {
-      log(snapshot?.error || t('status.disconnected'), 'error')
+      const errMsg = snapshot?.error || t('status.disconnected')
+      handlePromptFailure(backend, { error: errMsg }, { context: 'connect' })
       applyConnectionSnapshot(backend, snapshot || { connected: false, hasSession: false, ready: false, needsAuth: false })
       return false
     }
     if (mapped === 'auth_required') {
       const methods = (await window.electronAPI?.acp.getAuthMethods?.(backend)) || []
-      markAuthRequired(backend, { authMethods: methods }, { showModal: true })
+      markAuthRequired(backend, { authMethods: methods, error: snapshot?.error }, { showModal: true })
+      handlePromptFailure(backend, { error: snapshot?.error || t('status.authRequired'), authRequired: true }, { context: 'connect' })
       return false
     }
 
@@ -1422,17 +1433,21 @@ const AgentChatPanel: React.FC = () => {
     const after = await window.electronAPI?.acp.getConnectionStatus?.(backend)
     mapped = mapBackendSnapshotToStatus(after)
     if (mapped === 'error') {
-      log(after?.error || t('status.disconnected'), 'error')
       if (after) applyConnectionSnapshot(backend, after)
       return false
     }
     if (mapped === 'auth_required') {
       const methods = (await window.electronAPI?.acp.getAuthMethods?.(backend)) || []
-      markAuthRequired(backend, { authMethods: methods }, { showModal: true })
+      markAuthRequired(backend, { authMethods: methods, error: after?.error }, { showModal: true })
+      handlePromptFailure(backend, { error: after?.error || t('status.authRequired'), authRequired: true }, { context: 'connect' })
       return false
     }
-    return mapped === 'connected'
-  }, [warmupBackend, markAuthRequired, applyConnectionSnapshot, log, t])
+    if (mapped !== 'connected') {
+      handlePromptFailure(backend, { error: t('status.agentNotReadyDetail') }, { context: 'connect' })
+      return false
+    }
+    return true
+  }, [warmupBackend, markAuthRequired, applyConnectionSnapshot, handlePromptFailure, t])
 
   connectInBackgroundRef.current = connectInBackground
 
@@ -1459,7 +1474,7 @@ const AgentChatPanel: React.FC = () => {
         setCurrentBackend(null)
         currentBackendRef.current = null
         setStatus('disconnected')
-        setStatusText(t('status.noAgents'))
+        setStatusText(tBrand(BRAND_I18N.noAssistantBadge))
         return
       }
 
@@ -1524,6 +1539,19 @@ const AgentChatPanel: React.FC = () => {
       setRescanningAgents(false)
     }
   }, [applyDetectedAgents, syncAllAgentStatuses])
+
+  useEffect(() => {
+    const onEngineSetupComplete = () => {
+      void handleRescanAgents()
+    }
+    window.addEventListener('metamates:engine-setup-complete', onEngineSetupComplete)
+    return () => window.removeEventListener('metamates:engine-setup-complete', onEngineSetupComplete)
+  }, [handleRescanAgents])
+
+  const dismissVaultReminder = useCallback(() => {
+    sessionStorage.setItem(vaultReminderSessionKey(), '1')
+    setVaultReminderDismissed(true)
+  }, [])
 
   const handleCliInstallClose = useCallback(() => {
     setCliInstallOpen(false)
@@ -1602,7 +1630,7 @@ const AgentChatPanel: React.FC = () => {
       try {
         if (e2eNoAgents) {
           applyAgents([])
-          setStatusText(translate('status.noAgents'))
+          setStatusText(i18n.t(BRAND_I18N.noAssistantBadge, { ns: 'common' }))
           if (!cancelled) setAgentsScanReady(true)
           return
         }
@@ -1622,6 +1650,7 @@ const AgentChatPanel: React.FC = () => {
         }
 
         const settings = await storageService.getSettings()
+        // LOCKED: restore last-used CLI tab + spawn — prefer splash preload, then settings.lastAgentBackend.
         const startupBackend = (window as Window & { __METAMATES_STARTUP_BACKEND__?: string })
           .__METAMATES_STARTUP_BACKEND__
         const preferBackend = startupBackend || settings.lastAgentBackend || bootSnapshot.lastBackend
@@ -1680,12 +1709,17 @@ const AgentChatPanel: React.FC = () => {
             setWarmupPhase('idle')
           }
 
-          void window.electronAPI?.acp.selectBackend(activeBackend).then((result) => {
-            if (result?.sessionId) {
-              void onBackendReady(activeBackend, result)
-            }
-          })
-          void warmupBackend(activeBackend)
+          const selectResult = await window.electronAPI?.acp.selectBackend(activeBackend)
+          if (selectResult?.sessionId) {
+            void onBackendReady(activeBackend, {
+              success: true,
+              sessionId: selectResult.sessionId,
+              mode: selectResult.mode || DEFAULT_AGENT_MODE,
+            })
+          } else if (!selectResult?.pending) {
+            // select-backend already started warmup when pending — avoid duplicate ensure-session.
+            void warmupBackend(activeBackend)
+          }
 
           const prefetchOthers = () => {
             for (const agent of agents) {
@@ -1772,10 +1806,12 @@ const AgentChatPanel: React.FC = () => {
     return () => unsub?.()
   }, [applyConnectionSnapshot])
 
-  /** Sync pill state on events; light poll only while agents are still warming up. */
+  /** Sync pill state on events; poll faster while any agent is still connecting. */
   useEffect(() => {
     if (detectedAgents.length === 0) return
     void syncAllAgentStatuses()
+
+    const CONNECTING_STATUS_POLL_MS = 1_500
 
     const interval = setInterval(() => {
       const anyPending = detectedAgents.some((agent) => {
@@ -1783,7 +1819,7 @@ const AgentChatPanel: React.FC = () => {
         return st === 'connecting'
       })
       if (anyPending) void syncAllAgentStatuses()
-    }, 8000)
+    }, CONNECTING_STATUS_POLL_MS)
 
     return () => clearInterval(interval)
   }, [detectedAgents, syncAllAgentStatuses])
@@ -1893,8 +1929,11 @@ const AgentChatPanel: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    const handleStreamMessage = (data: { backend: string; message: IResponseMessage }) => {
-      const { backend, message } = data
+    const handleStreamMessage = (data: { backend: string; message: IResponseMessage; silent?: boolean }) => {
+      const { backend, message, silent } = data
+
+      if (silent) return
+
       handleControlMessage(message, backend, currentBackendRef.current || '')
 
       if (message.type === 'error') {
@@ -1910,6 +1949,12 @@ const AgentChatPanel: React.FC = () => {
         messagesRef.current.get(backend) || [],
         message,
       )
+
+      if (
+        nextList.some((m) => m.type === 'tool-call' || (m.type === 'agent' && String(m.content ?? '').trim()))
+      ) {
+        turnHadAgentOutputRef.current = true
+      }
 
       if (sideEffects.availableCommands) {
         setAcpDynamicCommands(sideEffects.availableCommands)
@@ -1930,7 +1975,19 @@ const AgentChatPanel: React.FC = () => {
       requestAnimationFrame(() => scrollToBottom())
     }
 
-    const handleEndTurn = (data?: { backend?: string }) => {
+    const handleEndTurn = (data?: { backend?: string; silent?: boolean }) => {
+      const backend = data?.backend || currentBackendRef.current || ''
+      if (data?.silent) {
+        turnHadAgentOutputRef.current = false
+        finalizeStreamingTurn(data?.backend)
+        void runSlashWritebackVerifyRef.current(data?.backend)
+        return
+      }
+      if (backend === currentBackendRef.current && !turnHadAgentOutputRef.current) {
+        message.warning(t('status.emptyTurn'))
+        log(t('status.emptyTurn'), 'error')
+      }
+      turnHadAgentOutputRef.current = false
       finalizeStreamingTurn(data?.backend)
       void runSlashWritebackVerifyRef.current(data?.backend)
     }
@@ -2032,8 +2089,9 @@ const AgentChatPanel: React.FC = () => {
       pendingPermission.requestId,
     )
     setPendingPermission(null)
-    log('Permission dismissed (rejected)', 'info')
-  }, [pendingPermission, log])
+    message.warning(t('permission.dismissed'))
+    log(t('permission.dismissed'), 'info')
+  }, [pendingPermission, log, t])
 
   const respondToPermissionChoice = useCallback((optionId: string) => {
     if (!pendingPermission) return
@@ -2083,6 +2141,15 @@ const AgentChatPanel: React.FC = () => {
     }
   }, [log, t])
 
+  const handleClaudeTerminalLogin = useCallback(async () => {
+    log('Opening Claude login in PowerShell...', 'info')
+    const result = await window.electronAPI?.acp.openClaudeTerminalLogin()
+    if (!result?.success) {
+      message.error(result?.error || t('auth.terminalLoginFailed'))
+      log(`Terminal login failed: ${result?.error || 'unknown'}`, 'error')
+    }
+  }, [log, t])
+
   const handleAuthMethodClick = useCallback((methodId: string) => {
     if (methodId === 'gemini-api-key') {
       setShowApiKeyInput(true)
@@ -2090,9 +2157,14 @@ const AgentChatPanel: React.FC = () => {
     }
     if (pendingAuth?.backend === 'gemini' && isGoogleOAuthMethod(methodId)) {
       void handleGeminiTerminalLogin()
+      return
+    }
+    if (pendingAuth?.backend === 'claude' && (methodId === 'claude-terminal' || methodId === 'default' || methodId === 'terminal')) {
+      void handleClaudeTerminalLogin()
+      return
     }
     void handleAuthenticate(methodId)
-  }, [handleAuthenticate, handleGeminiTerminalLogin, pendingAuth?.backend])
+  }, [handleAuthenticate, handleGeminiTerminalLogin, handleClaudeTerminalLogin, pendingAuth?.backend])
 
   useEffect(() => {
     if (!window.electronAPI?.acp?.onAuthUrl) return undefined
@@ -2179,6 +2251,11 @@ const AgentChatPanel: React.FC = () => {
           return
         }
 
+        if (result.inboxArchivedCount && result.inboxArchivedCount > 0) {
+          message.success(t('writeback.inboxArchived', { count: result.inboxArchivedCount }))
+          log(t('writeback.inboxArchived', { count: result.inboxArchivedCount }), 'success')
+        }
+
         if (result.notePath && result.noteName) {
           dispatch({
             type: 'ADD_TAB',
@@ -2249,13 +2326,13 @@ const AgentChatPanel: React.FC = () => {
 
     const ready = await ensureBackendReady()
     if (!ready) {
-      log('Agent not ready — complete sign-in or wait for connection', 'error')
       return
     }
 
     try {
       appendUserBubble(backend, displayText, serializedAttachments)
       currentMsgIdRef.current = `msg-${Date.now()}`
+      turnHadAgentOutputRef.current = false
       setUserScrolled(false)
 
       if (activeCommand) {
@@ -2264,7 +2341,7 @@ const AgentChatPanel: React.FC = () => {
 
       const finalPrompt = activeCommand
         ? await loadSlashPrompt(activeCommand, text.trim())
-        : text.trim()
+        : augmentAgentPromptIfIntro(text.trim(), i18n.language)
 
       const result = await window.electronAPI?.acp.sendPrompt(
         finalPrompt,
@@ -2288,13 +2365,13 @@ const AgentChatPanel: React.FC = () => {
 
     const ready = await ensureBackendReady()
     if (!ready) {
-      log('Agent not ready — complete sign-in or wait for connection', 'error')
       return
     }
 
     try {
       appendUserBubble(backend, displayText)
       currentMsgIdRef.current = `msg-${Date.now()}`
+      turnHadAgentOutputRef.current = false
       setUserScrolled(false)
       markSlashWritebackPending(cmd.id)
 
@@ -2351,7 +2428,7 @@ const AgentChatPanel: React.FC = () => {
   }, [slashCommands, sendCommandDirectly, handleCommandClick])
 
   const handleModelChange = useCallback(async (modelId: string) => {
-    if (!modelId) return
+    if (!modelId || modelReadOnly) return
     const backend = currentBackendRef.current
     try {
       await window.electronAPI?.acp.setModel(modelId)
@@ -2361,7 +2438,7 @@ const AgentChatPanel: React.FC = () => {
     } catch (err: any) {
       log(`Model change failed: ${err.message}`, 'error')
     }
-  }, [log, persistAcpPreference])
+  }, [log, persistAcpPreference, modelReadOnly])
 
   const handleManualReconnect = useCallback(() => {
     const backend = currentBackendRef.current
@@ -2518,13 +2595,30 @@ const AgentChatPanel: React.FC = () => {
     }
     return t('input.placeholder')
   }, [currentCommand, currentAgent, models, selectedModel, connectionStatus, warmupPhase, t, tCmd])
+
+  const showVaultOnlyReminder = shouldShowVaultOnlyReminder({
+    engineSetupStatus: state.settings.engineSetupStatus,
+    hasUsableAgent: detectedAgents.length > 0,
+    dismissedThisSession: vaultReminderDismissed,
+  })
   
   return (
     <div className="agent-panel" data-testid="agent-panel" style={{ position: 'relative' }}>
       {showEmptyAgentPanel && (
         <div className="agent-panel__toolbar agent-panel__toolbar--slim agent-panel__toolbar--empty">
-          <span className="agent-panel__empty-label">{t('empty.panelLabel')}</span>
-          <span className="agent-panel__empty-badge">{t('status.noAgents')}</span>
+          <span className="agent-panel__empty-label">{tBrand(BRAND_I18N.thinkingEngine)}</span>
+          <span className="agent-panel__empty-badge">{tBrand(BRAND_I18N.noAssistantBadge)}</span>
+        </div>
+      )}
+
+      {showVaultOnlyReminder && showEmptyAgentPanel && (
+        <div className="agent-panel__alerts">
+          <EngineSetupReminder
+            onEnable={() => {
+              window.dispatchEvent(new CustomEvent('metamates:open-engine-setup'))
+            }}
+            onDismiss={dismissVaultReminder}
+          />
         </div>
       )}
 
@@ -2538,81 +2632,45 @@ const AgentChatPanel: React.FC = () => {
         />
       )}
 
-      {chatDbUnavailable && (
-        <div
-          style={{
-            flexShrink: 0,
-            padding: '8px 12px',
-            margin: '0 12px 8px',
-            borderRadius: 8,
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.35)',
-            fontSize: 12,
-            color: theme.textSecondary,
-          }}
-        >
-          {t('status.chatDbUnavailable')}
-        </div>
-      )}
-
-      {detectedAgents.length > 0 && failureHint && (
-        <div style={{
-          flexShrink: 0,
-          padding: '8px 12px',
-          margin: '0 12px',
-          borderRadius: 8,
-          background: 'rgba(234, 179, 8, 0.12)',
-          border: '1px solid rgba(234, 179, 8, 0.35)',
-          fontSize: 12,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          flexWrap: 'wrap',
-        }}>
-          <span style={{ flex: 1, color: theme.textSecondary }}>
-            {failureHint.action === 'reconnect'
-              ? t('status.reconnectHint')
-              : formatAlternateAgentHint(failureHint.backend)}
-          </span>
-          {failureHint.action === 'reconnect' && (
-            <button
-              type="button"
-              onClick={handleManualReconnect}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 6,
-                border: 'none',
-                background: theme.primary,
-                color: theme.primaryText || '#fff',
-                cursor: 'pointer',
-                fontSize: 12,
-              }}
-            >
-              {t('actions.reconnect')}
-            </button>
+      {(chatDbUnavailable || (detectedAgents.length > 0 && failureHint)) && (
+        <div className="agent-panel__alerts">
+          {chatDbUnavailable && (
+            <div className="agent-panel__alert-banner agent-panel__alert-banner--error" role="status">
+              {t('status.chatDbUnavailable')}
+            </div>
           )}
-          {failureHint.action === 'switch_agent' && suggestAlternateAgents(failureHint.backend).map((agent) => (
-            <button
-              key={agent.backend}
-              type="button"
-              data-testid={`switch-agent-${agent.backend}`}
-              onClick={() => {
-                setFailureHint(null)
-                void selectAgent(agent.backend)
-              }}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 6,
-                border: `1px solid ${theme.border}`,
-                background: theme.bg,
-                color: theme.text,
-                cursor: 'pointer',
-                fontSize: 12,
-              }}
-            >
-              {agent.name}
-            </button>
-          ))}
+          {detectedAgents.length > 0 && failureHint && (
+            <div className="agent-panel__alert-banner agent-panel__alert-banner--warning" role="status">
+              <span className="agent-panel__alert-banner-text">
+                {failureHint.action === 'reconnect'
+                  ? t('status.reconnectHint')
+                  : formatAlternateAgentHint(failureHint.backend)}
+              </span>
+              {failureHint.action === 'reconnect' && (
+                <button
+                  type="button"
+                  className="agent-panel__alert-action"
+                  onClick={handleManualReconnect}
+                >
+                  {t('actions.reconnect')}
+                </button>
+              )}
+              {failureHint.action === 'switch_agent' && suggestAlternateAgents(failureHint.backend).map((agent) => (
+                <button
+                  key={agent.backend}
+                  type="button"
+                  data-testid={`switch-agent-${agent.backend}`}
+                  className="agent-panel__alert-action agent-panel__alert-action--secondary"
+                  onClick={() => {
+                    setFailureHint(null)
+                    void selectAgent(agent.backend)
+                  }}
+                >
+                  {agent.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -2632,7 +2690,9 @@ const AgentChatPanel: React.FC = () => {
           style={{ height: '100%' }}
         >
           <AgentCliInstallGuide
-            onInstall={() => setCliInstallOpen(true)}
+            onInstall={() => {
+              window.dispatchEvent(new CustomEvent('metamates:open-engine-setup'))
+            }}
             onRescan={() => void handleRescanAgents()}
             rescanning={rescanningAgents}
           />
@@ -2652,7 +2712,7 @@ const AgentChatPanel: React.FC = () => {
           header={(
             <>
               {historyLoading && currentMessages.length === 0 && (
-                <div className="agent-panel__history-hint" style={{ fontSize: 12, color: theme.textSecondary, padding: '8px 0', textAlign: 'center' }}>
+                <div className="agent-panel__history-hint">
                   {t('status.loadingHistory', { name: currentAgent?.name || '' })}
                 </div>
               )}
@@ -2697,9 +2757,6 @@ const AgentChatPanel: React.FC = () => {
             connected={connectionStatus === 'connected'}
             tCmd={tCmd}
           />
-          {(warmupPhase === 'preparing' || connectionStatus === 'connecting') && (
-            <div className="agent-panel__input-hint">{t('status.typeWhileConnecting')}</div>
-          )}
           <div className="agent-panel__footer-status-row">
             <AgentInputControls
               connectionStatus={connectionStatus}
@@ -2708,6 +2765,8 @@ const AgentChatPanel: React.FC = () => {
               warmupPhase={warmupPhase}
               models={models}
               selectedModel={selectedModel}
+              modelReadOnly={modelReadOnly}
+              modelProvenance={modelProvenance}
               onModelChange={handleModelChange}
               onStop={handleStopStreaming}
             />
@@ -2720,67 +2779,67 @@ const AgentChatPanel: React.FC = () => {
               />
             )}
           </div>
+          {connectionStatus === 'auth_required' && !pendingAuth && currentBackend && (
+            <AgentAuthBanner
+              backend={currentBackend}
+              agentName={detectedAgents.find((a) => a.backend === currentBackend)?.name}
+              onSignIn={() => void openAuthForCurrentBackend()}
+              onOpenSettings={() => {
+                window.dispatchEvent(
+                  new CustomEvent('metamates:open-settings', { detail: { tab: 'agent' } }),
+                )
+              }}
+            />
+          )}
           <AgentChatInput
             onSend={sendMessage}
             disabled={isAgentBusy}
             placeholder={inputPlaceholder}
             workspacePath={state.workspacePath}
             currentFilePath={state.currentFile}
-            currentCommandBorder={currentCommand ? theme.primary : undefined}
+            currentCommandBorder={currentCommand ? 'var(--accent)' : undefined}
             canSubmitEmpty={currentCommand?.inputMode === 'optional'}
+            speechEngine={state.settings.speechEngine}
           />
         </footer>
       )}
 
       {pendingAuth && pendingAuth.backend === currentBackend && (
         <div
+          className="agent-panel__overlay-modal agent-panel__overlay-modal--auth"
           data-testid="acp-auth-modal"
-          style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'rgba(0,0,0,0.55)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1001,
-          pointerEvents: 'none',
-        }}>
-          <div style={{
-            background: theme.bgSecondary,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 12,
-            padding: 20,
-            maxWidth: 420,
-            width: '90%',
-            pointerEvents: 'auto',
-          }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('auth.title')}</div>
-            <div style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 16 }}>
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="acp-auth-modal-title"
+            className="agent-panel__modal-card"
+          >
+            <div id="acp-auth-modal-title" className="agent-panel__modal-title">{t('auth.title')}</div>
+            <div className="agent-panel__modal-body">
               {t('auth.description', { backend: pendingAuth.backend })}
               {authInProgress && !pendingAuth.error && (
-                <div style={{ marginTop: 8, color: theme.primary }}>{t('auth.inProgress')}</div>
+                <div className="agent-panel__modal-note agent-panel__modal-note--accent">{t('auth.inProgress')}</div>
               )}
               {pendingAuth.backend === 'gemini' && (
-                <div style={{ marginTop: 10, fontSize: 12, color: theme.textSecondary }}>
-                  {t('auth.terminalLoginHint')}
-                </div>
+                <div className="agent-panel__modal-note">{t('auth.terminalLoginHint')}</div>
               )}
               {pendingAuth.error && (
-                <div style={{ marginTop: 8, color: theme.error }}>{pendingAuth.error}</div>
+                <div className="agent-panel__modal-note agent-panel__modal-note--error">{pendingAuth.error}</div>
               )}
               {pendingAuth.error && /no longer supported|antigravity/i.test(pendingAuth.error) && (
-                <div style={{ marginTop: 8, color: theme.warning || '#fbbf24', fontSize: 12 }}>
+                <div className="agent-panel__modal-note agent-panel__modal-note--warning">
                   {t('auth.deprecatedGoogleLogin')}
                 </div>
               )}
               {pendingAuthUrl && (
-                <div style={{ marginTop: 12 }}>
+                <div className="agent-panel__modal-note">
                   <div style={{ marginBottom: 6 }}>{t('auth.browserHint')}</div>
                   <a
                     href={pendingAuthUrl}
                     target="_blank"
                     rel="noreferrer"
-                    style={{ color: theme.primary, wordBreak: 'break-all', fontSize: 12 }}
+                    className="agent-panel__modal-link"
                     onClick={(e) => {
                       e.preventDefault()
                       window.electronAPI?.openExternal?.(pendingAuthUrl)
@@ -2798,89 +2857,60 @@ const AgentChatPanel: React.FC = () => {
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}
                   placeholder={t('auth.apiKeyPlaceholder')}
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    borderRadius: 8,
-                    border: `1px solid ${theme.border}`,
-                    background: theme.bg,
-                    color: theme.text,
-                    fontSize: 12,
-                    marginBottom: 8,
-                  }}
+                  className="agent-panel__modal-input"
                 />
                 <button
                   type="button"
+                  className="agent-panel__modal-btn agent-panel__modal-btn--primary"
                   disabled={authInProgress || !apiKeyInput.trim()}
                   onClick={() => void handleAuthenticate('gemini-api-key', apiKeyInput)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: theme.primary,
-                    color: theme.primaryText || '#fff',
-                    cursor: authInProgress || !apiKeyInput.trim() ? 'not-allowed' : 'pointer',
-                    fontSize: 12,
-                    opacity: authInProgress || !apiKeyInput.trim() ? 0.6 : 1,
-                  }}
                 >
                   {t('auth.apiKeySubmit')}
                 </button>
               </div>
             )}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div className="agent-panel__modal-actions">
               {pendingAuth.backend === 'gemini' && (
                 <button
                   type="button"
+                  className="agent-panel__modal-btn agent-panel__modal-btn--outline"
                   disabled={authInProgress}
                   onClick={() => void handleGeminiTerminalLogin()}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: `1px solid ${theme.primary}`,
-                    background: 'transparent',
-                    color: theme.primary,
-                    cursor: authInProgress ? 'wait' : 'pointer',
-                    fontSize: 12,
-                    fontWeight: 600,
-                  }}
                 >
                   {t('auth.terminalLogin')}
                 </button>
               )}
-              {(pendingAuth.methods.length ? pendingAuth.methods : [{ id: 'default', name: t('auth.googleLogin') }]).map((m) => (
+              {pendingAuth.backend === 'claude' && (
+                <button
+                  type="button"
+                  className="agent-panel__modal-btn agent-panel__modal-btn--outline"
+                  disabled={authInProgress}
+                  onClick={() => void handleClaudeTerminalLogin()}
+                >
+                  {t('auth.claudeTerminalLogin')}
+                </button>
+              )}
+              {(pendingAuth.methods.length
+                ? pendingAuth.methods
+                : defaultAuthMethodsForBackend(pendingAuth.backend, t)
+              )
+                .filter((m) => !(pendingAuth.backend === 'claude' && m.id === 'claude-terminal'))
+                .map((m) => (
                 <button
                   key={m.id}
                   type="button"
+                  className="agent-panel__modal-btn agent-panel__modal-btn--primary"
                   disabled={authInProgress}
                   onClick={() => handleAuthMethodClick(m.id)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: `1px solid ${theme.border}`,
-                    background: theme.primary,
-                    color: theme.primaryText || '#fff',
-                    cursor: authInProgress ? 'wait' : 'pointer',
-                    fontSize: 12,
-                    opacity: authInProgress ? 0.7 : 1,
-                  }}
                 >
-                  {authInProgress && m.id !== 'gemini-api-key' ? '…' : resolveAuthMethodLabel(m, t)}
+                  {authInProgress && m.id !== 'gemini-api-key' ? '…' : resolveAuthMethodLabel(m, t, pendingAuth.backend)}
                 </button>
               ))}
               <button
                 type="button"
+                className="agent-panel__modal-btn agent-panel__modal-btn--ghost"
                 disabled={authInProgress}
                 onClick={dismissAuthModal}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: `1px solid ${theme.border}`,
-                  background: 'transparent',
-                  color: theme.textSecondary,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                }}
               >
                 {t('permission.later')}
               </button>
@@ -2892,61 +2922,33 @@ const AgentChatPanel: React.FC = () => {
       </div>
 
       {pendingPermission && (
-        <div
-          data-testid="acp-permission-modal"
-          style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'rgba(0,0,0,0.55)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-        }}>
-          <div style={{
-            background: theme.bgSecondary,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 12,
-            padding: 20,
-            maxWidth: 420,
-            width: '90%',
-          }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>{t('permission.title')}</div>
-            <div style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 16 }}>
+        <div className="agent-panel__overlay-modal" data-testid="acp-permission-modal">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="acp-permission-modal-title"
+            className="agent-panel__modal-card"
+          >
+            <div id="acp-permission-modal-title" className="agent-panel__modal-title">{t('permission.title')}</div>
+            <div className="agent-panel__modal-body">
               {pendingPermission.toolCall?.title || t('permission.toolRequest')}
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div className="agent-panel__modal-actions">
               {pendingPermission.options.map((opt) => (
                 <button
                   key={opt.optionId}
                   type="button"
                   data-testid={`acp-permission-option-${opt.optionId}`}
+                  className="agent-panel__modal-btn"
                   onClick={() => respondToPermissionChoice(opt.optionId)}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: `1px solid ${theme.border}`,
-                    background: theme.bg,
-                    color: theme.text,
-                    cursor: 'pointer',
-                    fontSize: 12,
-                  }}
                 >
                   {opt.name || opt.optionId}
                 </button>
               ))}
               <button
                 type="button"
+                className="agent-panel__modal-btn agent-panel__modal-btn--ghost"
                 onClick={dismissPermissionModal}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: `1px solid ${theme.border}`,
-                  background: 'transparent',
-                  color: theme.textSecondary,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                }}
               >
                 {t('permission.later')}
               </button>
@@ -2957,62 +2959,36 @@ const AgentChatPanel: React.FC = () => {
 
       {(pendingYoloMode || yoloFirstRunPrompt) && (
         <div
+          className="agent-panel__overlay-modal agent-panel__overlay-modal--auth"
           data-testid="yolo-warning-modal"
           data-yolo-prompt={yoloFirstRunPrompt ? 'first-run' : 'switch'}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(0,0,0,0.55)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1001,
-          }}
         >
-          <div style={{
-            background: theme.bgSecondary,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 12,
-            padding: 20,
-            maxWidth: 440,
-            width: '90%',
-          }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="yolo-warning-modal-title"
+            className="agent-panel__modal-card agent-panel__modal-card--wide"
+          >
+            <div id="yolo-warning-modal-title" className="agent-panel__modal-title">
               {t(yoloFirstRunPrompt ? 'yoloWarning.firstRunTitle' : 'yoloWarning.title')}
             </div>
-            <div style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 16, lineHeight: 1.5 }}>
+            <div className="agent-panel__modal-body">
               {t(yoloFirstRunPrompt ? 'yoloWarning.firstRunBody' : 'yoloWarning.body')}
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div className="agent-panel__modal-actions">
               <button
                 type="button"
                 data-testid="yolo-warning-confirm"
+                className="agent-panel__modal-btn agent-panel__modal-btn--primary"
                 onClick={() => void confirmYoloMode()}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: `1px solid ${theme.border}`,
-                  background: theme.primary,
-                  color: theme.primaryText || '#fff',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                }}
               >
                 {t(yoloFirstRunPrompt ? 'yoloWarning.firstRunConfirm' : 'yoloWarning.confirm')}
               </button>
               <button
                 type="button"
                 data-testid="yolo-warning-cancel"
+                className="agent-panel__modal-btn agent-panel__modal-btn--ghost"
                 onClick={cancelYoloMode}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  border: `1px solid ${theme.border}`,
-                  background: 'transparent',
-                  color: theme.textSecondary,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                }}
               >
                 {t(yoloFirstRunPrompt ? 'yoloWarning.firstRunCancel' : 'yoloWarning.cancel')}
               </button>

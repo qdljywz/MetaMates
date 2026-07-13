@@ -1,0 +1,16 @@
+{
+  "id": "offline-speech",
+  "name": "Offline Speech",
+  "nameZh": "离线语音识别",
+  "version": "0.1.0",
+  "description": "Local Whisper speech-to-text for chat voice input (offline, no Google)",
+  "descriptionZh": "本地 Whisper 语音转文字，聊天面板语音输入无需联网",
+  "main": "transcribe.cjs",
+  "apiVersion": 1,
+  "sizeHintMb": 130,
+  "github": {
+    "owner": "qdljywz",
+    "repo": "MetaMates",
+    "assetTemplate": "MetaMates-offline-speech-{version}-win-x64.zip"
+  }
+}

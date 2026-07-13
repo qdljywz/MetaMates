@@ -30,7 +30,7 @@ test.describe.serial('@suite Startup without CLI', () => {
   test('agent panel shows CLI install guide instead of chat', async () => {
     const guide = page.locator('[data-testid="agent-cli-install-guide"]')
     await expect(guide).toBeVisible({ timeout: 45_000 })
-    await expect(guide).toContainText(/CLI|笔记仓库|note vault/i)
+    await expect(guide).toContainText(/CLI|灵感仓库|笔记仓库|note vault|AI assistant|AI 助手/i)
     await expect(page.locator('[data-testid="slash-chip-today"]')).toHaveCount(0)
     await expect(page.locator('[data-testid="chat-input"]')).toHaveCount(0)
   })
@@ -52,14 +52,15 @@ test.describe.serial('@suite Startup without CLI', () => {
     expect(inboxCount).toBeGreaterThanOrEqual(0)
   })
 
-  test('empty-state install button opens CLI install panel', async () => {
+  test('empty-state install button focuses agent install guide without chat', async () => {
     const primary = page.locator('[data-testid="editor-empty-state-primary"]')
     await expect(primary).toBeVisible({ timeout: 10_000 })
     await expect(primary).toContainText(/安装|Install/i)
+    await primary.scrollIntoViewIfNeeded()
     await primary.click()
-    const panel = page.locator('.ant-modal-wrap').filter({ hasText: /安装 CLI|Install CLI/i })
-    await expect(panel).toBeVisible({ timeout: 10_000 })
-    await panel.locator('.ant-modal-close').click()
-    await expect(panel).toBeHidden({ timeout: 5_000 })
+    const guide = page.locator('[data-testid="agent-cli-install-guide"]')
+    await expect(guide).toBeVisible({ timeout: 10_000 })
+    await expect(guide.getByRole('button', { name: /安装 AI 助手|Install AI assistant/i })).toBeVisible()
+    await expect(page.locator('[data-testid="chat-input"]')).toHaveCount(0)
   })
 })

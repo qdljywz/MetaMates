@@ -12,8 +12,9 @@ import {
   getE2EWorkspace,
   removeE2EFile,
 } from './helpers/myM2Fixtures'
-import { pickContextMenuItem, rightClickTreeTitle } from './helpers/contextMenu'
+import { contextMenuPickOnTreeTitle } from './helpers/contextMenu'
 import { ensureFolderExpanded, ensureTreeFileVisible } from './helpers/treeActions'
+import { vaultFileExists } from './helpers/vaultAssert'
 import { WORKSPACE_LAYOUT } from '../src/constants/paths'
 
 const PROJECTS_DIR = WORKSPACE_LAYOUT.zh.PROJECTS
@@ -32,19 +33,18 @@ test.describe('File tree UX guardrails (pinned)', () => {
       await ensureFolderExpanded(page, PROJECTS_DIR)
       await ensureFolderExpanded(page, E2E_SANDBOX_DIR_NAME)
 
-      await rightClickTreeTitle(page, E2E_SANDBOX_DIR_NAME)
-      await pickContextMenuItem(page, /新建笔记|New Note/i)
+      await contextMenuPickOnTreeTitle(page, E2E_SANDBOX_DIR_NAME, /新建笔记|New Note/i)
 
-      const modal = page.locator('.ant-modal').filter({ hasText: /新建笔记|New Note/i })
+      const modal = page.locator('.ant-modal').filter({ hasText: /新建笔记|New Note/i }).last()
       await expect(modal).toBeVisible({ timeout: 5_000 })
       await modal.locator('input').fill(noteName)
       await modal.locator('input').press('Enter')
 
-      await expect(page.locator('.ant-message-success')).toBeVisible({ timeout: 10_000 })
       await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: noteName })).toBeVisible({
         timeout: 15_000,
       })
       await ensureTreeFileVisible(page, noteName, [PROJECTS_DIR, E2E_SANDBOX_DIR_NAME])
+      await expect.poll(() => vaultFileExists(createdFilePath), { timeout: 15_000 }).toBe(true)
     } finally {
       await closeElectronApp(app)
       removeE2EFile(createdFilePath)

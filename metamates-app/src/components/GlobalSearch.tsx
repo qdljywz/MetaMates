@@ -3,7 +3,6 @@ import { Modal, Input, List, Tag, Empty, Spin, Switch } from 'antd'
 import { SearchOutlined, FileOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { useAppContext } from '../store/AppContext'
-import { useTheme } from '../hooks/useTheme'
 import { workspaceIndexService } from '../services/workspaceIndex'
 
 interface SearchResult {
@@ -27,8 +26,6 @@ interface GlobalSearchProps {
 const GlobalSearch: React.FC<GlobalSearchProps> = ({ visible, onClose }) => {
   const { t } = useTranslation('common')
   const { state, dispatch } = useAppContext()
-  const { theme } = useTheme()
-  const isDark = theme.mode === 'dark'
   const [searchText, setSearchText] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -162,10 +159,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ visible, onClose }) => {
     return parts.map((part, index) => {
       if (index % 2 === 1) {
         return (
-          <span
-            key={index}
-            style={{ background: isDark ? '#854d0e' : '#fef08a', padding: '0 2px' }}
-          >
+          <span key={index} className="global-search__highlight">
             {part}
           </span>
         )
@@ -186,7 +180,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ visible, onClose }) => {
           <SearchOutlined />
           <span>{t('actions.search')}</span>
           {indexLabel && (
-            <Tag color="default" style={{ marginLeft: 'auto', fontWeight: 400 }}>
+            <Tag className="mm-tag mm-tag--muted" style={{ marginLeft: 'auto', fontWeight: 400 }}>
               {indexLabel}
             </Tag>
           )}
@@ -212,7 +206,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ visible, onClose }) => {
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <Switch size="small" checked={includeConfig} onChange={setIncludeConfig} />
-        <span style={{ fontSize: 13, color: isDark ? '#a6adc8' : '#6b7280' }}>
+        <span className="global-search__toggle-label">
           {t('search.includeConfig')}
         </span>
       </div>
@@ -236,16 +230,16 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ visible, onClose }) => {
               >
                 <div style={{ width: '100%' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                    <FileOutlined style={{ color: '#3b82f6' }} />
-                    <span style={{ fontWeight: 500, color: isDark ? '#e6e6e6' : '#1f2937' }}>
+                    <FileOutlined className="global-search__result-icon" />
+                    <span className="global-search__result-name">
                       {result.fileName}
                     </span>
-                    <Tag color="blue">{result.matches.length}</Tag>
+                    <Tag className="mm-tag mm-tag--accent">{result.matches.length}</Tag>
                     {result.semantic && (
-                      <Tag color="purple">{t('search.semantic')}</Tag>
+                      <Tag className="mm-tag mm-tag--teal">{t('search.semantic')}</Tag>
                     )}
                     {result.tags?.map((tag) => (
-                      <Tag key={tag} color="green">
+                      <Tag key={tag} className="mm-tag mm-tag--teal">
                         #{tag}
                       </Tag>
                     ))}
@@ -256,6 +250,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ visible, onClose }) => {
                         key={index}
                         role="button"
                         tabIndex={0}
+                        className="global-search__match"
                         onClick={(event) => {
                           event.stopPropagation()
                           handleResultClick(result.path, result.fileName, match.line > 0 ? match.line : undefined)
@@ -267,16 +262,8 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ visible, onClose }) => {
                             handleResultClick(result.path, result.fileName, match.line > 0 ? match.line : undefined)
                           }
                         }}
-                        style={{
-                          fontSize: 12,
-                          color: isDark ? '#a6adc8' : '#6b7280',
-                          marginBottom: 4,
-                          background: isDark ? '#181825' : '#f9fafb',
-                          padding: '4px 8px',
-                          borderRadius: 4,
-                        }}
                       >
-                        <span style={{ color: isDark ? '#6b7280' : '#9ca3af', marginRight: 8 }}>
+                        <span className="global-search__match-line">
                           {match.line > 0 ? `L${match.line}:` : t('search.semanticMatch')}
                         </span>
                         {highlightText(match.highlight)}

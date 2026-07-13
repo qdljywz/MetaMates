@@ -91,7 +91,7 @@
     },
     "intel": {
       "name": "情报导入",
-      "description": "抓取网页链接或文档，生成情报笔记并由 Agent 深化"
+      "description": "抓取网页链接或文档，生成情报笔记并由 AI 助手深化"
     },
     "newFile": {
       "label": "新建文件",
@@ -102,7 +102,7 @@
     },
     "showTags": {
       "label": "显示所有标签",
-      "description": "查看工作区中的所有标签"
+      "description": "查看灵感仓库中的所有标签"
     },
     "showGraph": {
       "label": "显示关系图谱",
@@ -113,24 +113,24 @@
       "description": "使用AI总结当前打开的文件"
     },
     "aiAnalyze": {
-      "label": "AI: 分析工作区",
-      "description": "使用AI分析整个工作区"
+      "label": "AI: 分析灵感仓库",
+      "description": "使用 AI 分析整个灵感仓库"
     },
     "aiSuggest": {
       "label": "AI: 智能建议",
-      "description": "获取基于工作区的智能建议"
+      "description": "基于灵感仓库获取智能建议"
     },
     "aiTasks": {
       "label": "AI: 提取任务",
-      "description": "从工作区提取所有待办任务"
+      "description": "从灵感仓库提取所有待办任务"
     },
     "settings": {
       "label": "打开设置",
       "description": "打开应用设置"
     },
     "switchWorkspace": {
-      "label": "切换工作区",
-      "description": "选择另一个笔记库文件夹"
+      "label": "切换灵感仓库",
+      "description": "选择另一个存放笔记的文件夹"
     }
   },
   "keywords": {

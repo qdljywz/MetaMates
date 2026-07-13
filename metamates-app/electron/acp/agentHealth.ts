@@ -3,13 +3,11 @@
  * Fast probes — auth and CLI presence; does not spawn full ACP unless noted.
  */
 
-import { execFileSync } from 'child_process'
-import { existsSync } from 'fs'
-import * as path from 'path'
 import { isCliCommandAvailable } from '../cliDetection'
+import { getClaudeAuthHint, isClaudeAuthenticated, readClaudeSettingsEnv } from '../claudeAuth'
+import { hasAnthropicCredentialInRecord } from '../shared/agentCliConfigPolicy'
 import { isGeminiAuthenticated } from '../geminiAuth'
 import { getDetectionCommands, getRegistryCli } from '../shared/acpRegistry'
-import { getEnhancedEnv } from '../shellEnv'
 
 export interface AgentHealthResult {
   available: boolean
@@ -18,90 +16,11 @@ export interface AgentHealthResult {
   latencyMs?: number
 }
 
-/** Resolve claude executable on Windows (.cmd shims need shell or absolute path). */
-function resolveClaudeExecutable(env: Record<string, string | undefined>): string {
-  const isWindows = process.platform === 'win32'
-  try {
-    const whichCmd = isWindows ? 'where.exe' : 'which'
-    const out = execFileSync(whichCmd, ['claude'], {
-      encoding: 'utf-8',
-      timeout: 5000,
-      env: env as NodeJS.ProcessEnv,
-      windowsHide: true,
-      shell: isWindows,
-    })
-      .trim()
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)[0]
-    if (out && existsSync(out)) return out
-  } catch {
-    // fallback
-  }
-  const npmShim = path.join(
-    process.env.APPDATA || '',
-    'npm',
-    isWindows ? 'claude.cmd' : 'claude',
-  )
-  if (npmShim && existsSync(npmShim)) return npmShim
-  return 'claude'
-}
-
-function runJsonCli(args: string[], command?: string): Record<string, unknown> | null {
-  const env = getEnhancedEnv()
-  const cmd = command || resolveClaudeExecutable(env)
-  const isWindows = process.platform === 'win32'
-  try {
-    const out = execFileSync(cmd, args, {
-      encoding: 'utf-8',
-      timeout: 12000,
-      windowsHide: true,
-      env: env as NodeJS.ProcessEnv,
-      shell: isWindows,
-    })
-    const trimmed = out.trim()
-    if (!trimmed) return null
-    return JSON.parse(trimmed) as Record<string, unknown>
-  } catch (error: unknown) {
-    if (error && typeof error === 'object' && 'stdout' in error) {
-      const stdout = String((error as { stdout?: Buffer | string }).stdout || '').trim()
-      if (stdout.startsWith('{')) {
-        try {
-          return JSON.parse(stdout) as Record<string, unknown>
-        } catch {
-          // fall through
-        }
-      }
-    }
-    return null
-  }
-}
-
 export function checkClaudeLoggedIn(): { loggedIn: boolean; error?: string } {
-  const data = runJsonCli(['auth', 'status'])
-  if (data && data.loggedIn === true) {
+  if (isClaudeAuthenticated()) {
     return { loggedIn: true }
   }
-  if (data && data.loggedIn === false) {
-    return {
-      loggedIn: false,
-      error: 'Claude 未登录。请在终端运行：claude auth login',
-    }
-  }
-  if (!isCliCommandAvailable('claude')) {
-    const def = getRegistryCli('claude')
-    if (def && isCliDetected('claude')) {
-      return {
-        loggedIn: false,
-        error: 'Claude 未登录。请在终端运行：claude auth login',
-      }
-    }
-    return { loggedIn: false, error: '未找到 Claude CLI（请安装 @anthropic-ai/claude-code）' }
-  }
-  return {
-    loggedIn: false,
-    error: 'Claude 未登录。请在终端运行：claude auth login',
-  }
+  return { loggedIn: false, error: getClaudeAuthHint() }
 }
 
 function isCliDetected(backendId: string): boolean {
@@ -172,15 +91,32 @@ export function classifySessionFailure(
 
   const msg = errorMessage.toLowerCase()
 
+  if (/arrearage|account is in good standing|overdue-payment|套餐已到期|plan expired|coding plan/i.test(msg)) {
+    return { authRequired: false, error: errorMessage }
+  }
+
   if (backendId === 'claude') {
     const auth = checkClaudeLoggedIn()
     if (!auth.loggedIn) {
       return { authRequired: true, error: auth.error || errorMessage }
     }
-    if (/internal error|query closed|not authenticated|unauthorized|login required/.test(msg)) {
+    const settingsEnv = readClaudeSettingsEnv()
+    const usesCliSettings =
+      hasAnthropicCredentialInRecord(settingsEnv) || !!settingsEnv.ANTHROPIC_BASE_URL?.trim()
+    if (/internal error|query closed/.test(msg)) {
       return {
-        authRequired: true,
-        error: 'Claude 会话创建失败，请确认已在终端完成 claude auth login',
+        authRequired: false,
+        error: usesCliSettings
+          ? 'Claude 会话创建失败。请检查 ~/.claude/settings.json 中的代理与 API 配置，或点击重连再试。'
+          : 'Claude 会话创建失败，请稍后重试或重新连接。',
+      }
+    }
+    if (/not authenticated|unauthorized|login required/.test(msg)) {
+      return {
+        authRequired: !usesCliSettings,
+        error: usesCliSettings
+          ? 'Claude API 认证失败，请检查 ~/.claude/settings.json 中的 ANTHROPIC_AUTH_TOKEN 是否有效。'
+          : 'Claude 会话创建失败，请确认已在终端完成 claude auth login',
       }
     }
   }
@@ -206,7 +142,7 @@ export function classifySessionFailure(
     }
   }
 
-  if (/auth|login|api.?key|unauthorized|401|403/.test(msg)) {
+  if (/auth|login|api.?key|unauthorized|401|403/.test(msg) && !/arrearage|access denied|account is in good standing/i.test(msg)) {
     return { authRequired: true, error: errorMessage }
   }
 

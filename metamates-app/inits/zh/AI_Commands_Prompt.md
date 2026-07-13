@@ -1,6 +1,6 @@
-﻿# 🤖 MetaMates + Gemini CLI: 15 个核心自动化命令 (Prompt 集合)
+﻿# 🤖 MetaMates：15 个核心 slash 命令（Prompt 集合）
 
-本文档提供 15 个可以直接发送给 AI 助手（如 Gemini CLI）的提示词 (Prompt)，用于在您的 MetaMates 库中构建自动化工作流。
+本文档提供 15 条可在 MetaMates **思考引擎**中直接使用的提示词 (Prompt)，用于在您的灵感仓库中构建自动化工作流。
 
 ---
 
@@ -31,9 +31,9 @@
 ## 🧠 2. 深度思考类 (Deep Thinking)
 
 ### /trace (溯源想法)
-*   **功能**: 追踪某个特定想法在整个库中是如何演变的轨迹。
+*   **功能**: 追踪某个特定想法在灵感仓库中是如何演变的轨迹。
 *   **Prompt**:
-    > "Track how a specific idea has evolved over time across my MetaMates vault. Take a topic as input, search for all mentions, follow backlinks, and output a timeline."
+    > "Track how a specific idea has evolved over time across my inspiration vault. Take a topic as input, search for all mentions, follow backlinks, and output a timeline."
 
 ### /connect (寻找连接)
 *   **功能**: 寻找两个看似无关的主题之间的意外联系。

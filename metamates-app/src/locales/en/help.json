@@ -3,6 +3,8 @@
   "version": "Version",
   "github": "GitHub",
   "feedback": "Report Issue",
+  "openManual": "Open full user manual",
+  "openManualFailed": "Could not open the user manual. See the docs on GitHub instead.",
   "tabs": {
     "quickstart": "Quick Start",
     "features": "Features",
@@ -11,13 +13,13 @@
   },
   "welcome": {
     "title": "Welcome to MetaMates",
-    "description": "Built for creators, knowledge workers, and lifelong learners: **the engine on the right is the main entry**—chat or run a command, AI reads your private vault and writes plans and insights back to notes, not lost in chat."
+    "description": "Built for creators, knowledge workers, and lifelong learners: **the thinking engine on the right is the main entry**—chat or run a command, AI reads your inspiration vault and writes plans and insights back to notes, not lost in chat."
   },
   "gettingStarted": {
     "title": "Getting Started",
     "step1": "1. Set up your vault",
     "step1Desc": "Choose a local folder on the left—fragments, diary, clips live here; you own the data",
-    "step2": "2. Start the engine",
+    "step2": "2. Start the thinking engine",
     "step2Desc": "Pick an AI in the right panel and say what you want—no long note required first",
     "step3": "3. See results on disk",
     "step3Desc": "Plans, reviews, and upgraded notes land in files; open them in the center editor to tweak",
@@ -40,8 +42,8 @@
     "fileTree": "File Tree - Drag & drop, right-click menu",
     "search": "Ctrl+P command palette, Ctrl+Shift+F global search, Ctrl+Shift+P today's PLAN",
     "graph": "Graph view — visualize note connections",
-    "ai": "Agent execution — 15 slash commands; results write back to the vault (Act & Verify); user memory in 04_Intelligence/Memory_Index.md",
-    "memory": "User memory — mirror summaries to 04_Intelligence/Memory_Index.md, not CLI-only caches",
+    "ai": "Thinking engine — 15 methodology slash commands; results write back to your vault; long-term memory syncs to your Memory Index note",
+    "memory": "User memory — AI assistants mirror summaries into the Memory Index inside your vault for future sessions",
     "calendar": "Diary calendar — click a date to open or create diary & PLAN"
   },
   "markdown": {

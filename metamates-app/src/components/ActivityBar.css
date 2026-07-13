@@ -47,8 +47,18 @@
   background: var(--accent);
   border-radius: 0 2px 2px 0;
 }
-.activity-bar-item.disabled { opacity: 0.3; cursor: not-allowed; }
+.activity-bar-item.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
 .activity-bar-item.disabled:hover { background: transparent; }
+
+.activity-bar-icon--primary { color: var(--accent); }
+/* Explore & navigate: command palette, graph, search */
+.activity-bar-icon--secondary { color: var(--secondary-accent); }
+
+button.activity-bar-item {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
 
 .activity-bar-divider {
   width: 20px;

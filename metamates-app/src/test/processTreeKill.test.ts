@@ -6,21 +6,21 @@ import {
   type MetaMatesProcessInfo,
 } from '../../electron/shared/processTreeKill'
 
-const APP_ROOT = 'E:/Trae/Metamates/metamates-app'
+const APP_ROOT = 'C:/dev/MetaMates/metamates-app'
 
 describe('processTreeKill helpers', () => {
   it('identifies metamates electron and vite processes', () => {
     expect(
       isMetaMatesProcess(
         'electron.exe',
-        '"E:\\Trae\\Metamates\\metamates-app\\node_modules\\electron\\dist\\electron.exe" .',
+        '"C:\\dev\\MetaMates\\metamates-app\\node_modules\\electron\\dist\\electron.exe" .',
         APP_ROOT,
       ),
     ).toBe(true)
     expect(
       isMetaMatesProcess(
         'node.exe',
-        '"node" "E:\\Trae\\Metamates\\metamates-app\\node_modules\\vite\\bin\\vite.js"',
+        '"node" "C:\\dev\\MetaMates\\metamates-app\\node_modules\\vite\\bin\\vite.js"',
         APP_ROOT,
       ),
     ).toBe(true)

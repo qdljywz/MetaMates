@@ -59,6 +59,7 @@ export function wasStartupFileTreeReady(workspacePath: string): boolean {
 export function consumeStartupFileTreeCache(workspacePath: string): FileInfo[] | null {
   const cache = window.__METAMATES_STARTUP_FILE_TREE__
   if (!cache || cache.workspacePath !== workspacePath) return null
+  delete window.__METAMATES_STARTUP_FILE_TREE__
   return cache.files
 }
 
@@ -167,7 +168,7 @@ export async function preloadWorkspaceDuringSplash(
   }
 }
 
-/** Connect last-used Agent and prefetch vault conversation history during splash. */
+/** Connect last-used Agent (settings.lastAgentBackend) and prefetch history during splash. */
 export async function preloadAgentDuringSplash(preferredBackend?: string): Promise<void> {
   const backend = preferredBackend?.trim()
   if (!backend || !window.electronAPI?.acp) return

@@ -12,6 +12,8 @@ function processDirectory(dir) {
     if (entry.isDirectory()) {
       processDirectory(fullPath);
     } else if (entry.isFile() && entry.name.endsWith('.js')) {
+      // Parallel electron:compile runs can rename the same file first — skip if gone.
+      if (!fs.existsSync(fullPath)) continue;
       let content = fs.readFileSync(fullPath, 'utf8');
       
       content = content.replace(/from '(\.\.?\/.*?)\.js'/g, "from '$1.cjs'");

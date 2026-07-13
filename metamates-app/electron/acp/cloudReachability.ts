@@ -37,16 +37,18 @@ export function setCloudReachabilityCache(backend: string, ok: boolean): void {
   cache.set(backend, { ok, at: Date.now() })
 }
 
-export async function isCloudReachable(backend: string): Promise<boolean> {
-  const url = PROBE_URLS[backend]
+export async function isCloudReachable(backend: string, probeUrlOverride?: string): Promise<boolean> {
+  const url = probeUrlOverride?.trim() || PROBE_URLS[backend]
   if (!url) return true
 
+  const cacheKey = probeUrlOverride ? `${backend}:${url}` : backend
+
   if (!net.isOnline()) {
-    cache.set(backend, { ok: false, at: Date.now() })
+    cache.set(cacheKey, { ok: false, at: Date.now() })
     return false
   }
 
-  const cached = cache.get(backend)
+  const cached = cache.get(cacheKey)
   if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
     return cached.ok
   }
@@ -62,10 +64,10 @@ export async function isCloudReachable(backend: string): Promise<boolean> {
     clearTimeout(timer)
     // Any HTTP response means the route to the cloud is reachable (401/404 is fine).
     const ok = typeof res.status === 'number' && res.status > 0
-    cache.set(backend, { ok, at: Date.now() })
+    cache.set(cacheKey, { ok, at: Date.now() })
     return ok
   } catch {
-    cache.set(backend, { ok: false, at: Date.now() })
+    cache.set(cacheKey, { ok: false, at: Date.now() })
     return false
   }
 }

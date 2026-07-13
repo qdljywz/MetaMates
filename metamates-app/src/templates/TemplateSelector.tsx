@@ -34,8 +34,27 @@ const categoryIcons: Record<string, React.ReactNode> = {
 
 const CUSTOM_TEMPLATES_KEY = 'metamates-custom-templates'
 
+function templateDateTokens(now: Date, language: string): { date: string; week: string; month: string } {
+  const locale = language.startsWith('en') ? 'en-US' : 'zh-CN'
+  const date = now.toLocaleDateString(locale, { year: 'numeric', month: '2-digit', day: '2-digit' })
+  const weekNum = Math.ceil(now.getDate() / 7)
+  const week = language.startsWith('en') ? `Week ${weekNum}` : `第${weekNum}周`
+  const month = language.startsWith('en')
+    ? now.toLocaleDateString(locale, { month: 'long' })
+    : `${now.getMonth() + 1}月`
+  return { date, week, month }
+}
+
+function applyTemplateTokens(content: string, language: string, now = new Date()): string {
+  const { date, week, month } = templateDateTokens(now, language)
+  return content
+    .replace(/{{date}}/g, date)
+    .replace(/{{week}}/g, week)
+    .replace(/{{month}}/g, month)
+}
+
 const TemplateSelector: React.FC<TemplateSelectorProps> = ({ visible, onClose, onSelect }) => {
-  const { t } = useTranslation('templates')
+  const { t, i18n } = useTranslation('templates')
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [preview, setPreview] = useState('')
   const [isEditing, setIsEditing] = useState(false)
@@ -62,33 +81,14 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({ visible, onClose, o
     const customContent = customTemplates[template.id]
     const contentToUse = customContent || template.content
     setEditedContent(contentToUse)
-    
-    const now = new Date()
-    const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
-    const weekStr = `第${Math.ceil(now.getDate() / 7)}周`
-    const monthStr = `${now.getMonth() + 1}月`
-    
-    const rendered = contentToUse
-      .replace(/{{date}}/g, dateStr)
-      .replace(/{{week}}/g, weekStr)
-      .replace(/{{month}}/g, monthStr)
-    
-    setPreview(rendered)
+    setPreview(applyTemplateTokens(contentToUse, i18n.language))
     setIsEditing(false)
   }
 
   const handleConfirm = () => {
     if (selectedTemplate) {
-      const now = new Date()
-      const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
-      const weekStr = `第${Math.ceil(now.getDate() / 7)}周`
-      const monthStr = `${now.getMonth() + 1}月`
-      
       const contentToUse = customTemplates[selectedTemplate.id] || selectedTemplate.content
-      const rendered = contentToUse
-        .replace(/{{date}}/g, dateStr)
-        .replace(/{{week}}/g, weekStr)
-        .replace(/{{month}}/g, monthStr)
+      const rendered = applyTemplateTokens(contentToUse, i18n.language)
       
       onSelect(rendered, selectedTemplate, selectedTemplate.fixedFileName)
       onClose()
@@ -106,17 +106,7 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({ visible, onClose, o
     setCustomTemplates(newCustomTemplates)
     localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(newCustomTemplates))
     
-    const now = new Date()
-    const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
-    const weekStr = `第${Math.ceil(now.getDate() / 7)}周`
-    const monthStr = `${now.getMonth() + 1}月`
-    
-    const rendered = editedContent
-      .replace(/{{date}}/g, dateStr)
-      .replace(/{{week}}/g, weekStr)
-      .replace(/{{month}}/g, monthStr)
-    
-    setPreview(rendered)
+    setPreview(applyTemplateTokens(editedContent, i18n.language))
     setIsEditing(false)
     message.success(t('templateSaved'))
   }
@@ -131,17 +121,7 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({ visible, onClose, o
     localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(newCustomTemplates))
     setEditedContent(selectedTemplate.content)
     
-    const now = new Date()
-    const dateStr = now.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })
-    const weekStr = `第${Math.ceil(now.getDate() / 7)}周`
-    const monthStr = `${now.getMonth() + 1}月`
-    
-    const rendered = selectedTemplate.content
-      .replace(/{{date}}/g, dateStr)
-      .replace(/{{week}}/g, weekStr)
-      .replace(/{{month}}/g, monthStr)
-    
-    setPreview(rendered)
+    setPreview(applyTemplateTokens(selectedTemplate.content, i18n.language))
     message.success(t('templateReset'))
   }
 
@@ -195,7 +175,7 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({ visible, onClose, o
                         <Space direction="vertical" size={4}>
                           <Space>
                             <Text strong>{template.name}</Text>
-                            {isCustomized && <Tag color="blue" style={{ fontSize: 10 }}>{t('customized')}</Tag>}
+                            {isCustomized && <Tag className="mm-tag mm-tag--muted" style={{ fontSize: 10 }}>{t('customized')}</Tag>}
                           </Space>
                           <Text type="secondary" style={{ fontSize: 12 }}>
                             {template.description}
@@ -215,7 +195,7 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({ visible, onClose, o
             <div>
               <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
                 <Space>
-                  <Tag color="blue">{getCategoryName(selectedTemplate.category)}</Tag>
+                  <Tag className="mm-tag mm-tag--accent">{getCategoryName(selectedTemplate.category)}</Tag>
                   <Text strong>{selectedTemplate.name}</Text>
                 </Space>
                 <Space>

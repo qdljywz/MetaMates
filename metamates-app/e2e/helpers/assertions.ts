@@ -9,6 +9,7 @@ export async function expectSplashDismissed(page: Page): Promise<void> {
 
 export async function expectNoFirstRunModals(page: Page): Promise<void> {
   await expect(page.locator('[data-testid="welcome-wizard"]')).toBeHidden()
+  await expect(page.locator('[data-testid="engine-setup-flow"]')).toBeHidden()
   const picker = page.locator('.ant-modal-wrap').filter({ hasText: /选择工作区|Select Workspace/i })
   await expect(picker).toHaveCount(0)
 }

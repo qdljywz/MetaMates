@@ -56,7 +56,7 @@
 [data-color-scheme="forest"] ::-webkit-scrollbar { width: 6px; height: 6px; }
 [data-color-scheme="forest"] ::-webkit-scrollbar-track { background: transparent; }
 [data-color-scheme="forest"] ::-webkit-scrollbar-thumb { background: var(--divider-strong); border-radius: 3px; }
-[data-color-scheme="forest"] ::-webkit-scrollbar-thumb:hover { background: var(--primary-color); }
+[data-color-scheme="forest"] ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
 /* Forest Buttons - Natural Green 3D */
 [data-color-scheme="forest"] .ant-btn-primary {
@@ -79,7 +79,7 @@
   background: linear-gradient(180deg, rgba(52, 211, 153, 0.08), transparent) !important;
   border: 1px solid rgba(52, 211, 153, 0.14) !important;
   border-radius: 6px !important;
-  color: '#6b8f6b' !important;
+  color: #6b8f6b !important;
   box-shadow:
     0 2px 0 rgba(5,150,105,0.1),
     0 4px 8px rgba(5,150,105,0.08),
