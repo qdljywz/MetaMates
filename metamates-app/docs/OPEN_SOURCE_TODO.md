@@ -64,7 +64,7 @@
 | 4.9 | 文档对齐 docs/ | ✅ | 去掉 `.cursor` 引用；PLUGINS / RELEASE_CHECKLIST |
 | 4.10 | 源码整理提交 | ✅ | commit `48a514e` — 392 files |
 | 4.11 | 发版验收 | ✅ | 手动验收绿色版 + 插件自动安装 |
-| 4.12 | GitHub 公开推送 | ⏳ | `git push` + `v0.1.0` tag + Release |
+| 4.12 | GitHub 公开推送 | ✅ | `master` + tag `v0.1.0` → https://github.com/qdljywz/MetaMates |
 
 ### 发布前自检（本地）
 
@@ -96,19 +96,17 @@ git push origin v0.1.0
 第一阶段 ████████ 100% ✅ 配置抽离
 第二阶段 ████████ 100% ✅ 打包发布
 第三阶段 ████████ 100% ✅ 文档完善
-第四阶段 ████████░  95%   开源准备（待 commit + push + Release）
+第四阶段 ████████ 100% ✅ 开源准备（源码已 push；Release 产物可选手动触发）
 ```
 
 ---
 
 ## 下一步工作
 
-1. ~~**提交**整理后的完整源码~~ ✅
-2. ~~**本机验收**绿色版~~ ✅
-3. ~~**GitHub 主页**根 README + 截图占位 + Description 文案~~ ✅
-4. **创建 GitHub 公开仓库**并 `git push`
-5. **打 tag** `v0.1.0`，触发 `release-pack.yml` 上传 exe + 两个扩展 zip
-6. （可选）用真实界面 PNG 替换 `docs/screenshots/*.svg`
+1. ~~提交源码~~ · ~~验收~~ · ~~主页~~ · ~~`git push` + `v0.1.0`~~ ✅
+2. GitHub → Settings：填写 Description / Topics（见根 README）
+3. Actions → **Release Pack** → `publish_release=true`，上传 exe + 插件 zip
+4. （可选）用真实 PNG 替换 `docs/screenshots/*.svg`
 
 ---
 
