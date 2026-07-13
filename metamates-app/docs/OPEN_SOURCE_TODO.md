@@ -61,7 +61,7 @@
 | 4.7 | `.gitignore` 加固 | ✅ | 插件模型、验收报告、内部备忘 |
 | 4.8 | 插件架构入库 | ✅ | `plugins/` + `pluginRuntime/` + 打包脚本 |
 | 4.9 | 文档对齐 docs/ | ✅ | 去掉 `.cursor` 引用；PLUGINS / RELEASE_CHECKLIST |
-| 4.10 | 源码整理提交 | 🔄 | 验收通过后一次性 commit |
+| 4.10 | 源码整理提交 | ✅ | commit `48a514e` — 392 files |
 | 4.11 | 发版验收 | ✅ | 手动验收绿色版 + 插件自动安装 |
 | 4.12 | GitHub 公开推送 | ⏳ | `git push` + `v0.1.0` tag + Release |
 
