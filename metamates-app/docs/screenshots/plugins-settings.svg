@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#0d1117"/>
+  <rect x="340" y="60" width="600" height="600" rx="8" fill="#161b22" stroke="#30363d"/>
+  <text x="640" y="200" fill="#c9d1d9" font-family="Segoe UI, sans-serif" font-size="20" text-anchor="middle">Settings ’ Extensions</text>
+  <rect x="420" y="260" width="440" height="56" rx="6" fill="#21262d"/>
+  <rect x="420" y="340" width="440" height="56" rx="6" fill="#21262d"/>
+  <text x="640" y="420" fill="#8b949e" font-family="Segoe UI, sans-serif" font-size="14" text-anchor="middle">document-import · offline-speech  replace with plugins-settings.png</text>
+</svg>

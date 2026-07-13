@@ -107,6 +107,14 @@ CI **不跑** packaged E2E / `acceptance:final`（需 Windows + 已构建 exe）
 
 ## 7. 公开发布
 
+### GitHub 仓库主页
+
+- [ ] 根 [README.md](../README.md) 已更新（双语摘要、v0.1.0 亮点、截图占位）
+- [ ] Settings → **Description / Website / Topics** 已按 README「GitHub 仓库设置」一节填写
+- [ ] （可选）Social preview 图：1280×640，使用 `docs/screenshots/main-ui.png`
+
+### Push 与 Release
+
 ```bash
 # 在仓库根
 git remote add origin https://github.com/qdljywz/MetaMates.git   # 首次

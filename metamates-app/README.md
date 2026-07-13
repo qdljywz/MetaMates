@@ -9,6 +9,16 @@
 
 ---
 
+## 界面预览 / Screenshots
+
+| 主界面 | 思考引擎空态 | 扩展 |
+|:---:|:---:|:---:|
+| ![Main UI](docs/screenshots/main-ui.svg) | ![Empty state](docs/screenshots/empty-state.svg) | ![Plugins](docs/screenshots/plugins-settings.svg) |
+
+替换为真实截图：`docs/screenshots/main-ui.png` 等（见 [docs/screenshots/README.md](docs/screenshots/README.md)）。GitHub 主页见 [仓库根 README](../README.md)。
+
+---
+
 ## 一句话 / One-liner
 
 **MetaMates = 私人灵感仓库 + 思考引擎。** 安装在本机的 **Electron 桌面应用**（不是网页）：灵感丢进本地 Markdown 仓库，右侧和 AI 对话或跑 `/today`、`/trace` 等 15 条命令——成品写回笔记，不消失在聊天里。

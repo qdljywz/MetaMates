@@ -45,6 +45,7 @@
 | 3.1 | README.md | ✅ |
 | 3.2 | 安装使用文档 | ✅ |
 | 3.3 | LICENSE | ✅ |
+| 3.4 | GitHub 主页（根 README + 截图占位） | ✅ |
 
 ---
 
@@ -102,10 +103,12 @@ git push origin v0.1.0
 
 ## 下一步工作
 
-1. **提交**整理后的完整源码（进行中）
-2. ~~**本机验收**绿色版~~ ✅ 手动验收通过
-3. **创建 GitHub 公开仓库**并 `git push`
-4. **打 tag** `v0.1.0`，触发 `release-pack.yml` 上传 exe + 两个扩展 zip
+1. ~~**提交**整理后的完整源码~~ ✅
+2. ~~**本机验收**绿色版~~ ✅
+3. ~~**GitHub 主页**根 README + 截图占位 + Description 文案~~ ✅
+4. **创建 GitHub 公开仓库**并 `git push`
+5. **打 tag** `v0.1.0`，触发 `release-pack.yml` 上传 exe + 两个扩展 zip
+6. （可选）用真实界面 PNG 替换 `docs/screenshots/*.svg`
 
 ---
 
