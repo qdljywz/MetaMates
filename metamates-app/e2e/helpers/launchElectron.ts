@@ -260,6 +260,13 @@ export async function launchMetaMatesApp(
     noDevPlugins?: boolean
     /** Unique userData — triggers bundled plugin auto-install on packaged builds. */
     freshUserData?: boolean
+    /**
+     * Override seeded engineDisplayName (default E2E-only label).
+     * Use a product-like name for README / docs screenshots.
+     */
+    engineDisplayName?: string
+    /** UI / settings language for this launch (default zh via seed). */
+    language?: 'zh' | 'en'
   },
 ): Promise<ElectronApplication> {
   acquireSingleSessionLock()
@@ -270,6 +277,8 @@ export async function launchMetaMatesApp(
   }
   const profileExtra: Record<string, unknown> = {}
   if (options?.speechEngine) profileExtra.speechEngine = options.speechEngine
+  if (options?.engineDisplayName) profileExtra.engineDisplayName = options.engineDisplayName
+  if (options?.language) profileExtra.language = options.language
   seedE2EUserProfile(userDataDir, workspace, profileExtra)
   if (options?.noDevPlugins) {
     removeE2EPluginInstall(userDataDir, 'offline-speech')
@@ -286,9 +295,15 @@ export async function launchMetaMatesApp(
     METAMATES_E2E: '1',
     METAMATES_WORKSPACE: workspace,
     ...(packagedExe ? {} : { NODE_ENV: 'development' }),
-    ...(options?.noAgents ? { METAMATES_E2E_NO_AGENTS: '1' } : {}),
     ...(options?.noDevPlugins ? { METAMATES_E2E_NO_DEV_PLUGINS: '1' } : {}),
     ...(options?.freshUserData && packagedExe ? { METAMATES_E2E_ALLOW_BUNDLED_PLUGINS: '1' } : {}),
+  }
+  // Only force no-agents when requested; never inherit shell METAMATES_E2E_NO_AGENTS
+  // (that caused Settings "ready" + main UI "not installed" in docs screenshots).
+  if (options?.noAgents) {
+    launchEnv.METAMATES_E2E_NO_AGENTS = '1'
+  } else {
+    delete launchEnv.METAMATES_E2E_NO_AGENTS
   }
 
   if (packagedExe) {
@@ -437,7 +452,7 @@ export interface AgentWarmupResult {
   detail: string
 }
 
-async function dismissBlockingModals(page: Page): Promise<void> {
+export async function dismissBlockingModals(page: Page): Promise<void> {
   for (let i = 0; i < 4; i++) {
     const yolo = page.locator('[data-testid="yolo-warning-modal"]')
     if (await yolo.isVisible().catch(() => false)) {

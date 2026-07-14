@@ -1,12 +1,17 @@
 # MetaMates
 
 <p align="center">
-  <img src="metamates-app/public/logo.png" alt="MetaMates" width="120" />
+  <img src="metamates-app/public/logo.png" alt="MetaMates" width="128" />
 </p>
 
 <p align="center">
-  <strong>私人灵感仓库 + 思考引擎</strong><br/>
-  <strong>Private inspiration vault + thinking engine</strong>
+  <strong>私人灵感仓库 + 思考引擎</strong>
+</p>
+
+<p align="center">
+  <a href="README.md"><img src="https://img.shields.io/badge/%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-0A66C2?style=for-the-badge&logoColor=white" alt="简体中文"/></a>
+  &nbsp;
+  <a href="README.en.md"><img src="https://img.shields.io/badge/English-555555?style=for-the-badge" alt="English"/></a>
 </p>
 
 <p align="center">
@@ -15,186 +20,84 @@
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey" alt="platform"/>
 </p>
 
-<p align="center">
-  本地 Markdown 工作区承载碎片与计划，右侧 AI 助手读写<strong>同一文件夹</strong>；<code>/today</code>、<code>/graduate</code> 等命令把成品写回笔记，而不是消失在聊天里。<br/>
-  <em>Local Markdown workspace; AI assistants on the right read and write the same folder—slash commands write back to notes, not chat-only replies.</em>
-</p>
+---
+
+## 一句话
+
+MetaMates 是装在你电脑上的 **Electron 桌面应用**：左边是本地 Markdown 灵感仓库，右边是思考引擎。  
+和 AI 对话、跑 `/today` `/graduate`——**成品写回同一文件夹里的笔记**，而不是消失在聊天记录里。
 
 ---
 
-## 界面预览 / Screenshots
+## 看看界面
 
-> 当前为占位图；替换为 PNG 后路径不变。见 [metamates-app/docs/screenshots/README.md](metamates-app/docs/screenshots/README.md)。
+### 主界面：仓库 · 编辑器 · 思考引擎
 
-| 主界面 Main UI | 思考引擎空态 Empty state | 扩展 Extensions |
-|:---:|:---:|:---:|
-| ![Main UI](metamates-app/docs/screenshots/main-ui.svg) | ![Empty state](metamates-app/docs/screenshots/empty-state.svg) | ![Plugins](metamates-app/docs/screenshots/plugins-settings.svg) |
+![主界面](metamates-app/docs/screenshots/main-ui.zh.png)
 
----
+### 空态：关掉标签后，处境会变成下一步问题
 
-## 我们是什么 / What we are
+![空态](metamates-app/docs/screenshots/empty-state.zh.png)
 
-| ✅ 我们是 | ❌ 我们不是 |
-|-----------|------------|
-| **私人灵感仓库** + **思考引擎**（本地 Markdown，AI 读写同一目录） | 纯 Chat 客户端 |
-| 右侧思考引擎为主入口 + 中间编辑器看成品 | 三栏「聊天 App」布局 |
-| 每个 AI 助手一条持续对话 | 多会话 / 对话树 |
-| 数据在本地 Markdown，可选 Vault API 剪藏 | 强制云同步 SaaS |
+### 设置：连接 AI 助手与可选扩展
 
-```text
-┌──────────┬─────────────────────────┬──────────────────┐
-│ 灵感仓库  │  编辑器（查看与修改成品） │  思考引擎（主入口）│
-│ 文件树    │  Markdown · 双链 · 标签  │  AI + 15 slash   │
-└──────────┴─────────────────────────┴──────────────────┘
-```
-
-详细定位：[metamates-app/docs/POSITIONING.md](metamates-app/docs/POSITIONING.md)
+![设置与扩展](metamates-app/docs/screenshots/plugins-settings.zh.png)
 
 ---
 
-## v0.1.0 亮点 / Highlights
+## 适合谁
 
-| 类别 | 内容 |
-|------|------|
-| **桌面核心** | Electron 应用、文件树、多标签编辑、知识图谱、全局搜索、中英文 UI |
-| **思考引擎** | Gemini / Claude / CodeBuddy 等（ACP），15 条 slash 命令写回 PLAN / Inbox / 笔记 |
-| **空态引导** | 根据 PLAN、日程、Ideas、Inbox 积压生成「真处境 → 真问题」（非功能菜单欢迎页） |
-| **可选扩展** | `document-import`（PDF/DOCX/OCR）、`offline-speech`（Whisper 离线语音）；绿色版首次启动可自动安装 |
-| **开源基线** | MIT、CI、UX 回归护栏 UX-01～38、打包 E2E、发版清单 |
+- 灵感、日记、计划散落各处，希望 **文件在自己硬盘上**
+- 想用 AI，又不要「聊完什么都不剩」
+- 愿意本机安装 Gemini / Claude / CodeBuddy 等助手 CLI
 
-完整变更：[metamates-app/CHANGELOG.md](metamates-app/CHANGELOG.md)
+## 不适合谁
 
----
-
-## 下载 / Download
-
-[GitHub Releases](https://github.com/qdljywz/MetaMates/releases) 提供 Windows（`.exe`）安装包；macOS（`.dmg`）随发版工作流上传。
-
-开发者可在 `metamates-app/` 内构建绿色便携版（QA 用）：
-
-```bash
-cd metamates-app
-npm ci
-npm run electron:build:win:portable
-# → release/portable-green/win-unpacked/MetaMates.exe
-```
+- 只想要网页聊天客户端  
+- 需要团队协作、强制云同步、企业 SSO  
 
 ---
 
-## 快速开始 / Quick start
+## 怎么用（三步）
 
-### 用户
-
-1. 下载并安装 [Releases](https://github.com/qdljywz/MetaMates/releases) 中的安装包  
-2. 首启向导：选择或初始化工作区文件夹（从 `inits/zh` 或 `inits/en` 复制模版）  
-3. 连接至少一个 AI CLI（Gemini / Claude / CodeBuddy 等）  
-4. 在右侧发消息或运行 `/today`、`/graduate` 等命令  
-
-用户手册：[metamates-app/docs/USER_GUIDE.md](metamates-app/docs/USER_GUIDE.md) · [user-manual.html](metamates-app/docs/user-manual.html)
-
-### 开发者
+1. **下载或构建** → [Releases](https://github.com/qdljywz/MetaMates/releases)（若尚无安装包，见下方自行构建）  
+2. **选一个文件夹当仓库**（可用 `inits/zh` 模版初始化）  
+3. **设置里连接 AI 助手** → 右侧说话或运行斜杠命令  
 
 ```bash
 git clone https://github.com/qdljywz/MetaMates.git
 cd MetaMates/metamates-app
 npm ci
-npm run start
+npm run start                    # 开发运行
+# npm run electron:build:win:portable   # Windows 便携包
 ```
 
-```bash
-npm run check:opensource
-npm run verify:round
-npm run test:ux-guardrails
-```
+用户手册：[USER_GUIDE.md](metamates-app/docs/USER_GUIDE.md)
 
 ---
 
-## 方法论命令（15）/ Slash commands
+## 斜杠命令（15）
 
 | 日常 | `/context` `/today` `/closeday` `/schedule` `/sync` |
 | 思考 | `/trace` `/connect` `/challenge` `/ghost` |
 | 灵感 | `/ideas` `/graduate` `/drift` `/emerge` `/intel` |
-| 规划 | `/soal`（写入 `05_…/2M.md` 进化层） |
-
-`/intel`：桌面端先本地抓取（网页/PDF/图片等），Agent 再摘要并写回 `04_情报与连接/`。
+| 规划 | `/soal` |
 
 ---
 
-## 工作区模版 / Workspace template (`inits/`)
+## v0.1.0
 
-| 目录 | 中文 | 英文 | 用途 |
-|------|------|------|------|
-| `01_…` | 日记与计划 | Log and Plan | 日记、PLAN、**Inbox** 剪藏缓冲 |
-| `02_…` | 项目与知识 | Project and Knowledge | 长期项目 |
-| `03_…` | 点滴积累 | Insights | 原子笔记 |
-| `04_…` | 情报与连接 | Intelligence | 外部资料、会议 |
-| `05_…` | 模板与配置 | Templates and Config | Master Control、`2M.md`、CLI 协议 |
+- 桌面：文件树、多标签 Markdown、笔记关系图、搜索、中英文 UI  
+- 思考引擎：多助手 + 写回 PLAN / Inbox / 笔记  
+- 可选扩展：文档导入、离线语音  
+- MIT 开源 · CI · 发版脚本  
 
-**Inbox**：剪藏入口 → `/graduate` 升维 → 源文件归档到 `Inbox/processed/`（运行时创建）。
-
-模版说明：[metamates-app/inits/zh/README.md](metamates-app/inits/zh/README.md)
+详细变更：[CHANGELOG.md](metamates-app/CHANGELOG.md) · 定位：[POSITIONING.md](metamates-app/docs/POSITIONING.md)
 
 ---
 
-## 仓库结构 / Monorepo
-
-```text
-MetaMates/
-├── README.md                 ← 本页（GitHub 主页）
-├── .github/workflows/        ← CI + Release Pack
-└── metamates-app/            ← 产品源码、文档、插件、E2E
-    ├── src/  electron/  plugins/
-    ├── inits/zh  inits/en
-    └── docs/
-```
-
----
-
-## 文档 / Documentation
-
-| 文档 | 说明 |
-|------|------|
-| [metamates-app/README.md](metamates-app/README.md) | 产品介绍与开发者详情 |
-| [docs/USER_GUIDE.md](metamates-app/docs/USER_GUIDE.md) | 用户操作指南 |
-| [docs/POSITIONING.md](metamates-app/docs/POSITIONING.md) | 产品边界 |
-| [docs/PLUGINS.md](metamates-app/docs/PLUGINS.md) | 扩展架构 |
-| [docs/PACKAGING.md](metamates-app/docs/PACKAGING.md) | 打包指南 |
-| [docs/RELEASE_CHECKLIST.md](metamates-app/docs/RELEASE_CHECKLIST.md) | 发版清单 |
-| [docs/OPEN_SOURCE.md](metamates-app/docs/OPEN_SOURCE.md) | 开源文件清单 |
-| [CONTRIBUTING.md](metamates-app/CONTRIBUTING.md) | 贡献指南 |
-
----
-
-## GitHub 仓库设置（维护者复制用）
-
-在 [github.com/qdljywz/MetaMates](https://github.com/qdljywz/MetaMates) → **Settings → General**：
-
-**Description**
-
-```text
-MetaMates — 私人灵感仓库 + 思考引擎。Local Markdown vault + AI thinking engine (Electron). Slash commands write back to your notes. v0.1.0 MIT.
-```
-
-**Website**（可选）
-
-```text
-https://github.com/qdljywz/MetaMates#readme
-```
-
-**Topics**（建议）
-
-```text
-electron markdown knowledge-base note-taking ai-assistant gemini claude codebuddy obsidian-alternative personal-knowledge-management typescript react
-```
-
-**Social preview**：上传 1280×640 截图（可用 `docs/screenshots/main-ui.png` 就绪后导出）。
-
----
-
-## 许可证 / License
+## 许可证
 
 MIT — [metamates-app/LICENSE](metamates-app/LICENSE)
 
----
-
-<p align="center"><sub>MetaMates · 首发开源 v0.1.0 · 2026</sub></p>
+<p align="center"><sub>MetaMates · 开源 v0.1.0 · 2026</sub></p>

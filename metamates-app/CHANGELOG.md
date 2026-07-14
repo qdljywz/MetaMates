@@ -15,11 +15,11 @@
 ### 产品
 
 - 本地 Electron 桌面知识库：Markdown 工作区 + 文件树 + 多标签编辑器
-- 思考引擎（右侧 AI 助手）：Gemini / Claude / CodeBuddy 等，经 ACP 连接
-- 15 个 slash 技能（`/today`、`/graduate`、`/closeday` 等），写回 PLAN / 笔记 / Inbox
-- 引擎优先空态：根据 PLAN、Inbox、日程等诊断处境并引导下一步
-- 知识图谱（2D / 3D）、全局搜索、命令面板、日历与 Vault API 剪藏
-- 中英文界面、时区设置、无 CLI 时的安装引导
+- 思考引擎（右侧 AI 助手）：连接本机 Gemini / Claude / CodeBuddy 等命令行助手
+- 15 个斜杠命令（`/today`、`/graduate`、`/closeday` 等），写回 PLAN / 笔记 / Inbox
+- 引擎优先空态：根据 PLAN、Inbox、日程等提示下一步
+- 笔记关系图、全局搜索、命令面板、日历；可选本机手机剪藏（Inbox）
+- 中英文界面、时区设置、无助手时的安装引导
 - **可选扩展**：`document-import`（PDF/DOCX/OCR）、`offline-speech`（Whisper 离线语音）
 
 ### 工程与质量

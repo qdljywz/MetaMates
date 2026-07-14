@@ -668,6 +668,9 @@ export async function registerAcpIpcHandlers(): Promise<void> {
   })
 
   ipcMain.handle('get-all-installed-agents', async () => {
+    // Keep parity with get-detected-agents so E2E_NO_AGENTS cannot show Settings
+    // "ready" while the thinking engine says "not installed".
+    if (process.env.METAMATES_E2E_NO_AGENTS === '1') return []
     await agentDetectionPromise
     return detectedAgents
   })

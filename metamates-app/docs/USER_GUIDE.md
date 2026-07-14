@@ -14,8 +14,8 @@
 
 ### 安装
 
-1. 下载 `MetaMates.exe`
-2. 双击运行即可
+1. 打开 [GitHub Releases](https://github.com/qdljywz/MetaMates/releases)，下载适合你系统的安装包（若暂无附件，请用源码构建便携版，见仓库根 README）
+2. 安装或解压后运行 **MetaMates**
 
 ### 首次使用
 

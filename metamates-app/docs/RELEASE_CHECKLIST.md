@@ -109,9 +109,21 @@ CI **不跑** packaged E2E / `acceptance:final`（需 Windows + 已构建 exe）
 
 ### GitHub 仓库主页
 
-- [ ] 根 [README.md](../README.md) 已更新（双语摘要、v0.1.0 亮点、截图占位）
-- [ ] Settings → **Description / Website / Topics** 已按 README「GitHub 仓库设置」一节填写
-- [ ] （可选）Social preview 图：1280×640，使用 `docs/screenshots/main-ui.png`
+- [ ] 根 [README.md](../README.md) 与 [README.zh-CN.md](../README.zh-CN.md) 已与本发版一致（事实、截图 PNG）
+- [ ] Settings → **Description**（建议）:
+
+```text
+Private inspiration vault + thinking engine. Local Markdown desktop app; AI writes back to your notes. MIT.
+```
+
+- [ ] **Topics**（建议，避免过度对标）:
+
+```text
+electron markdown note-taking personal-knowledge-management ai-assistant typescript react
+```
+
+- [ ] （可选）Social preview：1280×640，裁切自 `docs/screenshots/main-ui.png`
+- [ ] Releases 无附件时，README「下载」段不得写成「已可安装」
 
 ### Push 与 Release
 

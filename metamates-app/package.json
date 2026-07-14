@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "main": "dist-electron/main.cjs",
-  "description": "MetaMates — 私人灵感仓库 + 思考引擎（本地 Electron 桌面应用）",
+  "description": "MetaMates — private inspiration vault + thinking engine (local Electron desktop)",
   "author": "MetaMates Contributors",
   "license": "MIT",
   "repository": {
@@ -20,6 +20,7 @@
     "start": "npm run electron:dev",
     "stop": "node scripts/stop-metamates.mjs",
     "diag:session-log": "node scripts/read-session-lifecycle.mjs",
+    "docs:screenshots": "npx playwright test --config=playwright.docs-screenshots.config.ts",
     "check:opensource": "node scripts/check-open-source-hygiene.mjs",
     "logos:agents": "node scripts/generate-agent-logos.mjs",
     "logos:trace": "node scripts/extract-logo-trace.mjs",

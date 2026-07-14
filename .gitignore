@@ -30,12 +30,13 @@ clean-repo.cmd
 hello.html
 theme-*.html
 
-# --- 图片：默认忽略，保留产品资源 ---
+# --- 图片：默认忽略，保留产品资源与 GitHub 主页截图 ---
 *.png
 !metamates-app/logo.png
 !metamates-app/build/icon.png
 !metamates-app/public/**/*.png
 !metamates-app/src/**/*.png
+!metamates-app/docs/screenshots/**/*.png
 
 *.jpg
 *.jpeg
