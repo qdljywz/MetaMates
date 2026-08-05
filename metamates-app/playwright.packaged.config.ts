@@ -4,7 +4,6 @@ const { resolveDefaultWorkspace } = await import('./scripts/lib/default-workspac
 process.env.METAMATES_WORKSPACE = resolveDefaultWorkspace()
 process.env.METAMATES_E2E = '1'
 process.env.METAMATES_PACKAGED = '1'
-process.env.METAMATES_E2E_ALLOW_BUNDLED_PLUGINS = '1'
 
 /** Packaged build E2E — no Vite dev server. */
 export default defineConfig({

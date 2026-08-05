@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Overnight acceptance gate for green portable build.
- * Usage: node scripts/verify-acceptance-portable.mjs
+ * Overnight acceptance gate for green portable build (UX-31 / UX-35 / UX-38).
+ * UX-35: startup must NOT auto-install plugins; zips remain available for on-demand install.
  */
 import { spawnSync, spawn } from 'node:child_process'
 import fs from 'node:fs'
@@ -39,23 +39,6 @@ function isPluginReady(root) {
   const manifest = path.join(root, 'manifest.json')
   const nodeModules = path.join(root, 'node_modules')
   return fs.existsSync(manifest) && fs.existsSync(nodeModules)
-}
-
-/** Bundled plugin auto-install (doc ~52MB + speech ~128MB) can exceed 5 min after ACP warmup. */
-async function waitForPlugins(userData, timeoutMs = 600_000) {
-  const roots = pluginRoots(userData)
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    const doc = isPluginReady(roots.documentImport)
-    const speech = isPluginReady(roots.offlineSpeech)
-    if (doc && speech) return { documentImport: true, offlineSpeech: true, elapsedMs: timeoutMs - (deadline - Date.now()) }
-    await sleep(5000)
-  }
-  return {
-    documentImport: isPluginReady(roots.documentImport),
-    offlineSpeech: isPluginReady(roots.offlineSpeech),
-    elapsedMs: timeoutMs,
-  }
 }
 
 async function main() {
@@ -99,6 +82,7 @@ async function main() {
     delete childEnv.METAMATES_E2E
     delete childEnv.METAMATES_SKIP_BUNDLED_PLUGINS
     delete childEnv.METAMATES_E2E_ALLOW_BUNDLED_PLUGINS
+    delete childEnv.METAMATES_INSTALL_BUNDLED_PLUGINS
 
     child = spawn(exe, [`--user-data-dir=${userData}`, '--enable-logging'], {
       cwd: path.dirname(exe),
@@ -118,11 +102,17 @@ async function main() {
 
     report.checks.survives12s = { ok: alive12, pid: child.pid }
 
-    const plugins = await waitForPlugins(userData, alive12 ? 600_000 : 1_000)
-    report.checks.autoInstallPlugins = {
-      ok: plugins.documentImport && plugins.offlineSpeech,
-      ...plugins,
+    // Past old auto-install window: plugins must still be absent (on-demand policy).
+    await sleep(13_000)
+    const roots = pluginRoots(userData)
+    const docReady = isPluginReady(roots.documentImport)
+    const speechReady = isPluginReady(roots.offlineSpeech)
+    report.checks.noAutoInstallOnStartup = {
+      ok: !docReady && !speechReady,
+      documentImport: docReady,
+      offlineSpeech: speechReady,
       userData,
+      waitedMs: 25_000,
     }
 
     try {
@@ -142,7 +132,7 @@ async function main() {
     report.ok =
       report.checks.bundledZips.ok
       && report.checks.survives12s.ok
-      && report.checks.autoInstallPlugins.ok
+      && report.checks.noAutoInstallOnStartup.ok
 
     let merged = report
     if (fs.existsSync(REPORT)) {
@@ -152,7 +142,7 @@ async function main() {
           ok: report.ok,
           bundledZips: report.checks.bundledZips?.zips ?? [],
           survives12sNoGreyScreen: report.checks.survives12s?.ok === true,
-          autoInstallPluginsSec: Math.round((report.checks.autoInstallPlugins?.elapsedMs ?? 0) / 1000),
+          noAutoInstallOnStartup: report.checks.noAutoInstallOnStartup?.ok === true,
         }
         merged = {
           ...prior,

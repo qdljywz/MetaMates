@@ -3,8 +3,14 @@
  * ACP CLIs spawn MCP bridge grandchildren; plain child.kill() leaves orphans on Windows.
  */
 
-import { execSync, spawnSync } from 'child_process'
+import { execFile, execSync, spawnSync } from 'child_process'
 import * as path from 'path'
+import { promisify } from 'util'
+
+const execFileAsync = promisify(execFile)
+
+/** Process names relevant to MetaMates startup cleanup — avoids scanning every Win32 process. */
+const STALE_CLEANUP_WIN_PROCESS_NAMES = ['MetaMates.exe', 'electron.exe', 'node.exe'] as const
 
 export type MetaMatesProcessInfo = {
   pid: number
@@ -42,6 +48,72 @@ export function killAllTrackedManagedProcesses(): number {
   return killed
 }
 
+function parseProcessJsonOutput(out: string): MetaMatesProcessInfo[] {
+  const trimmed = out.trim()
+  if (!trimmed) return []
+  const parsed = JSON.parse(trimmed) as
+    | { ProcessId: number; ParentProcessId: number; Name: string; CommandLine: string }
+    | Array<{ ProcessId: number; ParentProcessId: number; Name: string; CommandLine: string }>
+  const rows = Array.isArray(parsed) ? parsed : [parsed]
+  return rows
+    .map((row) => ({
+      pid: Number(row.ProcessId),
+      parentPid: Number(row.ParentProcessId),
+      name: String(row.Name || ''),
+      commandLine: String(row.CommandLine || ''),
+    }))
+    .filter((row) => Number.isInteger(row.pid) && row.pid > 0)
+}
+
+function buildWindowsProcessFilter(names: readonly string[]): string {
+  return names.map((name) => `Name='${name.replace(/'/g, "''")}'`).join(' OR ')
+}
+
+function listWindowsProcessesByNames(names: readonly string[]): MetaMatesProcessInfo[] {
+  if (names.length === 0) return []
+  try {
+    const filter = buildWindowsProcessFilter(names)
+    const out = execSync(
+      `powershell -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process -Filter \\"${filter}\\" | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress"`,
+      { encoding: 'utf8', windowsHide: true, maxBuffer: 16 * 1024 * 1024 },
+    ).trim()
+    return parseProcessJsonOutput(out)
+  } catch {
+    return []
+  }
+}
+
+async function listWindowsProcessesByNamesAsync(names: readonly string[]): Promise<MetaMatesProcessInfo[]> {
+  if (names.length === 0) return []
+  try {
+    const filter = buildWindowsProcessFilter(names)
+    const script = `Get-CimInstance Win32_Process -Filter "${filter}" | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress`
+    const { stdout } = await execFileAsync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+      { windowsHide: true, maxBuffer: 16 * 1024 * 1024, encoding: 'utf8' },
+    )
+    return parseProcessJsonOutput(String(stdout))
+  } catch {
+    return []
+  }
+}
+
+/** Narrow process list for packaged startup cleanup (GPU/renderer + dev siblings). */
+function listProcessesForStaleCleanup(): MetaMatesProcessInfo[] {
+  if (process.platform === 'win32') {
+    return listWindowsProcessesByNames(STALE_CLEANUP_WIN_PROCESS_NAMES)
+  }
+  return listAllProcesses()
+}
+
+async function listProcessesForStaleCleanupAsync(): Promise<MetaMatesProcessInfo[]> {
+  if (process.platform === 'win32') {
+    return listWindowsProcessesByNamesAsync(STALE_CLEANUP_WIN_PROCESS_NAMES)
+  }
+  return listAllProcessesAsync()
+}
+
 /**
  * List every process with a command line (platform-specific).
  * @internal Used for descendant walks — not filtered to MetaMates-only.
@@ -53,19 +125,7 @@ export function listAllProcesses(): MetaMatesProcessInfo[] {
         `powershell -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress"`,
         { encoding: 'utf8', windowsHide: true, maxBuffer: 16 * 1024 * 1024 },
       ).trim()
-      if (!out) return []
-      const parsed = JSON.parse(out) as
-        | { ProcessId: number; ParentProcessId: number; Name: string; CommandLine: string }
-        | Array<{ ProcessId: number; ParentProcessId: number; Name: string; CommandLine: string }>
-      const rows = Array.isArray(parsed) ? parsed : [parsed]
-      return rows
-        .map((row) => ({
-          pid: Number(row.ProcessId),
-          parentPid: Number(row.ParentProcessId),
-          name: String(row.Name || ''),
-          commandLine: String(row.CommandLine || ''),
-        }))
-        .filter((row) => Number.isInteger(row.pid) && row.pid > 0)
+      return parseProcessJsonOutput(out)
     }
 
     const out = execSync('ps -ax -o pid=,ppid=,command=', {
@@ -73,6 +133,41 @@ export function listAllProcesses(): MetaMatesProcessInfo[] {
       stdio: ['ignore', 'pipe', 'ignore'],
     })
     return out
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const match = line.match(/^(\d+)\s+(\d+)\s+(.*)$/)
+        if (!match) return null
+        const pid = Number(match[1])
+        const parentPid = Number(match[2])
+        const commandLine = match[3] || ''
+        const name = commandLine.split(/\s+/)[0]?.split('/').pop() || ''
+        return { pid, parentPid, name, commandLine }
+      })
+      .filter((row): row is MetaMatesProcessInfo => row != null && Number.isInteger(row.pid) && row.pid > 0)
+  } catch {
+    return []
+  }
+}
+
+async function listAllProcessesAsync(): Promise<MetaMatesProcessInfo[]> {
+  try {
+    if (process.platform === 'win32') {
+      const script =
+        'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine } | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress'
+      const { stdout } = await execFileAsync(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        { windowsHide: true, maxBuffer: 16 * 1024 * 1024, encoding: 'utf8' },
+      )
+      return parseProcessJsonOutput(String(stdout))
+    }
+
+    const { stdout } = await execFileAsync('ps', ['-ax', '-o', 'pid=,ppid=,command='], {
+      encoding: 'utf8',
+    })
+    return String(stdout)
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean)
@@ -387,8 +482,11 @@ function listMetaMatesProcesses(appRoot: string): MetaMatesProcessInfo[] {
  * On startup, remove MetaMates processes left from a previous crash or unclean exit.
  * Keeps the current Electron process, its npm/concurrently parent, and sibling Vite.
  */
-export function killStaleMetaMatesProcesses(appRoot: string, currentPid: number): number {
-  const allProcesses = listAllProcesses()
+function killStaleMetaMatesProcessesWithList(
+  appRoot: string,
+  currentPid: number,
+  allProcesses: MetaMatesProcessInfo[],
+): number {
   const parentPid = getParentProcessId(currentPid)
   const ancestorPids = collectAncestorPids(currentPid)
   const descendantPids = new Set(collectDescendantPids(currentPid, allProcesses))
@@ -403,6 +501,20 @@ export function killStaleMetaMatesProcesses(appRoot: string, currentPid: number)
     console.log(`[ProcessCleanup] Removed ${killed} stale MetaMates process(es) from previous session`)
   }
   return killed
+}
+
+/**
+ * On startup, remove MetaMates processes left from a previous crash or unclean exit.
+ * Keeps the current Electron process, its npm/concurrently parent, and sibling Vite.
+ */
+export function killStaleMetaMatesProcesses(appRoot: string, currentPid: number): number {
+  return killStaleMetaMatesProcessesWithList(appRoot, currentPid, listProcessesForStaleCleanup())
+}
+
+/** Non-blocking variant — use after splash on packaged cold start. */
+export async function killStaleMetaMatesProcessesAsync(appRoot: string, currentPid: number): Promise<number> {
+  const allProcesses = await listProcessesForStaleCleanupAsync()
+  return killStaleMetaMatesProcessesWithList(appRoot, currentPid, allProcesses)
 }
 
 /** Dev-only: stop sibling Vite/concurrently when Electron exits so port 3000 is released. */

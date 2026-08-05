@@ -103,8 +103,10 @@ function PluginExtensionCard({
 
   const handleInstallFromGitHub = async () => {
     setInstalling(true)
+    const hide = message.loading(t('settings.pluginInstalling'), 0)
     try {
       const result = await plugin.installFromGitHub()
+      hide()
       if (result.success) {
         message.success(t('settings.pluginInstallSuccess'))
         notifyPluginsChanged()
@@ -113,6 +115,9 @@ function PluginExtensionCard({
       } else {
         message.error(mapPluginInstallError(result.error, t))
       }
+    } catch (err) {
+      hide()
+      message.error(err instanceof Error ? err.message : t('settings.pluginInstallErrorGeneric'))
     } finally {
       setInstalling(false)
     }

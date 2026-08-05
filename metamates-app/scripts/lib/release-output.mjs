@@ -20,7 +20,7 @@ export const LEGACY_RELEASE_DIR_PATTERN = /^(release-build|release-local|release
 
 /** Stale subfolders inside release/ from ad-hoc or superseded portable builds. */
 export const STALE_RELEASE_SUBDIR_PATTERN =
-  /^(?:\.plugin-staging-|fresh-unpacked|pack-out|portable-green-fresh|unpacked-|unpacked-fix|release-build-)/
+  /^(?:\.plugin-staging-|fresh-unpacked|pack-out|portable-green-fresh|portable-green-staging|docs-shot-unpacked|unpacked-|unpacked-fix|release-build-)/
 
 export function getReleaseRoot(appRoot = APP_ROOT) {
   return path.join(appRoot, RELEASE_DIR_NAME)

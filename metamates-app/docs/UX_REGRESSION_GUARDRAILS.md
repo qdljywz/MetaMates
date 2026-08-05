@@ -69,7 +69,7 @@ CodeBuddy / Gemini / Claude 实连会话消耗用户配额，视为稀缺资源�
 - **打包 dev URL**：`isDev` 仅 `!app.isPackaged`，不用 `NODE_ENV`
 - **空态转圈**：已有 snapshot 时 silent 刷新，不 `setLoading(true)`
 - **emptyTurn toast**：后台 rethink 的 `end-turn` 须 `silent: true`
-- **bundled 插件**：portable-green 首次启动自动安装两扩展 zip
+- **bundled 插件**：portable-green **启动不自动安装**；按需装本地 zip（Settings / Toast「立即安装」）
 - 跑最小回归：`verify:acceptance-portable` / `test:e2e:packaged:empty-state` / `test:e2e:packaged:plugins`
 - 发版前：`npm run acceptance:final`（非每次 PR）
 
@@ -134,8 +134,8 @@ CodeBuddy / Gemini / Claude 实连会话消耗用户配额，视为稀缺资源�
 | UX-32 | 打包版 **仅用** `!app.isPackaged` 判 dev，**不得**用 `NODE_ENV=development` 加载 Vite URL | `electron/main.ts` `isDev` | `npm run test:e2e:packaged`（smoke） |
 | UX-33 | 空态：`agentHint` 变化与 `empty-state-updated` 在已有 snapshot 时 **silent 刷新**，CLI 连接期间不反复转圈 | `useEmptyStatePlanner.ts` → `runApply(..., { silent: true })` | `npm run test:e2e:packaged:empty-state` |
 | UX-34 | 后台空态 rethink 的 `end-turn` 须带 `silent: true`，**不得**弹「助手已完成回复但没有可见输出」 | `AcpConnection.ts` `emitEndTurn` + `AgentChatPanel.tsx` `handleEndTurn` | 手工；改后跑 `test:e2e:packaged:empty-state` |
-| UX-35 | portable 首次启动 **自动安装** document-import + offline-speech（来自 `resources/plugin-zips/`） | `ensureBundledPlugins.ts` + `main.ts` | `npm run verify:acceptance-portable`、`npm run test:e2e:packaged:plugins` |
-| UX-36 | 打包 E2E 模拟新用户装插件时须设 `METAMATES_E2E_ALLOW_BUNDLED_PLUGINS=1`（默认 E2E 仍跳过） | `ensureBundledPlugins.ts` + `launchElectron.ts` `freshUserData` | `npm run test:e2e:packaged:plugins` |
+| UX-35 | portable **启动不自动安装**插件；PDF/语音按需安装（本地 zip / Settings）；Toast 提供「立即安装」 | `main.ts`（无默认 ensureBundled）+ `openPluginInstallToast.tsx` | `npm run verify:acceptance-portable`、`npm run test:e2e:packaged:plugins` |
+| UX-36 | 打包 E2E 验证插件时须 **显式 IPC 安装**（`installDocumentImport` / `installOfflineSpeech`），不得依赖启动自动装 | `e2e/suite/31-packaged-plugins-functional.spec.ts` | `npm run test:e2e:packaged:plugins` |
 | UX-37 | 打包 E2E 解析「今日」**禁止** renderer 动态 `import('/src/...')` | `e2e/helpers/agentLiveClaude.ts` `getEffectiveTodayFromApp` | `npm run test:e2e:packaged:agent-live`（opt-in，耗 CLI 配额） |
 | UX-38 | 绿色便携版 `resources/plugin-zips/` 须含 document-import + offline-speech 两个 zip | `electron-builder.yml` + `verify-portable-pack-prereqs.mjs` | `npm run electron:build:win:portable` 前置校验 |
 

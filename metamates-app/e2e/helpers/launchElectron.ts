@@ -258,7 +258,7 @@ export async function launchMetaMatesApp(
     noAgents?: boolean
     speechEngine?: 'auto' | 'whisper' | 'web' | 'native'
     noDevPlugins?: boolean
-    /** Unique userData — triggers bundled plugin auto-install on packaged builds. */
+    /** Unique userData — packaged plugins stay uninstalled until on-demand IPC install (UX-35). */
     freshUserData?: boolean
     /**
      * Override seeded engineDisplayName (default E2E-only label).
@@ -296,7 +296,7 @@ export async function launchMetaMatesApp(
     METAMATES_WORKSPACE: workspace,
     ...(packagedExe ? {} : { NODE_ENV: 'development' }),
     ...(options?.noDevPlugins ? { METAMATES_E2E_NO_DEV_PLUGINS: '1' } : {}),
-    ...(options?.freshUserData && packagedExe ? { METAMATES_E2E_ALLOW_BUNDLED_PLUGINS: '1' } : {}),
+    // UX-35: plugins are on-demand via IPC/Settings — no startup auto-install.
   }
   // Only force no-agents when requested; never inherit shell METAMATES_E2E_NO_AGENTS
   // (that caused Settings "ready" + main UI "not installed" in docs screenshots).

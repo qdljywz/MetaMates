@@ -31,7 +31,7 @@ import { disconnectAllAcpBackends } from './acp/ipcHandlers'
 import {
   killAllSessionChildProcesses,
   killSiblingDevProcesses,
-  killStaleMetaMatesProcesses,
+  killStaleMetaMatesProcessesAsync,
 } from './shared/processTreeKill'
 import { getResourcesRoot, resolveBuildIconPath, resolveInitsRoot, resolveUserManualPath } from './shared/appPaths'
 import {
@@ -69,6 +69,9 @@ let shutdownHooksRegistered = false
 let quitAfterShutdown = false
 
 const skipSingleInstanceLock = process.env.METAMATES_E2E === '1'
+
+/** After splash (5.5s) — defer heavy sync work so portable cold start stays responsive. */
+const PACKAGED_DEFERRED_WORK_MS = 12_000
 
 // Some Windows environments crash the GPU process on startup, preventing any window from
 // showing (even though electron.exe is running). Prefer a stable UI over acceleration.
@@ -438,6 +441,32 @@ function ensureMainWindowFocused(): void {
   focusMainWindow()
 }
 
+/**
+ * Packaged deferred work after splash.
+ * UX-35: plugins are on-demand (Settings / install toast) — never auto-installed on startup.
+ * Opt-in CI only: METAMATES_INSTALL_BUNDLED_PLUGINS=1.
+ */
+function schedulePackagedDeferredWork(): void {
+  if (!app.isPackaged) return
+
+  if (process.env.METAMATES_E2E !== '1') {
+    setTimeout(() => {
+      void killStaleMetaMatesProcessesAsync(appRoot, process.pid).catch((err) => {
+        console.warn('[ProcessCleanup] stale kill failed:', err)
+      })
+    }, PACKAGED_DEFERRED_WORK_MS)
+  }
+
+  // Explicit opt-in for install smoke scripts — not the default portable path.
+  if (process.env.METAMATES_INSTALL_BUNDLED_PLUGINS === '1') {
+    setTimeout(() => {
+      void ensureBundledPluginsInstalled().catch((err) => {
+        console.warn('[Plugin] opt-in bundled install failed:', err)
+      })
+    }, PACKAGED_DEFERRED_WORK_MS)
+  }
+}
+
 app.whenReady().then(async () => {
   createWindow()
   scheduleWindowWatchdog()
@@ -458,9 +487,7 @@ app.whenReady().then(async () => {
     registerPluginHandlers()
   }, 0)
 
-  if (app.isPackaged && process.env.METAMATES_E2E !== '1') {
-    setTimeout(() => killStaleMetaMatesProcesses(appRoot, process.pid), 8_000)
-  }
+  schedulePackagedDeferredWork()
 
   setTimeout(() => warmupDatabase(), 0)
 
@@ -483,15 +510,9 @@ app.whenReady().then(async () => {
       await registerAcpIpcHandlers()
       registerUpdaterHandlers(() => mainWindow)
       markDesktopReady()
-      if (app.isPackaged && (process.env.METAMATES_E2E !== '1' || process.env.METAMATES_E2E_ALLOW_BUNDLED_PLUGINS === '1')) {
-        void ensureBundledPluginsInstalled()
-      }
     } catch (err) {
       console.error('[MAIN] Post-window init failed:', err)
       markDesktopReady()
-      if (app.isPackaged && (process.env.METAMATES_E2E !== '1' || process.env.METAMATES_E2E_ALLOW_BUNDLED_PLUGINS === '1')) {
-        void ensureBundledPluginsInstalled()
-      }
     }
   })()
 

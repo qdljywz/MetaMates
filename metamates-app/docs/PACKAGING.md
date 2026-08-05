@@ -12,7 +12,7 @@ MetaMates 使用 [electron-builder](https://www.electron.build/) 生成安装包
 
 ## 绿色便携版（portable-green）
 
-带 bundled 插件 zip，首次启动自动安装 **文档导入** + **离线语音**（约 3～4 分钟，全新 userData）。
+带 bundled 插件 zip（`resources/plugin-zips/`）。**启动不自动解压**（UX-35）：首次用 PDF/语音或在「设置 → 扩展」中安装；约 3～4 分钟，期间请勿关闭应用。
 
 ```powershell
 cd metamates-app
@@ -26,7 +26,7 @@ npm run electron:build:win:portable
 npm run build && npm run electron:compile && npm run patch:portable-dist
 ```
 
-钉死的打包行为见 **`docs/UX_REGRESSION_GUARDRAILS.md` UX-31～UX-38**（打包专区，含灰屏、空态、插件自动安装）。
+钉死的打包行为见 **`docs/UX_REGRESSION_GUARDRAILS.md` UX-31～UX-38**（打包专区，含灰屏、空态、**按需插件安装**）。
 
 ## 发布前验收（必须事项）
 
@@ -37,7 +37,7 @@ cd metamates-app
 npm run acceptance:final
 ```
 
-`acceptance:final` 包含：真实 PDF/DOCX 导入、offline-speech 冒烟、便携版 12s 不灰屏 + 插件自动安装、打包空态 spinner、打包 PDF + Whisper 功能 E2E。
+`acceptance:final` 包含：真实 PDF/DOCX 导入、offline-speech 冒烟、便携版 12s 不灰屏 + **启动不自动装插件**、打包空态 spinner、打包 PDF + Whisper 功能 E2E（按需 IPC 安装）。
 
 可选更全：
 
@@ -50,9 +50,10 @@ npm run overnight:acceptance        # 单元 + 便携 + packaged full
 
 | 改动区域 | 命令 |
 |----------|------|
-| 进程清理 / 灰屏 | `npm run verify:acceptance-portable` |
+| 进程清理 / 灰屏 / 不自动装插件 | `npm run verify:acceptance-portable` |
+| 按需插件安装冒烟 | `npm run verify:portable-plugin-install` |
 | 空态转圈 / emptyTurn toast | `npm run test:e2e:packaged:empty-state` |
-| 插件自动安装 / PDF / 语音 | `npm run test:e2e:packaged:plugins` |
+| 插件按需安装 / PDF / 语音 | `npm run test:e2e:packaged:plugins` |
 | 文档导入管线 | `npm run verify:document-import-real` |
 | Agent 打包 E2E（耗配额） | `npm run test:e2e:packaged:agent-live` |
 

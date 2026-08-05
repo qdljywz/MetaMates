@@ -39,7 +39,7 @@ export function removeStaleMetamatesTemp({ label = 'clean:temp' } = {}) {
   let bytes = 0
   for (const ent of fs.readdirSync(tmp, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue
-    if (!/^(metamates-|mm-e2e-)/.test(ent.name)) continue
+    if (!/^(metamates-|mm-e2e-|mm-pw-e2e-|mm-wizard-|mm-slash-|mm-skills-|mm-codex-)/.test(ent.name)) continue
     const full = path.join(tmp, ent.name)
     try {
       const size = dirSize(full)

@@ -6,12 +6,14 @@ import { getPluginRoot, isPluginRootReady, resolveBundledPluginZip } from './plu
 const BUNDLED_PLUGIN_IDS = [DOCUMENT_IMPORT_PLUGIN_ID, OFFLINE_SPEECH_PLUGIN_ID] as const
 
 /**
- * Portable / packaged first run: install document-import + offline-speech from
- * bundled plugin-zips into userData/plugins so PDF/OCR and Whisper work without GitHub.
+ * Install document-import + offline-speech from bundled plugin-zips into userData.
+ *
+ * UX-35: NOT called on normal packaged startup (on-demand via Settings / install toast).
+ * Kept for opt-in CI smoke: set METAMATES_INSTALL_BUNDLED_PLUGINS=1.
  */
 export async function ensureBundledPluginsInstalled(): Promise<void> {
   if (!app.isPackaged) return
-  if (process.env.METAMATES_E2E === '1' && process.env.METAMATES_E2E_ALLOW_BUNDLED_PLUGINS !== '1') return
+  if (process.env.METAMATES_INSTALL_BUNDLED_PLUGINS !== '1') return
   if (process.env.METAMATES_SKIP_BUNDLED_PLUGINS === '1') return
 
   for (const pluginId of BUNDLED_PLUGIN_IDS) {
@@ -24,12 +26,12 @@ export async function ensureBundledPluginsInstalled(): Promise<void> {
       continue
     }
 
-    console.log(`[Plugin] Auto-installing bundled ${pluginId} from ${zip}`)
+    console.log(`[Plugin] Installing bundled ${pluginId} from ${zip} (opt-in METAMATES_INSTALL_BUNDLED_PLUGINS=1)`)
     const result = await installPluginPreferLocal(pluginId)
     if (result.success) {
       console.log(`[Plugin] Installed ${pluginId} (${result.source ?? 'unknown'})`)
     } else {
-      console.warn(`[Plugin] Auto-install failed for ${pluginId}: ${result.error}`)
+      console.warn(`[Plugin] Install failed for ${pluginId}: ${result.error}`)
     }
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Packaged functional smoke: bundled plugin auto-install → PDF import + Whisper available.
+ * Packaged functional smoke: on-demand plugin install → PDF import + Whisper available.
  *
  * Run: npm run test:e2e:packaged:plugins
  */
@@ -44,15 +44,19 @@ test.describe.serial('@suite Packaged plugins functional', () => {
     if (app) await closeElectronApp(app)
   })
 
-  test('01 bundled document-import auto-installs', async () => {
+  test('01 install document-import on demand from bundled zip', async () => {
     test.setTimeout(360_000)
+    const install = await page.evaluate(async () => {
+      return window.electronAPI?.plugins?.installDocumentImport?.()
+    })
+    expect(install?.success, `installDocumentImport failed: ${install?.error ?? 'unknown'}`).toBe(true)
     await expect.poll(async () => {
       const status = await page.evaluate(async () => {
         const plugin = await window.electronAPI?.plugins?.getDocumentImportStatus?.()
         return plugin?.installed === true
       })
       return status
-    }, { timeout: 300_000, intervals: [5_000] }).toBe(true)
+    }, { timeout: 60_000, intervals: [2_000] }).toBe(true)
   })
 
   test('02 PDF intelligence import succeeds after plugin install', async () => {
@@ -70,8 +74,12 @@ test.describe.serial('@suite Packaged plugins functional', () => {
     expect(result.textLen).toBeGreaterThan(10)
   })
 
-  test('03 bundled offline-speech enables Whisper engine', async () => {
+  test('03 install offline-speech on demand and enable Whisper', async () => {
     test.setTimeout(360_000)
+    const install = await page.evaluate(async () => {
+      return window.electronAPI?.plugins?.installOfflineSpeech?.()
+    })
+    expect(install?.success, `installOfflineSpeech failed: ${install?.error ?? 'unknown'}`).toBe(true)
     await expect.poll(async () => {
       const runtime = await page.evaluate(async () => {
         const plugin = await window.electronAPI?.plugins?.getOfflineSpeechStatus?.()
@@ -82,7 +90,7 @@ test.describe.serial('@suite Packaged plugins functional', () => {
         }
       })
       return runtime.pluginInstalled && runtime.whisper
-    }, { timeout: 300_000, intervals: [5_000] }).toBe(true)
+    }, { timeout: 120_000, intervals: [3_000] }).toBe(true)
   })
 
   test('04 whisper speech start/stop lifecycle', async () => {
