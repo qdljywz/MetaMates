@@ -177,6 +177,10 @@ const GraphView: React.FC<GraphViewProps> = ({
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingClickNode = useRef<GraphNode | null>(null)
   const loadGenerationRef = useRef(0)
+  const loadInFlightRef = useRef(false)
+  const pendingReloadRef = useRef(false)
+  const allNodesCountRef = useRef(0)
+  allNodesCountRef.current = allNodes.length
   const didCenterFocusRef = useRef(false)
   const didFitViewRef = useRef(false)
   const clusterCentersRef = useRef<Map<string, FolderClusterCenter>>(new Map())
@@ -445,21 +449,35 @@ const GraphView: React.FC<GraphViewProps> = ({
   useEffect(() => {
     if (visible && workspacePath) {
       didCenterFocusRef.current = false
-      loadGraphData()
+      void loadGraphData()
     }
   }, [visible, workspacePath])
 
-  /** Reload when workspace index finishes — semantic edges need fileIndex. */
+  /**
+   * Reload when index/vault changes — but NEVER storm-reload.
+   * Regression (8f4dcad): every vault event called loadGraphData(true), which
+   * bumped generation and cancelled in-flight full scans → stuck on「正在分析…」with 0 nodes.
+   */
   useEffect(() => {
     if (!visible || !workspacePath) return
-    const reload = () => {
-      if (workspaceIndexService.isReady()) {
-        loadGraphData(true)
-      }
+
+    let debounceTimer: number | undefined
+    let cancelled = false
+
+    const scheduleReload = () => {
+      if (cancelled || !workspaceIndexService.isReady()) return
+      window.clearTimeout(debounceTimer)
+      debounceTimer = window.setTimeout(() => {
+        if (cancelled) return
+        void loadGraphData(true)
+      }, 900)
     }
-    const unsubIndex = workspaceIndexService.subscribe(reload)
-    const unsubVault = workspaceIndexService.onVaultChanged(reload)
+
+    const unsubIndex = workspaceIndexService.subscribe(scheduleReload)
+    const unsubVault = workspaceIndexService.onVaultChanged(scheduleReload)
     return () => {
+      cancelled = true
+      window.clearTimeout(debounceTimer)
       unsubIndex()
       unsubVault()
     }
@@ -546,10 +564,18 @@ const GraphView: React.FC<GraphViewProps> = ({
     }
   }, [visible, is3DMode, loading, scheduleFitView])
 
+  /**
+   * Build graph from vault markdown. Force refresh coalesces while in-flight so
+   * vault/index storms cannot cancel every scan mid-way (stuck loading / 0 nodes).
+   */
   const loadGraphData = async (forceRefresh = false) => {
     if (!window.electronAPI) return
-    const generation = ++loadGenerationRef.current
-    
+
+    if (loadInFlightRef.current) {
+      if (forceRefresh) pendingReloadRef.current = true
+      return
+    }
+
     if (!forceRefresh) {
       const cached = graphCache.get(workspacePath)
       if (cached && cached.version === GRAPH_CACHE_VERSION && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -562,10 +588,16 @@ const GraphView: React.FC<GraphViewProps> = ({
         return
       }
     }
-    
-    setLoading(true)
+
+    loadInFlightRef.current = true
+    const generation = ++loadGenerationRef.current
+    // Keep previous graph visible during background refresh; only spin on first paint.
+    if (allNodesCountRef.current === 0) setLoading(true)
+
     try {
       const result = await window.electronAPI.listFiles(workspacePath, true)
+      if (generation !== loadGenerationRef.current) return
+
       if (result.success && result.files) {
         const workspaceLanguage = detectWorkspaceLanguageFromPaths(
           workspacePath,
@@ -592,6 +624,7 @@ const GraphView: React.FC<GraphViewProps> = ({
         }
 
         for (const file of mdFiles) {
+          if (generation !== loadGenerationRef.current) return
           const nodeKey = getVaultNodeKey(workspacePath, file.path)
           const displayName = nodeKey.split('/').pop() || nodeKey
           const readResult = await window.electronAPI.readFile(file.path)
@@ -703,7 +736,7 @@ const GraphView: React.FC<GraphViewProps> = ({
         fileMapRef.current = fileMap
         const nodesArray = Array.from(nodeMap.values())
         const tagsArray = Array.from(tagSet)
-        
+
         if (generation !== loadGenerationRef.current) return
 
         graphCache.set(workspacePath, {
@@ -715,7 +748,7 @@ const GraphView: React.FC<GraphViewProps> = ({
           version: GRAPH_CACHE_VERSION,
           timestamp: Date.now(),
         })
-        
+
         setAllNodes(nodesArray)
         setAllLinks(linkList)
         setAllTags(tagsArray)
@@ -724,7 +757,14 @@ const GraphView: React.FC<GraphViewProps> = ({
     } catch (error) {
       console.error('Failed to load graph data:', error)
     } finally {
-      setLoading(false)
+      loadInFlightRef.current = false
+      if (generation === loadGenerationRef.current) {
+        setLoading(false)
+      }
+      if (pendingReloadRef.current && generation === loadGenerationRef.current) {
+        pendingReloadRef.current = false
+        void loadGraphData(true)
+      }
     }
   }
 

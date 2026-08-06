@@ -43,6 +43,24 @@ test.describe.serial('@suite Graph interaction', () => {
     if (app) await closeElectronApp(app)
   })
 
+  test('opens graph and leaves loading state with nodes', async () => {
+    await page.click('[data-testid="activity-graph"]', { timeout: 8_000 })
+    const graphModal = page.locator('.graph-modal').first()
+    await expect(graphModal).toBeVisible({ timeout: 15_000 })
+
+    const spin = graphModal.locator('.ant-spin')
+    await expect(spin).toBeHidden({ timeout: 120_000 })
+    await expect(graphModal.getByText(/正在分析文件关系|Analyzing/i)).toHaveCount(0)
+
+    await expect.poll(async () => {
+      const audit = await readGraphAudit(page)
+      return audit.nodeCount ?? 0
+    }, { timeout: 60_000 }).toBeGreaterThan(0)
+
+    await graphModal.locator('.ant-modal-close').click()
+    await expect(graphModal).toBeHidden({ timeout: 10_000 })
+  })
+
   test('full panorama keeps folders spatially separated', async () => {
     await page.click('[data-testid="activity-graph"]', { timeout: 8_000 })
     const graphModal = page.locator('.graph-modal').first()
