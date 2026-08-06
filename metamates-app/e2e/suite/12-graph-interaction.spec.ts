@@ -12,6 +12,8 @@ type GraphAudit = {
   viewMode?: string
   clusterSeparation?: number | null
   nodeCount?: number
+  allNodeCount?: number
+  selectedNodeId?: string | null
   simulationPaused?: boolean
 }
 
@@ -79,6 +81,58 @@ test.describe.serial('@suite Graph interaction', () => {
       if (!audit.simulationPaused) return 0
       return audit.clusterSeparation ?? 0
     }, { timeout: 90_000 }).toBeGreaterThan(160)
+
+    await graphModal.locator('.ant-modal-close').click()
+    await expect(graphModal).toBeHidden({ timeout: 10_000 })
+  })
+
+  test('clicking a node switches to focus and shows only related nodes', async () => {
+    await page.click('[data-testid="activity-graph"]', { timeout: 8_000 })
+    const graphModal = page.locator('.graph-modal').first()
+    await expect(graphModal).toBeVisible({ timeout: 15_000 })
+
+    const spin = graphModal.locator('.ant-spin')
+    if (await spin.isVisible().catch(() => false)) {
+      await expect(spin).toBeHidden({ timeout: 120_000 })
+    }
+
+    await graphModal.locator('.ant-segmented-item-label').filter({ hasText: /全景|Full/i }).click()
+
+    await expect.poll(async () => {
+      const audit = await readGraphAudit(page)
+      return audit.viewMode === 'full' && (audit.nodeCount ?? 0) > 1 && audit.simulationPaused === true
+        ? audit.nodeCount!
+        : 0
+    }, { timeout: 90_000 }).toBeGreaterThan(1)
+
+    const fullCount = (await readGraphAudit(page)).nodeCount ?? 0
+
+    const clickTarget = await page.evaluate(() => {
+      const hook = (window as unknown as {
+        __METAMATES_GRAPH_E2E__?: {
+          getNodesScreenCoords?: () => Array<{ name: string; screenX: number; screenY: number }>
+        }
+      }).__METAMATES_GRAPH_E2E__
+      const nodes = hook?.getNodesScreenCoords?.() ?? []
+      const seed = nodes.find((node) => /e2e-link-seed/i.test(node.name))
+      return seed ?? nodes[0] ?? null
+    })
+    expect(clickTarget).toBeTruthy()
+
+    await page.mouse.click(clickTarget!.screenX, clickTarget!.screenY)
+
+    await expect.poll(async () => {
+      const audit = await readGraphAudit(page)
+      if (audit.viewMode !== 'focus') return 0
+      if (!audit.selectedNodeId) return 0
+      if ((audit.nodeCount ?? 0) >= fullCount) return 0
+      return audit.nodeCount ?? 0
+    }, { timeout: 30_000 }).toBeGreaterThan(0)
+
+    const focused = await readGraphAudit(page)
+    expect(focused.viewMode).toBe('focus')
+    expect(focused.nodeCount!).toBeLessThan(fullCount)
+    expect(focused.selectedNodeId).toBeTruthy()
 
     await graphModal.locator('.ant-modal-close').click()
     await expect(graphModal).toBeHidden({ timeout: 10_000 })

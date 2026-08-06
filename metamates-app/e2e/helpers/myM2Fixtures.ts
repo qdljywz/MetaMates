@@ -39,9 +39,12 @@ export function ensureE2ESandbox(workspace = getE2EWorkspace()): string {
 /** Small seed note for editor/link tests (created once, kept across runs). */
 export function ensureE2ELinkSeed(workspace = getE2EWorkspace()): string {
   const sandbox = ensureE2ESandbox(workspace)
+  ensureE2ELinkTarget(workspace)
   const seedPath = path.join(sandbox, E2E_LINK_SEED_FILE)
-  if (!fs.existsSync(seedPath)) {
-    fs.writeFileSync(seedPath, '# E2E link seed\n\nAutomated test fixture — safe to ignore.\n', 'utf8')
+  const content =
+    '# E2E link seed\n\n[[e2e-link-target]]\n\nAutomated test fixture — safe to ignore.\n'
+  if (!fs.existsSync(seedPath) || !fs.readFileSync(seedPath, 'utf8').includes('[[e2e-link-target]]')) {
+    fs.writeFileSync(seedPath, content, 'utf8')
   }
   return seedPath
 }

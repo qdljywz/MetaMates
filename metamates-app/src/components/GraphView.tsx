@@ -183,6 +183,8 @@ const GraphView: React.FC<GraphViewProps> = ({
   allNodesCountRef.current = allNodes.length
   const didCenterFocusRef = useRef(false)
   const didFitViewRef = useRef(false)
+  /** When true, click-selected node owns focus; editor open-file must not overwrite it. */
+  const selectionPinnedRef = useRef(false)
   const clusterCentersRef = useRef<Map<string, FolderClusterCenter>>(new Map())
   const nodesRef = useRef(nodes)
   nodesRef.current = nodes
@@ -194,11 +196,18 @@ const GraphView: React.FC<GraphViewProps> = ({
     return getVaultNodeKey(workspacePath, focusFilePath)
   }, [focusFilePath, workspacePath])
 
+  /**
+   * Focus subgraph center: clicked node wins over the editor's open file.
+   * Regression: focus mode only followed focusFilePath, so clicking a node
+   * selected the detail panel but still showed the whole graph.
+   */
+  const interactiveFocusId = selectedNode?.id ?? focusNodeId
+
   const focusNeighborhood = React.useMemo(() => {
-    if (viewMode !== 'focus' || !focusNodeId || allNodes.length === 0) return null
-    if (!allNodes.some((n) => n.id === focusNodeId)) return null
-    return collectFocusNeighborhood(focusNodeId, allLinks, 2)
-  }, [viewMode, focusNodeId, allNodes, allLinks])
+    if (viewMode !== 'focus' || !interactiveFocusId || allNodes.length === 0) return null
+    if (!allNodes.some((n) => n.id === interactiveFocusId)) return null
+    return collectFocusNeighborhood(interactiveFocusId, allLinks, 2)
+  }, [viewMode, interactiveFocusId, allNodes, allLinks])
 
   const activityNeighborhood = React.useMemo(() => {
     if (viewMode !== 'activity' || !highlightPaths?.length || !workspacePath) return null
@@ -226,12 +235,12 @@ const GraphView: React.FC<GraphViewProps> = ({
   const shouldCompactLayout = Boolean(focusNeighborhood || activityNeighborhood)
 
   const compactAnchorId = React.useMemo(() => {
-    if (focusNeighborhood && focusNodeId) return focusNodeId
+    if (focusNeighborhood && interactiveFocusId) return interactiveFocusId
     if (activityNeighborhood && highlightPaths?.[0]) {
       return getVaultNodeKey(workspacePath, highlightPaths[0])
     }
     return null
-  }, [focusNeighborhood, activityNeighborhood, focusNodeId, highlightPaths, workspacePath])
+  }, [focusNeighborhood, activityNeighborhood, interactiveFocusId, highlightPaths, workspacePath])
 
   const fitViewNow = useCallback(() => {
     const canvas = canvasRef.current
@@ -251,7 +260,7 @@ const GraphView: React.FC<GraphViewProps> = ({
       sanitizeGraphNodePositions(visibleNodes)
     }
 
-    const focusId = viewMode === 'focus' ? focusNodeId : null
+    const focusId = viewMode === 'focus' ? interactiveFocusId : null
     let vp
     if (usesGraphFolderIslandLayout(viewMode) && clusterCentersRef.current.size > 0) {
       const folderCounts = new Map<string, number>()
@@ -266,7 +275,7 @@ const GraphView: React.FC<GraphViewProps> = ({
     applyViewport(vp.scale, vp.offset)
     didFitViewRef.current = true
     return true
-  }, [is3DMode, applyViewport, viewMode, focusNodeId, shouldCompactLayout, compactAnchorId, workspaceLanguage])
+  }, [is3DMode, applyViewport, viewMode, interactiveFocusId, shouldCompactLayout, compactAnchorId, workspaceLanguage])
 
   const scheduleFitView = useCallback(() => {
     didFitViewRef.current = false
@@ -534,17 +543,19 @@ const GraphView: React.FC<GraphViewProps> = ({
   }, [nodes, selectedNode])
 
   useEffect(() => {
-    if (!visible || !focusNodeId || nodes.length === 0) return
-    const focusNode = nodes.find((n) => n.id === focusNodeId)
-    if (focusNode && viewMode === 'focus') {
-      setSelectedNode(focusNode)
-    }
-  }, [visible, focusNodeId, nodes, viewMode])
+    selectionPinnedRef.current = false
+  }, [focusNodeId])
+
+  useEffect(() => {
+    if (!visible || viewMode !== 'focus' || !focusNodeId || selectionPinnedRef.current) return
+    const focusNode = allNodes.find((n) => n.id === focusNodeId)
+    if (focusNode) setSelectedNode(focusNode)
+  }, [visible, focusNodeId, viewMode, allNodes])
 
   useEffect(() => {
     if (!visible || loading || is3DMode || nodes.length === 0) return
     scheduleFitView()
-  }, [visible, loading, is3DMode, nodes, focusNodeId, viewMode, focusNeighborhood, activityNeighborhood, scheduleFitView])
+  }, [visible, loading, is3DMode, nodes, interactiveFocusId, viewMode, focusNeighborhood, activityNeighborhood, scheduleFitView])
 
   useEffect(() => {
     if (!visible || is3DMode || loading) return
@@ -965,6 +976,8 @@ const GraphView: React.FC<GraphViewProps> = ({
         getNodesScreenCoords: () => ReturnType<typeof getNodesScreenCoords>
         getGraphAudit: () => {
           nodeCount: number
+          allNodeCount: number
+          selectedNodeId: string | null
           is3DMode: boolean
           viewMode: GraphViewMode
           clusterSeparation: number | null
@@ -975,6 +988,8 @@ const GraphView: React.FC<GraphViewProps> = ({
       getNodesScreenCoords,
       getGraphAudit: () => ({
         nodeCount: nodesRef.current.length,
+        allNodeCount: allNodesCountRef.current,
+        selectedNodeId: interactionRef.current.selectedNode?.id ?? null,
         is3DMode,
         viewMode: viewModeRef.current,
         clusterSeparation: usesGraphFolderIslandLayout(viewModeRef.current)
@@ -1051,30 +1066,55 @@ const GraphView: React.FC<GraphViewProps> = ({
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (hasDragged.current) return
-    
+
     const world = getWorldCoords(e.clientX, e.clientY)
     if (!world) return
 
     const clickedNode = findNodeAtWorld(world.x, world.y)
-    
+
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current)
+      clickTimeoutRef.current = null
+    }
+
     if (clickedNode) {
       simulationPausedRef.current = true
-      setSelectedNode(clickedNode)
+      pendingClickNode.current = clickedNode
+      // Defer focus-subgraph switch so a double-click can open the file
+      // without the first click re-laying out the canvas under the cursor.
+      clickTimeoutRef.current = setTimeout(() => {
+        clickTimeoutRef.current = null
+        selectionPinnedRef.current = true
+        setSelectedNode(clickedNode)
+        if (viewModeRef.current === 'full') {
+          setViewMode('focus')
+        }
+        scheduleFitView()
+      }, 280)
     } else {
+      pendingClickNode.current = null
+      selectionPinnedRef.current = false
       setSelectedNode(null)
     }
-  }, [getWorldCoords, findNodeAtWorld])
+  }, [getWorldCoords, findNodeAtWorld, scheduleFitView])
 
   const handleDoubleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault()
     e.stopPropagation()
-    
-    const world = getWorldCoords(e.clientX, e.clientY)
-    if (!world) return
 
-    const clickedNode = findNodeAtWorld(world.x, world.y)
-    
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current)
+      clickTimeoutRef.current = null
+    }
+
+    const world = getWorldCoords(e.clientX, e.clientY)
+    const clickedNode =
+      (world ? findNodeAtWorld(world.x, world.y) : null) ?? pendingClickNode.current
+    pendingClickNode.current = null
+
     if (clickedNode) {
+      selectionPinnedRef.current = true
+      setSelectedNode(clickedNode)
       const filePath = fileMapRef.current.get(clickedNode.id)
       if (filePath) {
         onFileSelect(filePath)
