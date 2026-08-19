@@ -26,16 +26,17 @@ export function getAppRoot(): string {
 }
 
 /**
- * Writable app data directory.
- * Packaged installs must not write under app.asar (read-only).
- * Dev keeps project root for backward compatibility with existing local DB files.
+ * Writable app data directory (settings, plugins, session-store).
+ * Electron always uses `app.getPath('userData')` so `npm run start` and the
+ * portable green build share the same profile. Conversation SQLite is separate
+ * (`{workspace}/.metamates/`). Node scripts without Electron stay on project root.
  */
 export function getWritableAppDataDir(): string {
   if (process.env.METAMATES_APP_DATA_DIR) {
     return path.resolve(process.env.METAMATES_APP_DATA_DIR)
   }
   try {
-    if (app.isPackaged) {
+    if (typeof app.getPath === 'function') {
       return app.getPath('userData')
     }
   } catch {

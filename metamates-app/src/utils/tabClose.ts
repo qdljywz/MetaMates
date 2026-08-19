@@ -10,6 +10,7 @@ export function confirmDiscardUnsavedTab(
 ): Promise<boolean> {
   return new Promise((resolve) => {
     Modal.confirm({
+      className: 'metamates-unsaved-confirm',
       title: t('tabs.unsavedCloseTitle'),
       content: t('tabs.unsavedCloseBody'),
       okText: t('tabs.unsavedCloseConfirm'),
@@ -45,11 +46,15 @@ export async function confirmAllDirtyTabsClosed(
   tabs: OpenTab[],
   t: TFunction<'editor'>,
   tCommon: TFunction<'common'>,
-  options?: { autoSave?: boolean; currentFile?: string | null },
+  options?: { autoSave?: boolean; currentFile?: string | null; forceConfirm?: boolean },
 ): Promise<boolean> {
   if (!tabs.some((tab) => tab.isDirty)) return true
 
-  if (options?.autoSave !== false && options?.currentFile) {
+  if (
+    !options?.forceConfirm &&
+    options?.autoSave !== false &&
+    options?.currentFile
+  ) {
     const currentDirty = tabs.some(
       (tab) => tab.isDirty && treePathsEqual(tab.path, options.currentFile!),
     )

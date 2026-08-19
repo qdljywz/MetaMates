@@ -113,6 +113,10 @@ const AppContent: React.FC = () => {
   const lastWorkspacePathRef = useRef('')
   const openTabsRef = useRef(state.openTabs)
   openTabsRef.current = state.openTabs
+  const settingsRef = useRef(state.settings)
+  settingsRef.current = state.settings
+  const currentFileRef = useRef(state.currentFile)
+  currentFileRef.current = state.currentFile
   useEmptyStateBackgroundPlanner(state.workspacePath)
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(false)
 
@@ -147,6 +151,7 @@ const AppContent: React.FC = () => {
       dispatch,
       setAutoSave: (enabled) => {
         dispatch({ type: 'UPDATE_SETTINGS', payload: { autoSave: enabled } })
+        void storageService.saveSettings({ autoSave: enabled })
       },
       onExternalFileRemoved: async (filePath) => {
         await workspaceIndexService.signalVaultItemDeleted(filePath)
@@ -707,11 +712,18 @@ const AppContent: React.FC = () => {
     setGraphVisible(true)
   }, [])
 
-  const selectWorkspace = async () => {
+  const selectWorkspace = useCallback(async () => {
     if (!window.electronAPI) {
       alert(t('appShell.desktopOnly'))
       return
     }
+
+    const ok = await confirmAllDirtyTabsClosed(state.openTabs, tEditor, t, {
+      autoSave: state.settings.autoSave !== false,
+      currentFile: state.currentFile,
+      forceConfirm: true,
+    })
+    if (!ok) return
 
     const result = await window.electronAPI.selectDirectory()
     if (!result.canceled && result.filePaths.length > 0) {
@@ -720,18 +732,13 @@ const AppContent: React.FC = () => {
         message.error(t('appShell.templateWorkspaceForbidden'))
         return
       }
-      const ok = await confirmAllDirtyTabsClosed(state.openTabs, tEditor, t, {
-        autoSave: state.settings.autoSave !== false,
-        currentFile: state.currentFile,
-      })
-      if (!ok) return
       const lang = i18n.language?.startsWith('en') ? 'en' : 'zh'
       await window.electronAPI.initWorkspace(path, lang)
       dispatch({ type: 'SET_WORKSPACE', payload: path })
       await storageService.saveSettings({ workspacePath: path })
       setShowWorkspaceSelector(false)
     }
-  }
+  }, [state.openTabs, state.settings.autoSave, state.currentFile, dispatch, t, tEditor, i18n.language])
 
   const handleWorkspaceFromWizard = useCallback(async (path: string) => {
     if (isShippedTemplateWorkspace(path)) {
@@ -741,6 +748,7 @@ const AppContent: React.FC = () => {
     const ok = await confirmAllDirtyTabsClosed(state.openTabs, tEditor, t, {
       autoSave: state.settings.autoSave !== false,
       currentFile: state.currentFile,
+      forceConfirm: true,
     })
     if (!ok) return
     dispatch({ type: 'SET_WORKSPACE', payload: path })

@@ -21,23 +21,43 @@ async function readSavedWorkspace(page: Page): Promise<string | null> {
   })
 }
 
-async function openDirtySandboxTab(page: Page, seedPath: string): Promise<void> {
+async function openSeedAndMarkDirty(page: Page, seedPath: string): Promise<void> {
+  await expect
+    .poll(async () => page.evaluate(() => typeof (window as any).__metamatesE2EDispatch === 'function'), {
+      timeout: 30_000,
+    })
+    .toBe(true)
+
+  await page.evaluate(() => window.__METAMATES_E2E__?.setAutoSave?.(false))
+  await expect
+    .poll(async () => {
+      const settings = await page.evaluate(async () => window.electronAPI?.getSettings())
+      return settings?.autoSave
+    }, { timeout: 8_000 })
+    .toBe(false)
+
   await page.evaluate(
-    ({ path, name }) => {
+    ({ filePath, name }) => {
       const dispatch = (window as { __metamatesE2EDispatch?: (action: unknown) => void }).__metamatesE2EDispatch
-      dispatch?.({ type: 'ADD_TAB', payload: { path, name, isDirty: false } })
-      dispatch?.({ type: 'SET_CURRENT_FILE', payload: path })
-      dispatch?.({ type: 'UPDATE_TAB_DIRTY', payload: { path, isDirty: true } })
+      dispatch?.({ type: 'ADD_TAB', payload: { path: filePath, name, isDirty: false } })
+      dispatch?.({ type: 'SET_CURRENT_FILE', payload: filePath })
+      dispatch?.({ type: 'UPDATE_TAB_DIRTY', payload: { path: filePath, isDirty: true } })
     },
-    { path: seedPath, name: E2E_LINK_SEED_FILE },
+    { filePath: seedPath, name: E2E_LINK_SEED_FILE },
   )
   await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: E2E_LINK_SEED_FILE })).toBeVisible({
     timeout: 15_000,
   })
+  await expect(page.locator('.tab-bar__dirty-dot').first()).toBeVisible({ timeout: 8_000 })
+}
+
+function unsavedConfirmModal(page: Page) {
+  return page.getByRole('dialog', { name: /未保存|unsaved/i })
 }
 
 /**
  * @suite Workspace switch — dirty tab blocks switch until user confirms discard
+ * Prefer `npm run test:e2e:journey` (steps 30–31) for single-session regression.
  */
 test.describe.serial('@suite Workspace dirty guard', () => {
   let app: ElectronApplication
@@ -52,12 +72,7 @@ test.describe.serial('@suite Workspace dirty guard', () => {
     app = await launchMetaMatesApp(workspace)
     page = await resolveMainWindow(app, { requireChatInput: false })
     await waitForAppShell(page)
-    await page.evaluate(async (alt) => {
-      await window.electronAPI?.initWorkspace(alt, 'zh')
-    }, altWorkspace)
   })
-
-  test.afterAll(async () => {
     if (app) await closeElectronApp(app)
     try {
       fs.rmSync(altWorkspace, { recursive: true, force: true })
@@ -67,15 +82,8 @@ test.describe.serial('@suite Workspace dirty guard', () => {
   })
 
   test('cancel keeps workspace when switching with dirty tab', async () => {
-    await expect
-      .poll(async () => page.evaluate(() => typeof (window as any).__metamatesE2EDispatch === 'function'), {
-        timeout: 30_000,
-      })
-      .toBe(true)
-
-    await page.evaluate(() => window.__METAMATES_E2E__?.setAutoSave?.(false))
     const seedPath = ensureE2ELinkSeed(workspace)
-    await openDirtySandboxTab(page, seedPath)
+    await openSeedAndMarkDirty(page, seedPath)
 
     await page.evaluate((alt) => {
       window.__METAMATES_E2E__?.clearSelectDirectoryQueue?.()
@@ -83,7 +91,9 @@ test.describe.serial('@suite Workspace dirty guard', () => {
     }, altWorkspace)
 
     await page.click('[data-testid="activity-workspace"]')
-    const modal = page.getByRole('dialog', { name: /未保存|unsaved/i })
+    const modal = page.locator('.ant-modal-confirm, .metamates-unsaved-confirm').filter({
+      hasText: /未保存|unsaved/i,
+    })
     await expect(modal).toBeVisible({ timeout: 8_000 })
     await modal.getByRole('button', { name: /取\s*消|Cancel/i }).click()
 
@@ -98,7 +108,9 @@ test.describe.serial('@suite Workspace dirty guard', () => {
     }, altWorkspace)
 
     await page.click('[data-testid="activity-workspace"]')
-    const modal = page.getByRole('dialog', { name: /未保存|unsaved/i })
+    const modal = page.locator('.ant-modal-confirm, .metamates-unsaved-confirm').filter({
+      hasText: /未保存|unsaved/i,
+    })
     await expect(modal).toBeVisible({ timeout: 8_000 })
     await modal.getByRole('button', { name: /关闭不保存|close without saving/i }).click()
 
@@ -107,7 +119,6 @@ test.describe.serial('@suite Workspace dirty guard', () => {
 
     await page.evaluate(() => window.__METAMATES_E2E__?.setAutoSave?.(true))
 
-    // Restore primary E2E workspace for any follow-on local runs in same profile
     await page.evaluate((ws) => {
       window.__METAMATES_E2E__?.clearSelectDirectoryQueue?.()
       window.__METAMATES_E2E__?.queueSelectDirectory?.({ canceled: false, filePaths: [ws] })

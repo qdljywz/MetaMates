@@ -22,7 +22,7 @@ let status = 0
 if (mode === 'single-session' || mode === 'agent-live') {
   process.env.E2E_AGENT_LIVE = '1'
   process.env.E2E_AGENT_BACKEND = process.env.E2E_AGENT_BACKEND || 'claude'
-  // One Electron launch — suite/06-full-journey.spec.ts (28 serial steps, incl. agent 25–27).
+  // One Electron launch — suite/06-full-journey.spec.ts (31 serial steps, incl. agent 25–27).
   status = runPlaywright('journey').status ?? 1
 } else if (mode === 'max') {
   process.env.E2E_MAX = '1'

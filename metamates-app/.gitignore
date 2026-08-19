@@ -10,6 +10,7 @@ conversations.sqlite
 conversations.sqlite-wal
 conversations.sqlite-shm
 session-store.json
+.metamates/
 
 # --- 运行时 Inbox 剪藏（测试/用户产生，勿入库；保留空目录结构）---
 **/Inbox/*

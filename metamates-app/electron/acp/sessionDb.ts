@@ -2,10 +2,24 @@ import * as fs from 'fs'
 import * as path from 'path'
 import Database from 'better-sqlite3'
 import { composeChatMessages, type ComposeChatMessage } from '../shared/chatCompose'
-import { getWritableAppDataDir } from '../shared/appPaths'
+import { getAppRoot, getWritableAppDataDir } from '../shared/appPaths'
+import {
+  CONVERSATIONS_SQLITE,
+  resolveConversationSqlitePath,
+  WORKSPACE_CHAT_DIR,
+} from '../shared/conversationDbPath'
+import { getCurrentWorkspacePath } from '../shared/workspaceState'
+import { normalizeWorkspacePath, workspacePathsEqual } from '../shared/workspacePath'
+
+export { normalizeWorkspacePath, workspacePathsEqual } from '../shared/workspacePath'
+export { resolveConversationSqlitePath, WORKSPACE_CHAT_DIR } from '../shared/conversationDbPath'
 
 function resolveSqlitePath(): string {
-  return process.env.SESSION_DB_SQLITE_PATH || path.join(getWritableAppDataDir(), 'conversations.sqlite')
+  return resolveConversationSqlitePath({
+    workspacePath: getCurrentWorkspacePath(),
+    userDataDir: getWritableAppDataDir(),
+    override: process.env.SESSION_DB_SQLITE_PATH,
+  })
 }
 
 function resolveJsonLegacyPath(): string {
@@ -20,12 +34,6 @@ export interface Conversation {
   created_at: number
   updated_at: number
   workspace_path?: string
-}
-
-/** Normalize workspace paths so Windows/Electron comparisons stay stable. */
-export function normalizeWorkspacePath(workspacePath: string): string {
-  if (!workspacePath?.trim()) return ''
-  return path.resolve(workspacePath.trim())
 }
 
 export interface Message {
@@ -112,6 +120,8 @@ function getSqlite(): Database.Database {
       initSchema(sqlite)
       migrateSchema(sqlite)
       migrateFromJsonIfNeeded(sqlite)
+      importLegacyWorkspaceConversations(sqlite)
+      ensureWorkspaceChatGitignore()
     } catch (err: unknown) {
       markSqliteUnavailable(err)
       throw err
@@ -315,6 +325,136 @@ export function closeDatabase(): void {
     sqlite.close()
     sqlite = null
   }
+  sqliteLoadError = null
+}
+
+/**
+ * Close the current chat DB and open the one for this vault.
+ * Dev and packaged builds then share `{workspace}/.metamates/conversations.sqlite`.
+ */
+export function bindConversationDatabase(workspacePath: string): void {
+  closeDatabase()
+  const ws = normalizeWorkspacePath(workspacePath)
+  if (ws) {
+    fs.mkdirSync(path.join(ws, WORKSPACE_CHAT_DIR), { recursive: true })
+  }
+  warmupDatabase()
+}
+
+function ensureWorkspaceChatGitignore(): void {
+  const workspace = normalizeWorkspacePath(getCurrentWorkspacePath())
+  if (!workspace) return
+  const ignoreFile = path.join(workspace, WORKSPACE_CHAT_DIR, '.gitignore')
+  if (fs.existsSync(ignoreFile)) return
+  try {
+    fs.mkdirSync(path.dirname(ignoreFile), { recursive: true })
+    fs.writeFileSync(ignoreFile, '*\n!.gitignore\n', 'utf8')
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn('[Database] Could not write .metamates/.gitignore:', message)
+  }
+}
+
+const LEGACY_IMPORT_META = 'legacy_appdata_import_v1'
+
+/**
+ * Copy conversations for the current vault out of old global SQLite files
+ * (AppData + project-root) into the workspace-local DB. Runs once per file.
+ */
+function importLegacyWorkspaceConversations(dest: Database.Database): void {
+  const workspace = normalizeWorkspacePath(getCurrentWorkspacePath())
+  if (!workspace) return
+  if (getMeta(dest, LEGACY_IMPORT_META) === '1') return
+
+  const destPath = resolveSqlitePath()
+  const candidates = [
+    path.join(getWritableAppDataDir(), CONVERSATIONS_SQLITE),
+    path.join(getAppRoot(), CONVERSATIONS_SQLITE),
+  ]
+  const seen = new Set<string>()
+  let imported = 0
+
+  for (const sourcePath of candidates) {
+    const resolved = path.resolve(sourcePath)
+    if (seen.has(resolved) || resolved === path.resolve(destPath)) continue
+    seen.add(resolved)
+    if (!fs.existsSync(resolved)) continue
+    imported += copyWorkspaceConversations(resolved, dest, workspace)
+  }
+
+  setMeta(dest, LEGACY_IMPORT_META, '1')
+  if (imported > 0) {
+    console.log(`[Database] Imported ${imported} conversation(s) into ${destPath}`)
+  }
+}
+
+function copyWorkspaceConversations(
+  sourcePath: string,
+  dest: Database.Database,
+  workspacePath: string,
+): number {
+  let source: Database.Database
+  try {
+    source = new Database(sourcePath, { readonly: true, fileMustExist: true })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn(`[Database] Skip legacy DB ${sourcePath}:`, message)
+    return 0
+  }
+
+  try {
+    const hasConversations = source
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='conversations'`)
+      .get()
+    if (!hasConversations) return 0
+
+    const rows = source.prepare('SELECT * FROM conversations').all() as Array<Record<string, unknown>>
+    const matching = rows.filter((row) => workspacePathsEqual(String(row.workspace_path || ''), workspacePath))
+    if (matching.length === 0) return 0
+
+    const insertConv = dest.prepare(`
+      INSERT OR IGNORE INTO conversations (id, backend, name, extra, created_at, updated_at, workspace_path)
+      VALUES (@id, @backend, @name, @extra, @created_at, @updated_at, @workspace_path)
+    `)
+    const insertMsg = dest.prepare(`
+      INSERT OR IGNORE INTO messages (id, conversation_id, type, content, position, status, msg_id, created_at, updated_at)
+      VALUES (@id, @conversation_id, @type, @content, @position, @status, @msg_id, @created_at, @updated_at)
+    `)
+
+    const copyTx = dest.transaction(() => {
+      for (const row of matching) {
+        insertConv.run({
+          id: String(row.id),
+          backend: String(row.backend),
+          name: String(row.name),
+          extra: String(row.extra || '{}'),
+          created_at: Number(row.created_at),
+          updated_at: Number(row.updated_at),
+          workspace_path: workspacePath,
+        })
+        const messages = source
+          .prepare('SELECT * FROM messages WHERE conversation_id = ?')
+          .all(String(row.id)) as Array<Record<string, unknown>>
+        for (const message of messages) {
+          insertMsg.run({
+            id: String(message.id),
+            conversation_id: String(message.conversation_id),
+            type: String(message.type),
+            content: String(message.content || 'null'),
+            position: message.position != null ? String(message.position) : 'left',
+            status: message.status != null ? String(message.status) : 'finish',
+            msg_id: message.msg_id != null ? String(message.msg_id) : String(message.id),
+            created_at: message.created_at != null ? Number(message.created_at) : Date.now(),
+            updated_at: message.updated_at != null ? Number(message.updated_at) : null,
+          })
+        }
+      }
+    })
+    copyTx()
+    return matching.length
+  } finally {
+    source.close()
+  }
 }
 
 export function generateId(): string {
@@ -371,7 +511,7 @@ export function getConversationByBackend(backend: string, workspacePath = ''): C
   const db = tryGetSqlite()
   if (!db) return null
   const normalizedWorkspace = normalizeWorkspacePath(workspacePath)
-  const row = db
+  const exact = db
     .prepare(`
       SELECT * FROM conversations
       WHERE backend = ? AND workspace_path = ?
@@ -379,7 +519,19 @@ export function getConversationByBackend(backend: string, workspacePath = ''): C
       LIMIT 1
     `)
     .get(backend, normalizedWorkspace) as Record<string, unknown> | undefined
-  return row ? rowToConversation(row) : null
+  if (exact) return rowToConversation(exact)
+
+  if (!normalizedWorkspace) return null
+
+  const rows = db
+    .prepare(`
+      SELECT * FROM conversations
+      WHERE backend = ?
+      ORDER BY updated_at DESC
+    `)
+    .all(backend) as Array<Record<string, unknown>>
+  const matched = rows.find((row) => workspacePathsEqual(String(row.workspace_path || ''), normalizedWorkspace))
+  return matched ? rowToConversation(matched) : null
 }
 
 export function getLatestConversationByBackend(backend: string, workspacePath = ''): Conversation | null {

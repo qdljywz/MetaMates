@@ -64,13 +64,21 @@ export function consumeStartupFileTreeCache(workspacePath: string): FileInfo[] |
 }
 
 export function consumeStartupHistoryCache(backend: string): StartupAgentHistoryCache | null {
+  const cache = peekStartupHistoryCache(backend)
+  if (!cache) return null
+  delete window.__METAMATES_STARTUP_HISTORY__
+  return cache
+}
+
+/** Peek splash-preloaded history without consuming it. */
+export function peekStartupHistoryCache(backend: string): StartupAgentHistoryCache | null {
   const cache = window.__METAMATES_STARTUP_HISTORY__
   if (!cache || cache.backend !== backend) return null
   return cache
 }
 
 export function hasStartupHistoryCache(backend: string): boolean {
-  return consumeStartupHistoryCache(backend) != null
+  return peekStartupHistoryCache(backend) != null
 }
 
 /** Block until ACP IPC handlers are registered (splash preload must await this). */
@@ -185,10 +193,10 @@ export async function preloadAgentDuringSplash(preferredBackend?: string): Promi
   try {
     const result: ConversationHistoryResult | null | undefined =
       await window.electronAPI.acp.getConversationHistory(backend, { limit: SPLASH_HISTORY_LIMIT })
-    if (result) {
+    if (result?.messages?.length) {
       window.__METAMATES_STARTUP_HISTORY__ = {
         backend,
-        messages: result.messages ?? [],
+        messages: result.messages,
         total: result.total,
         hasMore: result.hasMore,
       }

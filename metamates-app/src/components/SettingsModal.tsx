@@ -409,10 +409,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
           className="settings-modal__tabs"
           activeKey={activeTabKey}
           onChange={(key) => setActiveTabKey(key as 'general' | 'agent' | 'advanced')}
+          destroyInactiveTabPane={false}
           items={[
             {
               key: 'general',
-              label: t('settings.tabGeneral'),
+              label: <span data-testid="settings-tab-general">{t('settings.tabGeneral')}</span>,
               children: (
                 <div className="settings-tab-panel">
         <SettingsSection title={t('settings.appearance')}>
@@ -558,7 +559,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             },
             {
               key: 'agent',
-              label: t('settings.tabAgent'),
+              label: <span data-testid="settings-tab-agent">{t('settings.tabAgent')}</span>,
               children: (
                 <div data-testid="settings-agent-tab" className="settings-tab-panel">
         <SettingsSection title={t('settings.engineDisplayName')}>
@@ -735,7 +736,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             },
             {
               key: 'advanced',
-              label: t('settings.tabAdvanced'),
+              label: <span data-testid="settings-tab-advanced">{t('settings.tabAdvanced')}</span>,
               children: (
                 <div className="settings-tab-panel">
         <SettingsSection title={t('settings.calendar')}>

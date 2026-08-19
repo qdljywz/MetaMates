@@ -21,9 +21,9 @@ export async function openSettingsTab(
 ): Promise<void> {
   await openSettingsModal(page)
   const modal = settingsModalLocator(page)
-  const pattern =
-    tab === 'general' ? /General|常用/ : tab === 'agent' ? /AI 助手|AI assistants/i : /Advanced|高级/
-  await modal.getByRole('tab', { name: pattern }).click({ force: true })
+  const tabTestId =
+    tab === 'general' ? 'settings-tab-general' : tab === 'agent' ? 'settings-tab-agent' : 'settings-tab-advanced'
+  await modal.locator(`[data-testid="${tabTestId}"]`).click()
   if (tab === 'agent') {
     await page.locator('[data-testid="settings-agent-tab"]').waitFor({ state: 'visible', timeout: 10_000 })
   }

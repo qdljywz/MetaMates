@@ -91,7 +91,7 @@ async function captureLocale(locale: Locale): Promise<void> {
   await page.keyboard.press('Escape')
   await page.locator('[data-testid="settings-button"]').click()
   await page.getByRole('dialog').waitFor({ state: 'visible', timeout: 15_000 })
-  await page.getByRole('tab', { name: /AI 助手|AI assistants/i }).click({ force: true })
+  await page.locator('[data-testid="settings-tab-agent"]').click()
   await page.locator('[data-testid="settings-agent-tab"]').waitFor({ state: 'visible', timeout: 10_000 })
   const docCard = page.locator('[data-testid="plugin-card-document-import"]')
   await docCard.scrollIntoViewIfNeeded()

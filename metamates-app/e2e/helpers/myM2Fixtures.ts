@@ -41,11 +41,17 @@ export function ensureE2ELinkSeed(workspace = getE2EWorkspace()): string {
   const sandbox = ensureE2ESandbox(workspace)
   ensureE2ELinkTarget(workspace)
   const seedPath = path.join(sandbox, E2E_LINK_SEED_FILE)
-  const content =
-    '# E2E link seed\n\n[[e2e-link-target]]\n\nAutomated test fixture — safe to ignore.\n'
-  if (!fs.existsSync(seedPath) || !fs.readFileSync(seedPath, 'utf8').includes('[[e2e-link-target]]')) {
+  const content = '# E2E link seed\n\nAutomated test fixture — safe to ignore.\n'
+  if (!fs.existsSync(seedPath)) {
     fs.writeFileSync(seedPath, content, 'utf8')
   }
+  return seedPath
+}
+
+/** Reset seed note to canonical body (step 08 adds the wiki link via autocomplete). */
+export function resetE2ELinkSeedContent(workspace = getE2EWorkspace()): string {
+  const seedPath = path.join(ensureE2ESandbox(workspace), E2E_LINK_SEED_FILE)
+  fs.writeFileSync(seedPath, '# E2E link seed\n\nAutomated test fixture — safe to ignore.\n', 'utf8')
   return seedPath
 }
 

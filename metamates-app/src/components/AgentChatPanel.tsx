@@ -1011,6 +1011,14 @@ const AgentChatPanel: React.FC = () => {
     if (showLoadingIndicator) setHistoryLoading(true)
 
     try {
+      /**
+       * History is keyed by (backend, workspace). Querying before the vault
+       * path is bound returns an empty conversation and used to block retries.
+       */
+      if (!workspacePathRef.current) {
+        return
+      }
+
       await new Promise<void>((resolve) => {
         requestAnimationFrame(() => resolve())
       })
@@ -1036,13 +1044,18 @@ const AgentChatPanel: React.FC = () => {
         setUserScrolled(false)
         scrollToLatestMessages(true)
       }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (backend === currentBackendRef.current) {
+        log(`Failed to load conversation history: ${msg}`, 'error')
+      }
     } finally {
       historyFetchRef.current.delete(backend)
       if (backend === currentBackendRef.current) {
         setHistoryLoading(false)
       }
     }
-  }, [applyHistoryBatch, applyHistoryMeta, resetTurnState, scrollToLatestMessages])
+  }, [applyHistoryBatch, applyHistoryMeta, log, resetTurnState, scrollToLatestMessages])
 
   const loadEarlierMessages = useCallback(async () => {
     const backend = currentBackendRef.current
@@ -1600,7 +1613,7 @@ const AgentChatPanel: React.FC = () => {
       const applyStartupHistoryCache = (backend: string | null | undefined): boolean => {
         if (!backend) return false
         const cache = consumeStartupHistoryCache(backend)
-        if (!cache) return false
+        if (!cache?.messages?.length) return false
         applyHistoryMeta(backend, cache.total, cache.hasMore)
         applyHistoryBatch(backend, cache.messages as Message[], cache.hasMore ?? false)
         return true
@@ -1911,7 +1924,7 @@ const AgentChatPanel: React.FC = () => {
       if (activeBackend) {
         reconnectAttemptRef.current = 0
         setWarmupPhase('idle')
-        await loadAgentHistory(activeBackend, { force: !isFirstBind, silent: isFirstBind })
+        await loadAgentHistory(activeBackend, { force: true, silent: isFirstBind })
       }
     })()
   }, [state.workspacePath, log, loadAgentHistory, t])

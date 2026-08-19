@@ -6,7 +6,7 @@ import type { NativeImage } from 'electron'
 import { registerAcpIpcHandlers, setAcpMainWindow, startAcpStartupWarmup, syncCliAgentEnabledPreferences } from './acp/ipcHandlers'
 import { sessionStore } from './acp/sessionStore'
 import * as sessionDb from './acp/sessionDb'
-import { closeDatabase, warmupDatabase } from './acp/sessionDb'
+import { closeDatabase, warmupDatabase, bindConversationDatabase } from './acp/sessionDb'
 import { migrateWorkspace, detectLegacyPaths } from './workspaceMigrate'
 import { vaultApiServer } from './vaultApi/server'
 import { getCalendarSummary } from './calendar/index'
@@ -564,9 +564,11 @@ ipcMain.handle('get-boot-elapsed-ms', () => getBootElapsedMs())
 ipcMain.handle('sync-workspace-path', async (_event, workspacePath: string) => {
   if (!workspacePath?.trim()) {
     setCurrentWorkspacePath('')
+    bindConversationDatabase('')
     return { success: true }
   }
   setCurrentWorkspacePath(path.resolve(workspacePath))
+  bindConversationDatabase(path.resolve(workspacePath))
   return { success: true }
 })
 
@@ -947,6 +949,7 @@ ipcMain.handle('write-text-file', async (_event, filePath: string, content: stri
 ipcMain.handle('init-workspace', async (event, workspacePath: string, language: string = 'zh') => {
   try {
     setCurrentWorkspacePath(path.resolve(workspacePath))
+    bindConversationDatabase(path.resolve(workspacePath))
     const items = fs.readdirSync(workspacePath, { withFileTypes: true })
     const hasMetaMatesStructure = items.some(item => 
       item.isDirectory() && (

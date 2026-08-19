@@ -5,7 +5,7 @@ export async function openSettingsAgentTab(page: Page): Promise<void> {
   await page.locator('[data-testid="settings-button"]').click()
   const dialog = page.getByRole('dialog')
   await dialog.waitFor({ state: 'visible', timeout: 15_000 })
-  await page.getByRole('tab', { name: /AI 助手|AI assistants/i }).click()
+  await page.locator('[data-testid="settings-tab-agent"]').click()
   await page.locator('[data-testid="settings-agent-tab"]').waitFor({ state: 'visible', timeout: 10_000 })
 }
 

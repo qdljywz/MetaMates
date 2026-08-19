@@ -1,4 +1,5 @@
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
 import {
@@ -23,6 +24,7 @@ import {
   ensureE2ESandbox,
   getE2EWorkspace,
   removeE2EFile,
+  resetE2ELinkSeedContent,
 } from '../helpers/myM2Fixtures'
 import { contextMenuPickOnTreeTitle, pickContextMenuItem, rightClickTreeTitle } from '../helpers/contextMenu'
 import { openCommandPalette, openDailyNoteShortcut, openDailyPlanShortcut, openGlobalSearch, toggleFileTreeShortcut } from '../helpers/shortcuts'
@@ -42,7 +44,7 @@ import {
   readVaultFileUtf8,
   vaultFileExists,
 } from '../helpers/vaultAssert'
-import { openSettingsModal, settingsModalLocator } from '../helpers/comprehensiveAudit'
+import { openSettingsModal, openSettingsTab, settingsModalLocator } from '../helpers/comprehensiveAudit'
 import {
   getDailyNoteFileName,
   getDailyPlanFileName,
@@ -66,7 +68,7 @@ function commandPalette(page: Page) {
  * Default `npm run test:e2e` runs only this file (E2E_SINGLE_SESSION=1).
  * Exhaustive UI/interaction audit: `e2e/suite/27-comprehensive-final-audit.spec.ts` (via `npm run test:e2e:full`).
  *
- * Default: steps 1–24 + 28 (no LLM prompts). Agent-live steps 25–27 require E2E_AGENT_LIVE=1.
+ * Default: steps 1–24 + 29–31 + 28 (no LLM prompts). Agent-live steps 25–27 require E2E_AGENT_LIVE=1.
  * Run agent smoke once: npm run test:e2e:agent-live
  */
 test.describe.serial('@suite Full journey (single session)', () => {
@@ -97,6 +99,7 @@ test.describe.serial('@suite Full journey (single session)', () => {
   let folderPath = ''
   let inboxNotePath = ''
   let paletteNotePath = ''
+  let altWorkspace = ''
   const inboxPath = path.join(workspace, INBOX_DIR)
 
   test.beforeAll(async () => {
@@ -109,6 +112,7 @@ test.describe.serial('@suite Full journey (single session)', () => {
     ensureE2ESandbox(workspace)
     dragItemPath = path.join(sandboxPath, E2E_DRAG_ITEM_FILE)
     fs.writeFileSync(dragItemPath, '# E2E drag item\n', 'utf8')
+    altWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'metamates-e2e-alt-ws-'))
     app = await launchMetaMatesApp(workspace)
     page = await resolveMainWindow(app, { requireChatInput: false })
     await waitForAppShell(page)
@@ -168,7 +172,57 @@ test.describe.serial('@suite Full journey (single session)', () => {
       }
     }
     if (app) await closeElectronApp(app)
+    if (altWorkspace) {
+      try {
+        fs.rmSync(altWorkspace, { recursive: true, force: true })
+      } catch {
+        // best-effort
+      }
+    }
   })
+
+  async function readSavedWorkspace(): Promise<string | null> {
+    return page.evaluate(async () => {
+      const settings = await window.electronAPI?.getSettings()
+      return settings?.workspacePath ?? null
+    })
+  }
+
+  async function markSeedTabDirty(): Promise<void> {
+    await expect
+      .poll(async () => page.evaluate(() => typeof (window as any).__metamatesE2EDispatch === 'function'), {
+        timeout: 30_000,
+      })
+      .toBe(true)
+
+    await page.evaluate(() => window.__METAMATES_E2E__?.setAutoSave?.(false))
+    await expect
+      .poll(async () => {
+        const settings = await page.evaluate(async () => window.electronAPI?.getSettings())
+        return settings?.autoSave
+      }, { timeout: 8_000 })
+      .toBe(false)
+
+    await page.evaluate(
+      ({ filePath, name }) => {
+        const dispatch = (window as { __metamatesE2EDispatch?: (action: unknown) => void }).__metamatesE2EDispatch
+        dispatch?.({ type: 'ADD_TAB', payload: { path: filePath, name, isDirty: false } })
+        dispatch?.({ type: 'SET_CURRENT_FILE', payload: filePath })
+        dispatch?.({ type: 'UPDATE_TAB_DIRTY', payload: { path: filePath, isDirty: true } })
+      },
+      { filePath: seedPath, name: E2E_LINK_SEED_FILE },
+    )
+    await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: E2E_LINK_SEED_FILE })).toBeVisible({
+      timeout: 15_000,
+    })
+    await expect(page.locator('.tab-bar__dirty-dot').first()).toBeVisible({ timeout: 8_000 })
+  }
+
+  function unsavedSwitchModal() {
+    return page.locator('.ant-modal-confirm, .metamates-unsaved-confirm').filter({
+      hasText: /未保存|unsaved/i,
+    })
+  }
 
   test('01 startup: splash gone, no first-run modals', async () => {
     await expectSplashDismissed(page)
@@ -241,16 +295,28 @@ test.describe.serial('@suite Full journey (single session)', () => {
 
   test('07 editor: auto-save writes changes to disk', async () => {
     const marker = `E2E_PERSIST_${Date.now()}`
-    await page.locator('[data-testid="tab-bar"]').filter({ hasText: E2E_LINK_SEED_FILE }).click()
-    await page.locator('.cm-content').click()
-    await page.keyboard.press('End')
+    const tab = page.locator('[data-testid="tab-bar"]').filter({ hasText: E2E_LINK_SEED_FILE })
+    await tab.click()
+    const editor = page.locator('.editor-area .cm-content')
+    await expect(editor).toBeVisible({ timeout: 10_000 })
+    await editor.click()
+    await page.keyboard.press('Control+End')
     await page.keyboard.press('Enter')
-    await page.keyboard.type(marker)
-    await expect.poll(() => readVaultFileUtf8(seedPath).includes(marker), { timeout: 15_000 }).toBe(true)
+    await page.keyboard.type(marker, { delay: 15 })
+    await expect
+      .poll(() => readVaultFileUtf8(seedPath).includes(marker), { timeout: 30_000, intervals: [500] })
+      .toBe(true)
   })
 
   test('08 editor: preview mode and wiki link opens target tab', async () => {
-    await page.locator('[data-testid="tab-bar"]').filter({ hasText: E2E_LINK_SEED_FILE }).click()
+    resetE2ELinkSeedContent(workspace)
+    await closeTabByName(page, E2E_LINK_SEED_FILE)
+    await ensureFolderExpanded(page, PROJECTS_DIR)
+    await ensureFolderExpanded(page, E2E_SANDBOX_DIR_NAME)
+    await page.locator('.ant-tree-title').filter({ hasText: E2E_LINK_SEED_FILE }).click()
+    await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: E2E_LINK_SEED_FILE })).toBeVisible({
+      timeout: 15_000,
+    })
     await page.locator('.cm-content').click()
     await page.keyboard.press('End')
     await page.keyboard.press('Enter')
@@ -262,7 +328,7 @@ test.describe.serial('@suite Full journey (single session)', () => {
 
     await page.locator('.editor-area button .anticon-eye').locator('..').click()
     await expect(page.locator('.cm-content')).toBeHidden({ timeout: 5_000 })
-    await page.locator('.editor-area a').filter({ hasText: 'e2e-link-target' }).click()
+    await page.locator('.editor-area a.md-wiki-link').filter({ hasText: 'e2e-link-target' }).first().click()
     await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: E2E_LINK_TARGET_FILE })).toBeVisible({
       timeout: 15_000,
     })
@@ -720,6 +786,59 @@ test.describe.serial('@suite Full journey (single session)', () => {
 
     await expect(page.locator('[data-testid="chat-input"]')).toBeEnabled({ timeout: 120_000 })
     await waitForAgentTurnIdle(page, 90_000, { requireSlashChips: false }).catch(() => {})
+  })
+
+  test('29 settings: agent tab renders CLI status cards', async () => {
+    await openSettingsTab(page, 'agent')
+    const agentTab = page.locator('[data-testid="settings-agent-tab"]')
+    await expect(agentTab.getByText(/Mobile capture|手机剪藏/i).first()).toBeVisible()
+    await expect(agentTab.getByText(/AI 助手|AI assistants/i).first()).toBeVisible()
+    const cards = page.locator('[data-testid^="agent-cli-status-"]')
+    await expect(async () => {
+      expect(await cards.count()).toBeGreaterThan(0)
+    }).toPass({ timeout: 15_000, intervals: [500] })
+    await page.keyboard.press('Escape')
+  })
+
+  test('30 workspace: dirty tab blocks switch until cancel', async () => {
+    await markSeedTabDirty()
+
+    await page.evaluate((alt) => {
+      window.__METAMATES_E2E__?.clearSelectDirectoryQueue?.()
+      window.__METAMATES_E2E__?.queueSelectDirectory?.({ canceled: false, filePaths: [alt] })
+    }, altWorkspace)
+
+    await page.click('[data-testid="activity-workspace"]')
+    const modal = unsavedSwitchModal()
+    await expect(modal).toBeVisible({ timeout: 8_000 })
+    await modal.getByRole('button', { name: /取\s*消|Cancel/i }).click()
+
+    await expect.poll(async () => readSavedWorkspace()).toBe(workspace)
+    await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: E2E_LINK_SEED_FILE })).toBeVisible()
+  })
+
+  test('31 workspace: confirm discard switches vault and restores', async () => {
+    await page.evaluate((alt) => {
+      window.__METAMATES_E2E__?.clearSelectDirectoryQueue?.()
+      window.__METAMATES_E2E__?.queueSelectDirectory?.({ canceled: false, filePaths: [alt] })
+    }, altWorkspace)
+
+    await page.click('[data-testid="activity-workspace"]')
+    const modal = unsavedSwitchModal()
+    await expect(modal).toBeVisible({ timeout: 8_000 })
+    await modal.getByRole('button', { name: /关闭不保存|close without saving/i }).click()
+
+    await expect.poll(async () => readSavedWorkspace(), { timeout: 30_000 }).toBe(altWorkspace)
+    await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: E2E_LINK_SEED_FILE })).toHaveCount(0)
+
+    await page.evaluate(() => window.__METAMATES_E2E__?.setAutoSave?.(true))
+
+    await page.evaluate((ws) => {
+      window.__METAMATES_E2E__?.clearSelectDirectoryQueue?.()
+      window.__METAMATES_E2E__?.queueSelectDirectory?.({ canceled: false, filePaths: [ws] })
+    }, workspace)
+    await page.click('[data-testid="activity-workspace"]')
+    await expect.poll(async () => readSavedWorkspace(), { timeout: 30_000 }).toBe(workspace)
   })
 
   test('28 editor: closing last tab shows welcome screen', async () => {

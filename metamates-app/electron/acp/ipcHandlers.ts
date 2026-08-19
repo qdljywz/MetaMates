@@ -731,6 +731,7 @@ export async function registerAcpIpcHandlers(): Promise<void> {
 
     currentWorkspacePath = normalized
     setCurrentWorkspacePath(normalized)
+    sessionDb.bindConversationDatabase(normalized)
     const language = detectWorkspaceLanguage(workspacePath)
     if (detectedAgents.length === 0) {
       detectedAgents = await detectInstalledClis(true)
