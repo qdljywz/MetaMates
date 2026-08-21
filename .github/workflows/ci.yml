@@ -79,6 +79,7 @@ jobs:
 
       - name: Run smoke e2e
         run: xvfb-run -a npm run test:e2e:smoke
+        timeout-minutes: 25
         env:
           CI: true
           ELECTRON_EXTRA_LAUNCH_ARGS: --no-sandbox

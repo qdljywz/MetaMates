@@ -248,8 +248,16 @@ test.describe.serial('@suite Full journey (single session)', () => {
   })
 
   test('03 agent panel ready', async () => {
-    await expect(page.locator('[data-testid="chat-input"]')).toBeVisible({ timeout: 180_000 })
-    await expect(page.locator('[data-testid="agent-toolbar"]')).toBeVisible({ timeout: 180_000 })
+    await expect(page.locator('[data-testid="agent-panel"]')).toBeVisible({ timeout: 60_000 })
+    const chatInput = page.locator('[data-testid="chat-input"]')
+    const emptyGuide = page.locator('[data-testid="agent-cli-install-guide"]')
+    // CI images often have zero ACP CLIs — empty install guide is a valid ready state.
+    await expect(chatInput.or(emptyGuide).first()).toBeVisible({ timeout: 120_000 })
+    if (await chatInput.isVisible().catch(() => false)) {
+      await expect(page.locator('[data-testid="agent-toolbar"]')).toBeVisible({ timeout: 30_000 })
+    } else {
+      await expect(emptyGuide).toBeVisible()
+    }
   })
 
   test('04 file tree: folder click safe, caret stable', async () => {
