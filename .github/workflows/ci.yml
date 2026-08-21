@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22'
           cache: npm
           cache-dependency-path: metamates-app/package-lock.json
 
@@ -33,8 +33,14 @@ jobs:
       - name: Open-source hygiene
         run: npm run check:opensource
 
+      # verify:round uses --skip-build; renderer assets must exist for functional checks.
+      - name: Build renderer
+        run: npx vite build && node scripts/restore-index-html.mjs
+
       - name: Typecheck, unit tests, functional checks
         run: npm run verify:round
+        env:
+          CI: true
 
       - name: UX guardrails (unit)
         run: npm run test:ux-guardrails
@@ -47,7 +53,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '22'
           cache: npm
           cache-dependency-path: metamates-app/package-lock.json
 
@@ -57,5 +63,10 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install chromium --with-deps
 
+      - name: Install xvfb for Electron
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
       - name: Run smoke e2e
-        run: npm run test:e2e:smoke
+        run: xvfb-run -a npm run test:e2e:smoke
+        env:
+          CI: true
