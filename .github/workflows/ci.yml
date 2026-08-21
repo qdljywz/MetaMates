@@ -63,10 +63,14 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install chromium --with-deps
 
-      - name: Install xvfb for Electron
-        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: Install Electron Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1 libasound2t64 libgtk-3-0 libx11-xcb1 libxcb-dri3-0
 
       - name: Run smoke e2e
         run: xvfb-run -a npm run test:e2e:smoke
         env:
           CI: true
+          # Full journey is long; keep default timeouts from playwright.config.ts
+          ELECTRON_EXTRA_LAUNCH_ARGS: --no-sandbox

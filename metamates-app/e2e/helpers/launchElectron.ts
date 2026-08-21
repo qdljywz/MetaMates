@@ -310,7 +310,7 @@ export async function launchMetaMatesApp(
     console.log(`[E2E] Packaged launch: ${packagedExe}`)
     const launched = await electron.launch({
       executablePath: packagedExe,
-      args: [`--user-data-dir=${userDataDir}`],
+      args: [`--user-data-dir=${userDataDir}`, ...electronCiArgs()],
       timeout: 120_000,
       env: launchEnv,
     })
@@ -319,13 +319,22 @@ export async function launchMetaMatesApp(
   }
 
   const launched = await electron.launch({
-    args: ['.', `--user-data-dir=${userDataDir}`],
+    args: ['.', `--user-data-dir=${userDataDir}`, ...electronCiArgs()],
     cwd: ROOT,
     timeout: 120_000,
     env: launchEnv,
   })
   if (options?.freshUserData) ephemeralUserDataByApp.set(launched, userDataDir)
   return launched
+}
+
+/**
+ * GitHub Actions / Linux runners need these Chromium flags or Electron exits immediately.
+ * @returns {string[]}
+ */
+function electronCiArgs(): string[] {
+  if (process.env.CI !== 'true' && process.env.GITHUB_ACTIONS !== 'true') return []
+  return ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
 }
 
 async function pickMainWindow(app: ElectronApplication, deadlineMs: number): Promise<Page> {
