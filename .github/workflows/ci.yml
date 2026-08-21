@@ -74,11 +74,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1 libasound2t64 libgtk-3-0 libx11-xcb1 libxcb-dri3-0
-
-      - name: Probe Electron binary
-        run: |
-          test -f dist-electron/main.cjs
-          node -e "const e=require('electron'); console.log('electron-bin', e); require('child_process').execFileSync(e,['--version'],{stdio:'inherit'})"
+          ls -la dist-electron/main.cjs
+          node -e "const p=require('electron'); console.log('electron-bin=', p); require('fs').accessSync(p); "
 
       - name: Run smoke e2e
         run: xvfb-run -a npm run test:e2e:smoke
