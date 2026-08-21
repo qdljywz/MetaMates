@@ -45,10 +45,7 @@ jobs:
       - name: UX guardrails (unit)
         run: npm run test:ux-guardrails
 
-  # Linux Electron journey needs a display + sandbox debug loop; keep verify as the merge gate.
-  # Re-enable after a green local `xvfb-run -a npm run test:e2e:smoke` on ubuntu-latest.
   e2e-smoke:
-    if: ${{ false }}
     runs-on: ubuntu-latest
     needs: verify
     steps:
@@ -63,6 +60,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Fresh job has no dist-electron — package.json main is dist-electron/main.cjs.
+      - name: Compile Electron main process
+        run: npm run electron:compile
+
+      - name: Rebuild native modules for Electron
+        run: npm run rebuild:native
+
       - name: Install Playwright browser
         run: npx playwright install chromium --with-deps
 
@@ -71,12 +75,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1 libasound2t64 libgtk-3-0 libx11-xcb1 libxcb-dri3-0
 
-      - name: Probe Electron under xvfb
+      - name: Probe Electron binary
         run: |
-          xvfb-run -a npx electron --no-sandbox -e "const {app}=require('electron'); app.whenReady().then(() => { console.log('electron-ok'); app.quit(); });"
+          test -f dist-electron/main.cjs
+          node -e "const e=require('electron'); console.log('electron-bin', e); require('child_process').execFileSync(e,['--version'],{stdio:'inherit'})"
 
       - name: Run smoke e2e
         run: xvfb-run -a npm run test:e2e:smoke
         env:
           CI: true
           ELECTRON_EXTRA_LAUNCH_ARGS: --no-sandbox
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-smoke-report
+          path: |
+            metamates-app/e2e-results.json
+            metamates-app/test-results/
+            metamates-app/playwright-report/
+          if-no-files-found: ignore

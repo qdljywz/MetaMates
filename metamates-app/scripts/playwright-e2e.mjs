@@ -13,9 +13,19 @@ const mode = (process.argv[2] || 'journey').toLowerCase()
 delete process.env.E2E_SPLIT
 
 function runPlaywright(project) {
-  const args = ['playwright', 'test']
+  const cli = path.join(ROOT, 'node_modules', '@playwright', 'test', 'cli.js')
+  const args = [cli, 'test']
   if (project) args.push(`--project=${project}`)
-  return spawnSync('npx', args, { cwd: ROOT, stdio: 'inherit', shell: true })
+  const result = spawnSync(process.execPath, args, {
+    cwd: ROOT,
+    stdio: 'inherit',
+    env: process.env,
+  })
+  if (result.error) {
+    console.error('[playwright-e2e] spawn failed:', result.error)
+    return { status: 1 }
+  }
+  return result
 }
 
 let status = 0

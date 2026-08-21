@@ -2,6 +2,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { execSync } from 'child_process'
+import { createRequire } from 'module'
 import { fileURLToPath } from 'url'
 import { _electron as electron, expect, type ElectronApplication, type Page } from '@playwright/test'
 import { STARTUP_SPLASH_E2E_BUDGET_MS } from '../../src/utils/startupUx'
@@ -306,6 +307,13 @@ export async function launchMetaMatesApp(
     delete launchEnv.METAMATES_E2E_NO_AGENTS
   }
 
+  const mainEntry = path.join(ROOT, 'dist-electron', 'main.cjs')
+  if (!packagedExe && !fs.existsSync(mainEntry)) {
+    throw new Error(
+      `Missing ${mainEntry} — run npm run electron:compile before E2E (CI e2e jobs must compile the main process).`,
+    )
+  }
+
   if (packagedExe) {
     console.log(`[E2E] Packaged launch: ${packagedExe}`)
     const launched = await electron.launch({
@@ -319,6 +327,7 @@ export async function launchMetaMatesApp(
   }
 
   const launched = await electron.launch({
+    executablePath: resolveElectronExecutable(),
     args: ['.', `--user-data-dir=${userDataDir}`, ...electronCiArgs()],
     cwd: ROOT,
     timeout: 120_000,
@@ -326,6 +335,18 @@ export async function launchMetaMatesApp(
   })
   if (options?.freshUserData) ephemeralUserDataByApp.set(launched, userDataDir)
   return launched
+}
+
+/**
+ * Absolute path to the Electron binary (`require('electron')` returns a string path).
+ */
+function resolveElectronExecutable(): string {
+  const require = createRequire(import.meta.url)
+  const electronPath = require('electron') as string
+  if (!electronPath || !fs.existsSync(electronPath)) {
+    throw new Error(`Electron binary not found (require('electron') → ${String(electronPath)})`)
+  }
+  return electronPath
 }
 
 /**
