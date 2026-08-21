@@ -802,8 +802,12 @@ test.describe.serial('@suite Full journey (single session)', () => {
     await expect(agentTab.getByText(/Mobile capture|手机剪藏/i).first()).toBeVisible()
     await expect(agentTab.getByText(/AI 助手|AI assistants/i).first()).toBeVisible()
     const cards = page.locator('[data-testid^="agent-cli-status-"]')
+    const emptyHint = agentTab.getByText(/尚未检测到已安装的 AI 助手|No installed AI assistants detected/i)
+    // CI images may have zero installed CLIs — empty hint is valid; cards when any runtime exists.
     await expect(async () => {
-      expect(await cards.count()).toBeGreaterThan(0)
+      const cardCount = await cards.count()
+      const emptyVisible = await emptyHint.isVisible().catch(() => false)
+      expect(cardCount > 0 || emptyVisible).toBe(true)
     }).toPass({ timeout: 15_000, intervals: [500] })
     await page.keyboard.press('Escape')
   })
