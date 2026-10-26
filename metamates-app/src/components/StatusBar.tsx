@@ -3,12 +3,14 @@ import { Space, Tooltip } from 'antd'
 import { CalendarOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { storageService } from '../services/storage'
+import { PomodoroStatusControl } from '../features/pomodoro'
 
 interface StatusBarProps {
   workspacePath?: string
   currentFile?: string
   onCreateDailyNote?: () => void
   onCreateDailyPlan?: () => void
+  onOpenSettings?: () => void
 }
 
 const StatusBar: React.FC<StatusBarProps> = ({
@@ -16,6 +18,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
   currentFile = '',
   onCreateDailyNote,
   onCreateDailyPlan,
+  onOpenSettings,
 }) => {
   const { t } = useTranslation('common')
   const [calendarCount, setCalendarCount] = useState<number | null>(null)
@@ -41,9 +44,11 @@ const StatusBar: React.FC<StatusBarProps> = ({
       if (result.events.length === 0) {
         setCalendarTooltip(t('statusBar.noEventsToday'))
       } else {
-        setCalendarTooltip(
-          result.events.map((e) => `${e.time} ${e.summary}`).join('\n')
-        )
+        const lines = result.events.map((e) => `${e.time} ${e.summary}`)
+        const planHint = result.planSource
+          ? `\n← ${result.planSource.split(/[/\\]/).pop()}`
+          : ''
+        setCalendarTooltip(`${lines.join('\n')}${planHint}`)
       }
     }
 
@@ -53,7 +58,8 @@ const StatusBar: React.FC<StatusBarProps> = ({
       cancelled = true
       clearInterval(timer)
     }
-  }, [workspacePath, t])
+    // Re-read when today's PLAN may have been edited / focused.
+  }, [workspacePath, currentFile, t])
 
   const shortcutButtonStyle: React.CSSProperties = {
     background: 'transparent',
@@ -77,11 +83,23 @@ const StatusBar: React.FC<StatusBarProps> = ({
         )}
         {calendarCount !== null && (
           <Tooltip title={calendarTooltip}>
-            <span className="status-bar-item">
+            <button
+              type="button"
+              className="status-bar-item"
+              style={shortcutButtonStyle}
+              onClick={() => onCreateDailyPlan?.()}
+              title={t('statusBar.dailyPlan')}
+            >
               <CalendarOutlined style={{ marginRight: 4 }} />
               {t('statusBar.eventsToday', { count: calendarCount })}
-            </span>
+            </button>
           </Tooltip>
+        )}
+        {workspacePath && (
+          <PomodoroStatusControl
+            workspacePath={workspacePath}
+            onOpenSettings={onOpenSettings}
+          />
         )}
       </Space>
 

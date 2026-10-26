@@ -71,6 +71,9 @@ startup-audit/
 startup-audit-summary.json
 business-logic-report.json
 overnight-verify*.json
+# Local one-off capture / asar extract / history probe dirs
+tmp-*/
+release-cleanup-log.txt
 
 # --- TypeScript / 编译锁 ---
 *.tsbuildinfo

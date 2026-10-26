@@ -54,6 +54,7 @@ import './agent/AgentPanel.css'
 import { mapBackendSnapshotToStatus, DEFAULT_AGENT_MODE, isAutoApproveMode, type AgentConnStatus, type BackendConnectionSnapshot } from '../utils/agentConnectionStatus'
 import { acknowledgeYoloMode, hasYoloAcknowledged, shouldSkipYoloFirstRunPrompt } from '../utils/yoloAcknowledgment'
 import { mergeHistoryWithStreaming } from '../utils/messageMerge'
+import { shouldSkipHistoryReload } from '../utils/historyHydration'
 import { finalizeInProgressToolCalls, isToolCallInProgress, sanitizeStaleSessionMessages } from '../utils/toolCallStatus'
 import { resolveAcpFailure } from '../utils/acpFailureResolution'
 import { getModeOptionsForBackend } from '../utils/agentModes'
@@ -238,6 +239,9 @@ const AgentChatPanel: React.FC = () => {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [messagesPaneEpoch, setMessagesPaneEpoch] = useState(0)
   const historyFetchRef = useRef<Set<string>>(new Set())
+  /** Backends whose vault DB history has been applied (empty or not). Connect-error
+   *  bubbles must not count as "cached history" and block a real DB reload. */
+  const historyHydratedRef = useRef<Set<string>>(new Set())
   const agentStatusRef = useRef(agentStatus)
   agentStatusRef.current = agentStatus
   const [acpDynamicCommands, setAcpDynamicCommands] = useState<Array<{ name: string; description?: string }>>([])
@@ -997,7 +1001,13 @@ const AgentChatPanel: React.FC = () => {
     options?: { force?: boolean; limit?: number; silent?: boolean },
   ) => {
     const cached = messagesRef.current.get(backend)
-    if (!options?.force && cached && cached.length > 0) {
+    // Only skip when vault history was already applied. Error/connect bubbles alone
+    // must not block a later DB load (that was why Claude timeout left an empty chat).
+    if (shouldSkipHistoryReload({
+      force: options?.force,
+      hydrated: historyHydratedRef.current.has(backend),
+      cachedCount: cached?.length ?? 0,
+    })) {
       return
     }
     if (historyFetchRef.current.has(backend) && !options?.force) {
@@ -1007,6 +1017,7 @@ const AgentChatPanel: React.FC = () => {
     const showLoadingIndicator = !options?.silent
       && !hasStartupHistoryCache(backend)
       && backend === currentBackendRef.current
+      && !historyHydratedRef.current.has(backend)
       && !(messagesRef.current.get(backend)?.length)
     if (showLoadingIndicator) setHistoryLoading(true)
 
@@ -1027,9 +1038,29 @@ const AgentChatPanel: React.FC = () => {
       const result = await window.electronAPI?.acp.getConversationHistory(backend, {
         limit: options?.limit ?? INITIAL_HISTORY_LIMIT,
       })
+      // Main still unbound → empty is not authoritative; allow later retries.
+      if ((result as { unbound?: boolean } | undefined)?.unbound) {
+        if (typeof window !== 'undefined') {
+          ;(window as Window & { __METAMATES_DEBUG_HISTORY__?: unknown }).__METAMATES_DEBUG_HISTORY__ = {
+            backend,
+            unbound: true,
+            at: Date.now(),
+          }
+        }
+        return
+      }
+      historyHydratedRef.current.add(backend)
       if (!result?.messages?.length) {
         applyHistoryMeta(backend, result?.total, result?.hasMore ?? false)
         applyHistoryBatch(backend, [], result?.hasMore ?? false)
+        if (typeof window !== 'undefined') {
+          ;(window as Window & { __METAMATES_DEBUG_HISTORY__?: unknown }).__METAMATES_DEBUG_HISTORY__ = {
+            backend,
+            total: result?.total ?? 0,
+            fetched: 0,
+            at: Date.now(),
+          }
+        }
         if (backend === currentBackendRef.current) {
           resetTurnState()
         }
@@ -1038,6 +1069,14 @@ const AgentChatPanel: React.FC = () => {
 
       applyHistoryMeta(backend, result.total, result.hasMore)
       applyHistoryBatch(backend, result.messages as Message[], result.hasMore)
+      if (typeof window !== 'undefined') {
+        ;(window as Window & { __METAMATES_DEBUG_HISTORY__?: unknown }).__METAMATES_DEBUG_HISTORY__ = {
+          backend,
+          total: result.total,
+          fetched: result.messages.length,
+          at: Date.now(),
+        }
+      }
 
       if (backend === currentBackendRef.current) {
         resetTurnState()
@@ -1148,8 +1187,12 @@ const AgentChatPanel: React.FC = () => {
       syncAcpConnection(backend, 'error', { error: result.error || unknownError })
       setWarmupPhase('error')
       log(`Failed to switch to ${backend}: ${result.error || unknownError}`, 'error')
+      // Connect failure must not leave the panel stuck with only the error bubble.
+      if (!historyHydratedRef.current.has(backend)) {
+        void loadAgentHistory(backend, { force: true, silent: true })
+      }
     }
-  }, [syncAllAgentStatuses, markAuthRequired, finalizeBackendSession, log, t, syncAcpConnection, handlePromptFailure])
+  }, [syncAllAgentStatuses, markAuthRequired, finalizeBackendSession, log, t, syncAcpConnection, handlePromptFailure, loadAgentHistory])
 
   const selectAgent = useCallback((backend: string) => {
     const existingStatus = agentStatus.get(backend) || 'disconnected'
@@ -1332,11 +1375,17 @@ const AgentChatPanel: React.FC = () => {
         if (isActive) handlePromptFailure(backend, sessionResult, { context: 'connect' })
         markAuthRequired(backend, sessionResult, { showModal: false })
         if (isActive) setWarmupPhase('error')
+        if (isActive && !historyHydratedRef.current.has(backend)) {
+          void loadAgentHistory(backend, { force: true, silent: true })
+        }
         return
       }
       if (sessionResult?.quotaExceeded) {
         if (isActive) handlePromptFailure(backend, sessionResult, { context: 'connect' })
         if (isActive) setWarmupPhase('error')
+        if (isActive && !historyHydratedRef.current.has(backend)) {
+          void loadAgentHistory(backend, { force: true, silent: true })
+        }
         return
       }
       if (!sessionResult?.success || !sessionResult?.sessionId) {
@@ -1355,6 +1404,9 @@ const AgentChatPanel: React.FC = () => {
           })
           setStatus('error')
           setStatusText(t('status.error', { error: connectErr }))
+          if (!historyHydratedRef.current.has(backend)) {
+            void loadAgentHistory(backend, { force: true, silent: true })
+          }
         }
         await syncAllAgentStatuses([backend])
         return
@@ -1367,13 +1419,16 @@ const AgentChatPanel: React.FC = () => {
       })
       if (!ready) {
         if (isActive) setWarmupPhase('error')
+        if (isActive && !historyHydratedRef.current.has(backend)) {
+          void loadAgentHistory(backend, { force: true, silent: true })
+        }
         return
       }
 
       log(`${backend} connected successfully!`, 'success')
 
-      if (backend === currentBackendRef.current && !(messagesRef.current.get(backend)?.length)) {
-        void loadAgentHistory(backend)
+      if (backend === currentBackendRef.current && !historyHydratedRef.current.has(backend)) {
+        void loadAgentHistory(backend, { force: true, silent: true })
       }
       
       if (backend === currentBackendRef.current) {
@@ -1385,6 +1440,9 @@ const AgentChatPanel: React.FC = () => {
       if (isActive) {
         setWarmupPhase('error')
         handlePromptFailure(backend, { error: err?.message || t('status.unknownError') }, { context: 'connect' })
+        if (!historyHydratedRef.current.has(backend)) {
+          void loadAgentHistory(backend, { force: true, silent: true })
+        }
       }
       setAgentStatus(prev => {
         const newMap = new Map(prev)
@@ -1614,6 +1672,7 @@ const AgentChatPanel: React.FC = () => {
         if (!backend) return false
         const cache = consumeStartupHistoryCache(backend)
         if (!cache?.messages?.length) return false
+        historyHydratedRef.current.add(backend)
         applyHistoryMeta(backend, cache.total, cache.hasMore)
         applyHistoryBatch(backend, cache.messages as Message[], cache.hasMore ?? false)
         return true
@@ -1909,6 +1968,7 @@ const AgentChatPanel: React.FC = () => {
       messagesRef.current = new Map()
       setHistoryHasMore(new Map())
       historyFetchRef.current.clear()
+      historyHydratedRef.current.clear()
       setHistoryTotals(new Map())
       setMessagesPaneEpoch((n) => n + 1)
 
@@ -1924,6 +1984,7 @@ const AgentChatPanel: React.FC = () => {
       if (activeBackend) {
         reconnectAttemptRef.current = 0
         setWarmupPhase('idle')
+        historyHydratedRef.current.delete(activeBackend)
         await loadAgentHistory(activeBackend, { force: true, silent: isFirstBind })
       }
     })()
@@ -1932,10 +1993,54 @@ const AgentChatPanel: React.FC = () => {
   useEffect(() => {
     const checkDb = async () => {
       const status = await window.electronAPI?.getDatabaseStatus?.()
-      setChatDbUnavailable(status?.available === false)
+      const unavailable = status?.available === false
+      setChatDbUnavailable(unavailable)
+      // DB may come online after first empty history fetch (splash race) — reload once.
+      if (!unavailable && state.workspacePath && currentBackendRef.current) {
+        const backend = currentBackendRef.current
+        if (!historyHydratedRef.current.has(backend)) {
+          void loadAgentHistory(backend, { force: true, silent: true })
+        }
+      }
     }
     void checkDb()
-  }, [state.workspacePath])
+  }, [state.workspacePath, loadAgentHistory])
+
+  // Late workspace bind / missed splash cache — retry until vault history is applied
+  // (error bubbles alone must not cancel this retry).
+  useEffect(() => {
+    if (!state.workspacePath || !currentBackend) return
+    if (historyHydratedRef.current.has(currentBackend)) return
+    const timer = window.setTimeout(() => {
+      if (historyHydratedRef.current.has(currentBackend)) return
+      void loadAgentHistory(currentBackend, { force: true, silent: true })
+    }, 800)
+    return () => window.clearTimeout(timer)
+  }, [state.workspacePath, currentBackend, loadAgentHistory])
+
+  /**
+   * After CLI detection finishes, the message list remounts from the "detecting"
+   * skeleton into VirtualAgentMessageList. If history was applied during the
+   * skeleton phase (or raced with workspace bind), force one more vault reload
+   * whenever the active transcript is still empty.
+   */
+  useEffect(() => {
+    if (!agentsScanReady || !currentBackend || !state.workspacePath) return
+    if (detectedAgents.length === 0) return
+    const timer = window.setTimeout(() => {
+      const cached = messagesRef.current.get(currentBackend)?.length ?? 0
+      if (cached > 0) return
+      historyHydratedRef.current.delete(currentBackend)
+      void loadAgentHistory(currentBackend, { force: true, silent: true })
+    }, 600)
+    return () => window.clearTimeout(timer)
+  }, [
+    agentsScanReady,
+    currentBackend,
+    state.workspacePath,
+    detectedAgents.length,
+    loadAgentHistory,
+  ])
 
   useEffect(() => () => {
     if (warmupTimerRef.current) clearTimeout(warmupTimerRef.current)

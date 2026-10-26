@@ -17,9 +17,9 @@ This document provides 15 prompts to use directly from the MetaMates **thinking 
     > "Read my daily note, calendar, and task list. Generate a prioritized plan for today based on what I've said is important this week."
 
 ### /closeday (Daily Review)
-*   **Function**: Summarize the day's progress, record new ideas, and list tasks that need to be carried over to tomorrow.
+*   **Function**: Summarize today's progress; sync completed `## Pomodoro` lines into the diary ✅ section; capture ideas; list carry-over tasks.
 *   **Prompt**:
-    > "Review what I worked on today. Summarize progress, capture any new ideas that came up, and note anything unfinished that should carry over to tomorrow."
+    > "Review what I worked on today. Sync completed ## Pomodoro / ## 番茄钟 lines into the diary ✅ section (dedupe; keep the Pomodoro ledger). Summarize progress, capture new ideas, and note unfinished items to carry over tomorrow."
 
 ### /schedule (Time Scheduling)
 *   **Function**: Suggest a time allocation plan for this week based on priorities and calendar, flagging potential conflicts.

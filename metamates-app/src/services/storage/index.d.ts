@@ -42,6 +42,10 @@ export interface AppSettings {
     engineSetupStatus?: 'pending' | 'vault_only' | 'ready';
     engineSetupSkippedAt?: number;
     preferredAssistant?: string;
+    /** Pomodoro focus length in minutes (default 25). */
+    pomodoroFocusMin?: number;
+    /** Pomodoro short break length in minutes (default 5). */
+    pomodoroBreakMin?: number;
     recentFiles: string[];
     lastOpenedFile?: string;
 }

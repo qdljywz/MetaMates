@@ -52,6 +52,7 @@ import {
   markSplashMounted,
   waitUntilSplashEnter,
 } from './utils/startupUx'
+import { finishStartupBootPhase, handoffHtmlBootSplash } from './utils/startupBoot'
 import { applyThemeBootstrapToDocument } from './utils/themeBootstrap'
 import { shouldShowEngineSetup, engineSetupReadyPatch, engineSetupPendingPatch, vaultReminderSessionKey } from './utils/engineSetupPolicy'
 import { detectHasUsableAgent } from './utils/engineSetupDetect'
@@ -129,8 +130,17 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     markSplashMounted()
     document.documentElement.classList.add('startup-phase')
-    applyThemeBootstrapToDocument()
+    // HTML #boot-splash is SVG-only and sits above React (z-index max). Hand it off as soon
+    // as StartupSplash has painted so the logo.png reveal can run. Keep data-boot for the
+    // FULL splash duration — clearing it early lets light theme flash cream chrome.
+    let handoffRaf2 = 0
+    const handoffRaf1 = window.requestAnimationFrame(() => {
+      handoffRaf2 = window.requestAnimationFrame(() => {
+        handoffHtmlBootSplash()
+      })
+    })
     const forceEnterTimer = window.setTimeout(() => {
+      finishStartupBootPhase()
       setLoading((prev) => {
         if (prev) {
           console.warn('[Startup] force-enter triggered after', STARTUP_FORCE_ENTER_MS, 'ms')
@@ -139,6 +149,8 @@ const AppContent: React.FC = () => {
       })
     }, STARTUP_FORCE_ENTER_MS)
     return () => {
+      window.cancelAnimationFrame(handoffRaf1)
+      window.cancelAnimationFrame(handoffRaf2)
       window.clearTimeout(forceEnterTimer)
       document.documentElement.classList.remove('startup-phase')
     }
@@ -969,6 +981,7 @@ const AppContent: React.FC = () => {
           currentFile={state.currentFile ?? undefined}
           onCreateDailyNote={handleCreateDailyNote}
           onCreateDailyPlan={handleCreateDailyPlan}
+          onOpenSettings={openSettings}
         />
         <WelcomeWizard
           visible={showWizard}

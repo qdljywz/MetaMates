@@ -4,6 +4,7 @@
     var bg = '#18181b'
     var mode = 'dark'
     var palette = 'paper'
+    var boot = document.documentElement.hasAttribute('data-boot')
     if (raw) {
       var settings = JSON.parse(raw).settings || {}
       palette = settings.lightPalette === 'cold' ? 'cold' : 'paper'
@@ -24,7 +25,10 @@
     if (mode === 'light') {
       document.documentElement.setAttribute('data-light-palette', palette)
     }
-    document.documentElement.style.backgroundColor = bg
+    // Keep dark chrome while #boot-splash covers the window (avoids cream/white flash).
+    var paint = boot ? '#18181b' : bg
+    document.documentElement.style.backgroundColor = paint
+    if (document.body) document.body.style.backgroundColor = paint
   } catch (e) {
     /* keep dark default */
   }

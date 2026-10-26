@@ -181,6 +181,9 @@ html.startup-phase #root {
 html[data-boot='true'] body,
 html[data-boot='true'] #root {
   transition: none !important;
+  /* Must beat [data-theme=light] --canvas-base cream, or first paint is 白屏. */
+  background: #18181b !important;
+  color: #fafafa !important;
 }
 
 #root {

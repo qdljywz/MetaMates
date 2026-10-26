@@ -356,6 +356,7 @@ const lightNavButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
   padding: '2px 8px',
   fontSize: 12,
+  color: 'var(--text-primary, #18181b)',
 }
 
 const darkNavButtonStyle: React.CSSProperties = {
@@ -375,6 +376,7 @@ const lightActionChipStyle: React.CSSProperties = {
   cursor: 'pointer',
   padding: '2px 8px',
   fontSize: 10,
+  color: 'var(--text-primary, #18181b)',
 }
 
 const darkActionChipStyle: React.CSSProperties = {

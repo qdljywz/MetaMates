@@ -11,5 +11,6 @@
     "allowSyntheticDefaultImports": true,
     "declaration": false
   },
-  "include": ["electron/**/*"]
+  "include": ["electron/**/*"],
+  "exclude": ["electron/**/*.test.ts", "electron/**/*.spec.ts"]
 }

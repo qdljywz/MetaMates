@@ -107,6 +107,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
   const [mcpOpen, setMcpOpen] = useState(false)
   const [syncingSkills, setSyncingSkills] = useState(false)
   const [activeTabKey, setActiveTabKey] = useState<'general' | 'agent' | 'advanced'>(initialTabKey)
+  const [pomodoroStats, setPomodoroStats] = useState<{
+    todayCompletedFocus: number
+    todayFocusSec: number
+    weekCompletedFocus: number
+    weekFocusSec: number
+    recent: Array<{
+      kind: string
+      status: string
+      startedAt: string
+      actualSec: number
+      note?: string
+    }>
+  } | null>(null)
   const [agentSnapshot, setAgentSnapshot] = useState({
     vaultApiEnabled: false,
     vaultApiPort: 17333,
@@ -138,6 +151,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
       vaultApiPort: settings.vaultApiPort || 17333,
       vaultApiLanAccess: settings.vaultApiLanAccess || false,
       calendarIcsPath: settings.calendarIcsPath || '',
+      pomodoroFocusMin: settings.pomodoroFocusMin || 25,
+      pomodoroBreakMin: settings.pomodoroBreakMin || 5,
       ollamaEnabled: settings.ollamaEnabled || false,
       ollamaBaseUrl: settings.ollamaBaseUrl || 'http://127.0.0.1:11434',
       ollamaModel: settings.ollamaModel || 'llama3.2',
@@ -158,6 +173,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
     if (window.electronAPI?.ollama) {
       const status = await window.electronAPI.ollama.getStatus(settings.ollamaBaseUrl)
       setOllamaStatus({ running: status.running, models: status.models || [] })
+    }
+
+    if (window.electronAPI?.pomodoro?.getStats && state.workspacePath) {
+      try {
+        const result = await window.electronAPI.pomodoro.getStats(state.workspacePath)
+        if (result.success) {
+          setPomodoroStats(result.stats as typeof pomodoroStats)
+        }
+      } catch {
+        setPomodoroStats(null)
+      }
+    } else {
+      setPomodoroStats(null)
     }
 
     if (window.electronAPI?.vaultApi) {
@@ -238,6 +266,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
         vaultApiPort: values.vaultApiPort || 17333,
         vaultApiLanAccess: values.vaultApiLanAccess || false,
         calendarIcsPath: values.calendarIcsPath || '',
+        pomodoroFocusMin: Math.max(1, Math.round(Number(values.pomodoroFocusMin) || 25)),
+        pomodoroBreakMin: Math.max(1, Math.round(Number(values.pomodoroBreakMin) || 5)),
         ollamaEnabled: values.ollamaEnabled,
         ollamaBaseUrl: values.ollamaBaseUrl || 'http://127.0.0.1:11434',
         ollamaModel: values.ollamaModel || 'llama3.2',
@@ -749,6 +779,62 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             </Button>
           </Space.Compact>
           <SettingsHint>{t('settings.calendarHint')}</SettingsHint>
+        </SettingsSection>
+
+        <SettingsSection title={t('pomodoro.settingsTitle')}>
+          <Form.Item name="pomodoroFocusMin" label={t('pomodoro.focusMinutes')}>
+            <InputNumber min={1} max={180} style={{ width: '100%' }} data-testid="settings-pomodoro-focus" />
+          </Form.Item>
+          <Form.Item name="pomodoroBreakMin" label={t('pomodoro.breakMinutes')}>
+            <InputNumber min={1} max={60} style={{ width: '100%' }} data-testid="settings-pomodoro-break" />
+          </Form.Item>
+          {pomodoroStats && (
+            <>
+              <SettingsHint>
+                {t('pomodoro.todayStats', {
+                  count: pomodoroStats.todayCompletedFocus,
+                  minutes: Math.round(pomodoroStats.todayFocusSec / 60),
+                })}
+              </SettingsHint>
+              <SettingsHint>
+                {t('pomodoro.weekStats', {
+                  count: pomodoroStats.weekCompletedFocus,
+                  minutes: Math.round(pomodoroStats.weekFocusSec / 60),
+                })}
+              </SettingsHint>
+              <div data-testid="settings-pomodoro-recent" style={{ marginTop: 8 }}>
+                <Text strong>{t('pomodoro.recentSessions')}</Text>
+                {pomodoroStats.recent.length === 0 ? (
+                  <SettingsHint>{t('pomodoro.noSessions')}</SettingsHint>
+                ) : (
+                  <ul style={{ margin: '8px 0 0', paddingLeft: 18, maxHeight: 180, overflow: 'auto' }}>
+                    {pomodoroStats.recent.slice(0, 20).map((s, i) => {
+                      const when = (() => {
+                        try {
+                          return new Date(s.startedAt).toLocaleString()
+                        } catch {
+                          return s.startedAt
+                        }
+                      })()
+                      const kindLabel =
+                        s.kind === 'break' ? t('pomodoro.sessionBreak') : t('pomodoro.sessionFocus')
+                      const statusLabel =
+                        s.status === 'aborted'
+                          ? t('pomodoro.sessionAborted')
+                          : t('pomodoro.sessionCompleted')
+                      const mins = Math.max(0, Math.round((s.actualSec || 0) / 60))
+                      const note = s.note?.trim() ? ` — ${s.note.trim()}` : ''
+                      return (
+                        <li key={`${s.startedAt}-${i}`}>
+                          {when} · {kindLabel} · {statusLabel} · {mins}m{note}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
         </SettingsSection>
                 </div>
               ),

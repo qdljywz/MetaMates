@@ -108,6 +108,21 @@ const electronAPI: ElectronAPI = {
       date: '2025-06-19',
     })),
   },
+  pomodoro: {
+    appendSession: vi.fn(async () => ({ success: true })),
+    listSessions: vi.fn(async () => ({ success: true, sessions: [] })),
+    getStats: vi.fn(async () => ({
+      success: true,
+      stats: {
+        todayCompletedFocus: 0,
+        todayFocusSec: 0,
+        weekCompletedFocus: 0,
+        weekFocusSec: 0,
+        recent: [],
+      },
+    })),
+    setProgress: vi.fn(async () => ({ success: true })),
+  },
   intelligence: {
     prepareImport: vi.fn(async () => ({ success: false, error: 'mock' })),
     prepareUrl: vi.fn(async () => ({ success: false, error: 'mock' })),

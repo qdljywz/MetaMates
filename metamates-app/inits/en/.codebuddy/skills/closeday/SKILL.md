@@ -1,6 +1,6 @@
 ---
 name: closeday
-description: Daily Review - Summarize the day's progress, record new ideas, and list carry-over tasks
+description: Daily Review - Summarize progress, sync Pomodoro into diary body, record ideas, list carry-over tasks
 allowed-tools: Read, Write, Glob, Grep
 ---
 
@@ -8,11 +8,15 @@ allowed-tools: Read, Write, Glob, Grep
 
 Please perform the following tasks:
 
-1. **Review Today's Work**: Scan tasks and progress completed today.
-2. **Summarize Progress**: Distill core achievements and milestones.
-3. **Capture New Ideas**: Record new ideas or inspirations generated today.
-4. **List Carry-over Tasks**: Mark unfinished items to be continued tomorrow.
-5. **Update Master_Control**: Sync the daily review results.
+1. **Review Today's Work**: Scan today's progress; read `01_Log_and_Plan/YYYY-MM-DD.md`.
+2. **Pomodoro → diary body sync** (required closed-loop rule)
+   - Read `## Pomodoro` / `## 番茄钟`; MetaMates format: `- [x] 10:00–10:25 (25m) note text`
+   - For each completed `[x]`: append under ✅ Completed Today: `✅ **[note]**（🍅 [range] · [duration]）` (create section if missing); dedupe; participant-only → no invented output
+   - Remove matching Pending items; update Last-updated if present; **keep** `## Pomodoro` ledger intact
+3. **Summarize Progress**: Distill achievements (including synced pomodoros).
+4. **Capture New Ideas**: Record new ideas or inspirations generated today.
+5. **List Carry-over Tasks**: Mark unfinished items to be continued tomorrow.
+6. **Update Master_Control**: Sync the daily review results.
 
 ## Output Format
 ```
@@ -25,6 +29,9 @@ Please perform the following tasks:
 ✅ Completed Today
 - [ ] [Task 1]
 - [ ] [Task 2]
+
+🍅 Pomodoro sync
+- [written / skipped duplicates]
 
 💡 New Ideas
 - [Idea 1]

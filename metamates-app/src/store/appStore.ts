@@ -95,6 +95,8 @@ export interface AppSettings {
   preferredAssistant?: string
   cliAgentEnabled?: Record<string, boolean>
   lastAgentBackend?: string
+  pomodoroFocusMin?: number
+  pomodoroBreakMin?: number
 }
 
 export type AppAction =

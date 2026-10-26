@@ -63,14 +63,20 @@ try {
     console.error(line)
   })
 
-  // Boot splash (inline HTML, no testid)
+  // Boot splash (inline HTML) — must paint before/with first content; empty cream window = FAIL.
+  let sawBootSplash = false
   for (let i = 0; i < 40; i++) {
     const boot = await page.locator('#boot-splash').isVisible().catch(() => false)
     if (boot) {
+      sawBootSplash = true
       mark('boot-splash-visible')
       break
     }
     await page.waitForTimeout(250)
+  }
+  if (!sawBootSplash) {
+    report.errors.push('[startup-probe] #boot-splash never visible within ~10s — cold-start white/empty gap not fixed')
+    mark('boot-splash-missing')
   }
 
   // React splash
@@ -138,7 +144,15 @@ try {
   report.final = final
   mark('done', JSON.stringify(final))
 
+  const sawBoot = report.timeline.some((t) => t.phase === 'boot-splash-visible')
+  const bootMs = report.timeline.find((t) => t.phase === 'boot-splash-visible')?.atMs
+  // Brand splash should appear quickly after launch (not after multi-second blank).
+  if (sawBoot && typeof bootMs === 'number' && bootMs > 4_000) {
+    report.errors.push(`[startup-probe] #boot-splash too late (+${bootMs}ms > 4000ms)`)
+  }
+
   const ok =
+    sawBoot &&
     (final.shell || report.timeline.some((t) => ['workspace-picker', 'welcome-wizard', 'engine-setup'].includes(t.phase))) &&
     report.errors.length === 0
 

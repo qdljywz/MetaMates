@@ -55,6 +55,8 @@ export interface ConversationHistoryResult {
   messages: SessionMessage[]
   total: number
   hasMore: boolean
+  /** Main process has no vault bound yet — renderer must not treat empty as final. */
+  unbound?: boolean
 }
 
 export interface ConversationHistoryOptions {
@@ -216,11 +218,50 @@ export interface ElectronAPI {
       dateIso?: string
     ) => Promise<{
       success: boolean
-      events: Array<{ summary: string; time: string; location?: string }>
+      events: Array<{
+        summary: string
+        time: string
+        location?: string
+        origin?: 'plan' | 'ics'
+      }>
       source: string | null
+      planSource?: string | null
+      icsSource?: string | null
       date: string
       error?: string
     }>
+  }
+
+  pomodoro: {
+    appendSession: (
+      workspacePath: string,
+      record: {
+        id: string
+        kind: 'focus' | 'break'
+        status: 'completed' | 'aborted'
+        startedAt: string
+        endedAt: string
+        plannedSec: number
+        actualSec: number
+        note: string
+        dailyNotePath?: string
+      },
+    ) => Promise<{ success: boolean; session?: unknown; error?: string }>
+    listSessions: (
+      workspacePath: string,
+    ) => Promise<{ success: boolean; sessions: unknown[]; error?: string }>
+    getStats: (workspacePath: string) => Promise<{
+      success: boolean
+      stats: {
+        todayCompletedFocus: number
+        todayFocusSec: number
+        weekCompletedFocus: number
+        weekFocusSec: number
+        recent: unknown[]
+      }
+      error?: string
+    }>
+    setProgress: (ratio: number) => Promise<{ success: boolean; error?: string }>
   }
 
   intelligence: {

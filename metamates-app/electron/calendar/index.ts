@@ -7,8 +7,22 @@ import {
   formatEventTime,
   type CalendarEvent,
 } from './icsParser'
+import { parsePlanTimeBlocks } from './planTimeBlocks'
+import {
+  detectWorkspaceLanguage,
+  getLayout,
+  LEGACY_PATHS,
+} from '../workspaceLayout'
 
 export type { CalendarEvent }
+
+export interface CalendarSummaryEvent {
+  summary: string
+  time: string
+  location?: string
+  /** Origin for UI / debug */
+  origin?: 'plan' | 'ics'
+}
 
 /**
  * 从文件路径加载日历事件
@@ -49,7 +63,7 @@ export function findIcsFilesInWorkspace(workspacePath: string): string[] {
 }
 
 /**
- * 解析日历：优先用户指定路径，否则扫描工作区第一个 .ics
+ * 解析 ICS：优先用户指定路径，否则扫描工作区第一个 .ics
  */
 export function resolveCalendarEvents(
   workspacePath: string,
@@ -67,30 +81,112 @@ export function resolveCalendarEvents(
   return { events: [], source: null }
 }
 
+/** YYYY-MM-DD PLAN.md candidates under zh/en + legacy dirs. */
+export function resolveDailyPlanFilePath(
+  workspacePath: string,
+  dateStr: string,
+): string | null {
+  const language = detectWorkspaceLanguage(workspacePath)
+  const layout = getLayout(language)
+  const fileName = `${dateStr} PLAN.md`
+  const candidates = [
+    path.join(workspacePath, layout.LOG_AND_PLAN, fileName),
+    path.join(workspacePath, layout.LOG_AND_PLAN, layout.INBOX, fileName),
+    path.join(workspacePath, LEGACY_PATHS.DAILY_PLAN_DIR, fileName),
+  ]
+  // Also try the other language layout if marker detection was wrong / dual vault.
+  const other = language === 'zh' ? getLayout('en') : getLayout('zh')
+  candidates.push(
+    path.join(workspacePath, other.LOG_AND_PLAN, fileName),
+    path.join(workspacePath, other.LOG_AND_PLAN, other.INBOX, fileName),
+  )
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return null
+}
+
+export function loadPlanTimeBlockEvents(
+  workspacePath: string,
+  dateStr: string,
+): { events: CalendarSummaryEvent[]; planPath: string | null } {
+  const planPath = resolveDailyPlanFilePath(workspacePath, dateStr)
+  if (!planPath) return { events: [], planPath: null }
+  let content: string
+  try {
+    content = fs.readFileSync(planPath, 'utf-8')
+  } catch {
+    return { events: [], planPath }
+  }
+  const blocks = parsePlanTimeBlocks(content)
+  return {
+    planPath,
+    events: blocks.map((b) => ({
+      summary: b.summary,
+      time: b.time,
+      origin: 'plan' as const,
+    })),
+  }
+}
+
+function shanghaiDateString(date?: Date): string {
+  const d = date || new Date()
+  return d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
+}
+
+/**
+ * Status-bar / empty-state schedule:
+ * 1) Today's PLAN.md time blocks (primary)
+ * 2) Optional .ics overlay (settings path or first vault .ics)
+ */
 export function getCalendarSummary(
   workspacePath: string,
   icsPath?: string,
   date?: Date
 ): {
-  events: Array<{ summary: string; time: string; location?: string }>
+  events: CalendarSummaryEvent[]
   source: string | null
+  planSource: string | null
+  icsSource: string | null
   date: string
 } {
-  const { events, source } = resolveCalendarEvents(workspacePath, icsPath)
-  const targetDate = date || new Date()
-  const dayEvents = date
-    ? getEventsForDate(events, targetDate)
-    : getTodayEvents(events)
+  const dateStr = shanghaiDateString(date)
+  const { events: planEvents, planPath } = loadPlanTimeBlockEvents(workspacePath, dateStr)
 
-  const dateStr = targetDate.toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
+  const { events: icsAll, source: icsSource } = resolveCalendarEvents(workspacePath, icsPath)
+  const targetDate = date || (() => {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  })()
+  const dayIcs = date
+    ? getEventsForDate(icsAll, targetDate)
+    : getTodayEvents(icsAll)
+
+  const icsEvents: CalendarSummaryEvent[] = dayIcs.map((e) => ({
+    summary: e.summary,
+    time: formatEventTime(e),
+    location: e.location,
+    origin: 'ics' as const,
+  }))
+
+  // PLAN first (vault-native), then ICS; light dedupe on same time+summary.
+  const seen = new Set<string>()
+  const events: CalendarSummaryEvent[] = []
+  for (const e of [...planEvents, ...icsEvents]) {
+    const key = `${e.time}|${e.summary}`.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    events.push(e)
+  }
+
+  const source = planPath || icsSource
 
   return {
     date: dateStr,
     source,
-    events: dayEvents.map((e) => ({
-      summary: e.summary,
-      time: formatEventTime(e),
-      location: e.location,
-    })),
+    planSource: planPath,
+    icsSource,
+    events,
   }
 }

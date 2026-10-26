@@ -17,9 +17,9 @@
     > "Read my daily note, calendar, and task list. Generate a prioritized plan for today based on what I've said is important this week."
 
 ### /closeday (每日复盘)
-*   **功能**: 总结当天进展，记录新想法，并列出需要结转到明天的任务。
+*   **功能**: 总结当天进展；将日记 `## 番茄钟` 已完成条目同步进正文「✅ 今日完成」；记录新想法；列出结转任务。
 *   **Prompt**:
-    > "Review what I worked on today. Summarize progress, capture any new ideas that came up, and note anything unfinished that should carry over to tomorrow."
+    > "Review what I worked on today. Sync completed ## 番茄钟 / ## Pomodoro lines into the diary ✅ section (dedupe; keep the Pomodoro ledger). Summarize progress, capture new ideas, and note unfinished items to carry over tomorrow."
 
 ### /schedule (时间调度)
 *   **功能**: 根据优先级和日历，建议本周的时间分配方案，标记潜在冲突。

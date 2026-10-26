@@ -5,6 +5,7 @@ let simulateGraduateArchiveFn = null
 let simulateSlashWritebackOpenFn = null
 let setAutoSaveFn = null
 let simulateExternalFileRemovedFn = null
+let pomodoroForceCompleteFn = null
 /** @type {Array<{ canceled: boolean, filePaths: string[] }>} */
 let mockSelectDirectoryQueue = []
 
@@ -43,6 +44,12 @@ contextBridge.exposeInMainWorld('__METAMATES_E2E__', {
   },
   async simulateExternalFileRemoved(filePath) {
     return simulateExternalFileRemovedFn?.(filePath)
+  },
+  registerPomodoroForceComplete(fn) {
+    pomodoroForceCompleteFn = typeof fn === 'function' ? fn : null
+  },
+  pomodoroForceComplete() {
+    pomodoroForceCompleteFn?.()
   },
   queueSelectDirectory(result) {
     if (process.env.METAMATES_E2E !== '1') return
@@ -175,6 +182,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     pickFile: () => ipcRenderer.invoke('pick-calendar-file'),
     getEvents: (workspacePath, icsPath, dateIso) =>
       ipcRenderer.invoke('get-calendar-events', workspacePath, icsPath, dateIso),
+  },
+
+  pomodoro: {
+    appendSession: (workspacePath, record) =>
+      ipcRenderer.invoke('pomodoro-append-session', workspacePath, record),
+    listSessions: (workspacePath) =>
+      ipcRenderer.invoke('pomodoro-list-sessions', workspacePath),
+    getStats: (workspacePath) =>
+      ipcRenderer.invoke('pomodoro-get-stats', workspacePath),
+    setProgress: (ratio) =>
+      ipcRenderer.invoke('pomodoro-set-progress', ratio),
   },
 
   intelligence: {

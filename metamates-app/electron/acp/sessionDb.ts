@@ -55,6 +55,8 @@ interface LegacyDatabase {
 
 let sqlite: Database.Database | null = null
 let sqliteLoadError: string | null = null
+/** Absolute path of the currently open conversations.sqlite (null when closed). */
+let openedSqlitePath: string | null = null
 const messageQueues = new Map<string, Message[]>()
 const messageTimers = new Map<string, NodeJS.Timeout>()
 
@@ -98,6 +100,10 @@ function markSqliteUnavailable(err: unknown): void {
 export function isDatabaseAvailable(): boolean {
   if (sqlite) return true
   if (sqliteLoadError) return false
+  // Do not open userData DB just to probe availability before a vault is bound.
+  if (!normalizeWorkspacePath(getCurrentWorkspacePath())) {
+    return true
+  }
   try {
     getSqlite()
     return true
@@ -111,10 +117,17 @@ function getSqlite(): Database.Database {
     throw new Error(sqliteLoadError)
   }
   if (!sqlite) {
+    // Prefer vault DB; refuse accidental userData open when workspace is unset
+    // unless SESSION_DB_SQLITE_PATH explicitly overrides (tests / probes).
+    const workspace = normalizeWorkspacePath(getCurrentWorkspacePath())
+    if (!workspace && !process.env.SESSION_DB_SQLITE_PATH?.trim()) {
+      throw new Error('Conversation DB not bound: workspace path is empty')
+    }
     try {
       const dbPath = resolveSqlitePath()
       fs.mkdirSync(path.dirname(dbPath), { recursive: true })
       sqlite = new Database(dbPath)
+      openedSqlitePath = dbPath
       sqlite.pragma('journal_mode = WAL')
       sqlite.pragma('foreign_keys = ON')
       initSchema(sqlite)
@@ -122,7 +135,9 @@ function getSqlite(): Database.Database {
       migrateFromJsonIfNeeded(sqlite)
       importLegacyWorkspaceConversations(sqlite)
       ensureWorkspaceChatGitignore()
+      console.log('[Database] Opened conversation DB:', dbPath)
     } catch (err: unknown) {
+      openedSqlitePath = null
       markSqliteUnavailable(err)
       throw err
     }
@@ -301,11 +316,22 @@ function migrateFromJsonIfNeeded(db: Database.Database): void {
 }
 
 export function warmupDatabase(): void {
+  // Never open userData/conversations.sqlite before a vault is bound — that empty
+  // DB used to stick until the next explicit rebind and made history look missing.
+  if (!normalizeWorkspacePath(getCurrentWorkspacePath())) {
+    console.log('[Database] Skipping warmup until workspace is bound')
+    return
+  }
   try {
     getSqlite()
   } catch {
     // markSqliteUnavailable already logged
   }
+}
+
+/** Path of the open chat DB, or null if closed / never opened. */
+export function getOpenedConversationSqlitePath(): string | null {
+  return openedSqlitePath
 }
 
 export function flushAllPendingMessages(): void {
@@ -325,6 +351,7 @@ export function closeDatabase(): void {
     sqlite.close()
     sqlite = null
   }
+  openedSqlitePath = null
   sqliteLoadError = null
 }
 
@@ -339,6 +366,23 @@ export function bindConversationDatabase(workspacePath: string): void {
     fs.mkdirSync(path.join(ws, WORKSPACE_CHAT_DIR), { recursive: true })
   }
   warmupDatabase()
+}
+
+/**
+ * Ensure the open SQLite file matches getCurrentWorkspacePath() (or userData when unbound).
+ * No-op when already correct — safe to call on every history read / workspace sync.
+ */
+export function ensureConversationDatabaseForWorkspace(): void {
+  const expected = resolveSqlitePath()
+  if (openedSqlitePath && path.resolve(openedSqlitePath) === path.resolve(expected)) {
+    return
+  }
+  if (openedSqlitePath) {
+    console.log(
+      `[Database] Rebinding conversation DB: ${openedSqlitePath} → ${expected}`,
+    )
+  }
+  bindConversationDatabase(getCurrentWorkspacePath())
 }
 
 function ensureWorkspaceChatGitignore(): void {

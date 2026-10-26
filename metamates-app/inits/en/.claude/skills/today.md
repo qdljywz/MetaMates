@@ -21,15 +21,27 @@ Output Format:
 - [Goal 2]
 
 ⏰ Schedule
-- [Time] - [Task] (Priority: High/Medium/Low)
+- 09:00–12:00 — Task description
+- 14:00 — Hard-stop task
 
 📋 To-Do List
-- [ ] [Task 1]
-- [ ] [Task 2]
+- [ ] Task 1
+- [ ] Task 2
 
 💡 Today's Reminder
-- [Reminder Items]
+- Reminder items
 ```
+
+---
+
+## Writeback & status-bar schedule (MetaMates required)
+
+- **Must** Write to `01_Log_and_Plan/YYYY-MM-DD PLAN.md` (space + `PLAN.md`, not underscore)
+- Time lines **must** use a parseable format (status bar "N items today" only recognizes these):
+  - `- 09:00–12:00 — Title` / `- 14:00 — Title` (preferred)
+  - or `- [ ] **09:00 - 11:00**: Title` (template checkbox style)
+- **Do not** leave `- [Time] - [Task]` placeholders; do not chat-only without disk writeback
+- After write: **Read to verify** (Act & Verify)
 
 ## Memory & vault boundary (MetaMates required)
 

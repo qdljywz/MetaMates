@@ -35,6 +35,12 @@ import {
 } from './shared/processTreeKill'
 import { getResourcesRoot, resolveBuildIconPath, resolveInitsRoot, resolveUserManualPath } from './shared/appPaths'
 import {
+  appendPomodoroSession,
+  readPomodoroStore,
+  summarizePomodoroStats,
+  type PomodoroSessionRecord,
+} from './shared/pomodoroSessions'
+import {
   appendSessionLifecycleEvent,
   installSessionLifecycleLog,
 } from './sessionLifecycleLog'
@@ -73,14 +79,26 @@ const skipSingleInstanceLock = process.env.METAMATES_E2E === '1'
 /** After splash (5.5s) — defer heavy sync work so portable cold start stays responsive. */
 const PACKAGED_DEFERRED_WORK_MS = 12_000
 
-// Some Windows environments crash the GPU process on startup, preventing any window from
-// showing (even though electron.exe is running). Prefer a stable UI over acceleration.
-if (process.platform === 'win32' && process.env.METAMATES_DISABLE_GPU !== '0') {
+/**
+ * GPU policy (Windows):
+ * - Default: hardware acceleration ON. Frameless windows + SwiftShader/software
+ *   compositing often paint pure black (#000) after Alt-Tab / focus restore.
+ * - Opt-out: METAMATES_DISABLE_GPU=1 for rare GPUs that crash at cold start.
+ *   Prefer fixing drivers over shipping software GL as the default.
+ */
+if (process.platform === 'win32' && process.env.METAMATES_DISABLE_GPU === '1') {
   app.disableHardwareAcceleration()
   app.commandLine.appendSwitch('disable-gpu')
   app.commandLine.appendSwitch('disable-gpu-compositing')
   app.commandLine.appendSwitch('use-gl', 'swiftshader')
   app.commandLine.appendSwitch('use-angle', 'swiftshader')
+  console.warn('[MAIN] GPU disabled via METAMATES_DISABLE_GPU=1 (software SwiftShader)')
+}
+
+// Reduce "first click after Alt-Tab feels frozen" — keep renderer scheduled while occluded.
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('disable-renderer-backgrounding')
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
 }
 
 const gotSingleInstanceLock = skipSingleInstanceLock || app.requestSingleInstanceLock()
@@ -177,14 +195,8 @@ function focusMainWindow(): void {
 }
 
 function resolveWindowBackgroundColor(): string {
-  const settings = readAppSettings()
-  const palette = settings.lightPalette === 'cold' ? 'cold' : 'paper'
-  const lightBg = palette === 'cold' ? '#fafaf9' : '#f0eeea'
-  const theme = settings.theme || 'dark'
-  if (theme === 'light') return lightBg
-  if (theme === 'system') {
-    return nativeTheme.shouldUseDarkColors ? '#18181b' : lightBg
-  }
+  // Match #boot-splash first paint — themed light bg caused a multi-second cream/white flash
+  // before React hydrated. Theme applies after finishStartupBootPhase().
   return '#18181b'
 }
 
@@ -304,6 +316,7 @@ function loadRenderer(win: BrowserWindow, isDev: boolean): void {
 
 function loadPackagedRenderer(win: BrowserWindow, indexPath: string, locale: LoadErrorLocale): void {
   const copy = LOAD_ERROR_COPY[locale]
+  win.setBackgroundColor(resolveWindowBackgroundColor())
   void win.loadFile(indexPath).catch((err: Error) => {
     console.error('[MAIN] Production renderer load failed:', err.message)
     void win.loadURL(
@@ -349,31 +362,39 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Keep renderer awake while Alt-Tabbed so first click after focus is not a multi-second wake.
       backgroundThrottling: false,
     },
-    // Packaged: show immediately — inline #boot-splash in index.html paints before JS bundle.
-    show: true,
+    // Wait for first paint of index.html (#boot-splash) — showing an empty BrowserWindow
+    // before DOM is ready is the multi-second white/cream "卡住" users report.
+    show: false,
   })
 
   setAcpMainWindow(mainWindow)
 
-  // Foreground immediately — dev launches from terminal/IDE otherwise miss the splash.
-  focusMainWindow()
-
-  loadRenderer(mainWindow, isDev)
-
-  mainWindow.webContents.once('dom-ready', () => {
+  // Register BEFORE loadRenderer — ready-to-show can fire during loadFile and would be missed.
+  // Packaged cold start: ready-to-show can be >1s late. Electron recommends showing sooner
+  // with a matching backgroundColor (#18181b) so users never stare at OS white chrome.
+  let didShow = false
+  const showMainWindow = (reason: string) => {
+    if (!mainWindow || mainWindow.isDestroyed() || didShow) return
+    didShow = true
     if (!isDev) markBootSplashAnchor()
     focusMainWindow()
-    if (!isDev) console.log('[MAIN] Boot splash DOM ready')
-  })
-  // Safety: never leave the user staring at a hidden window if dom-ready is slow.
+    if (!isDev) console.log('[MAIN] Window shown:', reason)
+  }
+  mainWindow.once('ready-to-show', () => showMainWindow('ready-to-show'))
+  // Show dark chrome as soon as the window exists — bg is #18181b, not white.
+  setTimeout(() => showMainWindow('early-dark-chrome'), 80)
   setTimeout(() => {
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
-      console.warn('[MAIN] Force-showing window after 400ms (dom-ready slow)')
-      focusMainWindow()
+      console.warn('[MAIN] Force-showing window after 1500ms')
+      didShow = false // allow retry if early show did not stick
+      showMainWindow('force-1500')
     }
-  }, 400)
+  }, 1500)
+
+  loadRenderer(mainWindow, isDev)
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     if (validatedURL.startsWith('data:text/html')) return
@@ -403,10 +424,37 @@ function createWindow() {
     setTimeout(() => void startAcpStartupWarmup(), 1_500)
   })
 
-  mainWindow.once('ready-to-show', () => {
-    focusMainWindow()
-    console.log('[MAIN] MetaMates desktop window visible — use this window, not a browser tab')
+  /**
+   * After Alt-Tab / restore, Chromium may keep a stale compositor buffer (black surface)
+   * especially with frameless windows. Force a repaint when the window is shown again.
+   *
+   * Do NOT invalidate synchronously on every focus — quick Alt-Tab + click then feels
+   * "假死" while the GPU/compositor rebuilds. Debounce + only after a real blur.
+   */
+  let lastBlurAtMs = 0
+  let repaintTimer: ReturnType<typeof setTimeout> | null = null
+  mainWindow.on('blur', () => {
+    lastBlurAtMs = Date.now()
   })
+  const repaintOnForeground = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    const awayMs = lastBlurAtMs > 0 ? Date.now() - lastBlurAtMs : 0
+    // Ignore focus noise under ~400ms (rapid task-switch) — avoids click freeze.
+    if (awayMs > 0 && awayMs < 400) return
+    if (repaintTimer) clearTimeout(repaintTimer)
+    repaintTimer = setTimeout(() => {
+      repaintTimer = null
+      if (!mainWindow || mainWindow.isDestroyed()) return
+      try {
+        mainWindow.webContents.invalidate()
+      } catch {
+        // best-effort
+      }
+    }, 48)
+  }
+  mainWindow.on('focus', repaintOnForeground)
+  mainWindow.on('restore', repaintOnForeground)
+  mainWindow.on('show', repaintOnForeground)
 
   mainWindow.on('closed', () => {
     appendSessionLifecycleEvent('main_window_closed')
@@ -468,6 +516,8 @@ function schedulePackagedDeferredWork(): void {
 }
 
 app.whenReady().then(async () => {
+  // Lock OS chrome dark until React finishes boot — light nativeTheme paints white frameless flash.
+  nativeTheme.themeSource = 'dark'
   createWindow()
   scheduleWindowWatchdog()
 
@@ -1190,4 +1240,57 @@ ipcMain.handle('get-database-status', async () => {
 
 ipcMain.handle('get-lan-addresses', async () => {
   return { addresses: getLanIPv4Addresses() }
+})
+
+ipcMain.handle('pomodoro-append-session', async (_event, workspacePath: string, record: PomodoroSessionRecord) => {
+  try {
+    const saved = appendPomodoroSession(workspacePath, record)
+    return { success: true, session: saved }
+  } catch (error: any) {
+    return { success: false, error: error?.message || String(error) }
+  }
+})
+
+ipcMain.handle('pomodoro-list-sessions', async (_event, workspacePath: string) => {
+  try {
+    const store = readPomodoroStore(workspacePath)
+    return { success: true, sessions: store.sessions }
+  } catch (error: any) {
+    return { success: false, sessions: [], error: error?.message || String(error) }
+  }
+})
+
+ipcMain.handle('pomodoro-get-stats', async (_event, workspacePath: string) => {
+  try {
+    return { success: true, stats: summarizePomodoroStats(workspacePath) }
+  } catch (error: any) {
+    return {
+      success: false,
+      stats: {
+        todayCompletedFocus: 0,
+        todayFocusSec: 0,
+        weekCompletedFocus: 0,
+        weekFocusSec: 0,
+        recent: [],
+      },
+      error: error?.message || String(error),
+    }
+  }
+})
+
+ipcMain.handle('pomodoro-set-progress', async (_event, ratio: number) => {
+  try {
+    const win = mainWindow && !mainWindow.isDestroyed()
+      ? mainWindow
+      : BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
+    if (!win) return { success: false }
+    if (typeof ratio !== 'number' || ratio < 0) {
+      win.setProgressBar(-1)
+    } else {
+      win.setProgressBar(Math.min(1, Math.max(0, ratio)))
+    }
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error?.message || String(error) }
+  }
 })

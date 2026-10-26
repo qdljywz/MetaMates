@@ -43,6 +43,13 @@ export function applyThemeBootstrapToDocument(): void {
   if (typeof document === 'undefined') return
 
   const { mode, lightPalette, background } = readThemeBootstrapSync()
+  const boot = document.documentElement.hasAttribute('data-boot')
+  // During boot splash: remember intended theme on <html>, but keep chrome dark so
+  // removing #boot-splash never flashes cream/white empty for a few seconds.
+  const paintBg = boot ? '#18181b' : background
+  const paintFg = boot ? '#fafafa' : mode === 'light' ? '#18181b' : '#fafafa'
+  const paintScheme = boot ? 'dark' : mode
+
   document.documentElement.setAttribute('data-theme', mode)
   document.documentElement.setAttribute('data-color-scheme', 'default')
   if (mode === 'light') {
@@ -51,11 +58,14 @@ export function applyThemeBootstrapToDocument(): void {
     document.documentElement.removeAttribute('data-light-palette')
   }
 
-  document.documentElement.style.backgroundColor = background
+  // Native <button> / form controls follow color-scheme — must match real theme or
+  // light UI gets light ButtonText (白字贴白底，如活动日历「今天」).
+  document.documentElement.style.colorScheme = paintScheme
+  document.documentElement.style.backgroundColor = paintBg
   if (document.body) {
-    document.body.style.backgroundColor = background
-    document.body.style.color = mode === 'light' ? '#18181b' : '#fafafa'
+    document.body.style.backgroundColor = paintBg
+    document.body.style.color = paintFg
   }
   const root = document.getElementById('root')
-  if (root) root.style.backgroundColor = background
+  if (root) root.style.backgroundColor = paintBg
 }

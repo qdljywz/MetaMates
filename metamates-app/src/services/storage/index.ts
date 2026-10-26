@@ -53,6 +53,10 @@ export interface AppSettings {
   engineSetupSkippedAt?: number
   /** Preferred AI assistant backend from engine setup funnel */
   preferredAssistant?: string
+  /** Pomodoro focus length in minutes (default 25). */
+  pomodoroFocusMin?: number
+  /** Pomodoro short break length in minutes (default 5). */
+  pomodoroBreakMin?: number
   recentFiles: string[]
   lastOpenedFile?: string
 }

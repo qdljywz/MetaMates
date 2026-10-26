@@ -218,6 +218,7 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.ReactElem
     } else {
       document.documentElement.removeAttribute('data-light-palette')
     }
+    document.documentElement.style.colorScheme = mode
     document.body.style.background = colors.background
     document.body.style.color = colors.text
   }, [themeMode, colorScheme, lightPalette, osPrefersDark])
@@ -227,10 +228,14 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.ReactElem
   }, [applyTheme])
 
   useEffect(() => {
-    const syncAfterBoot = () => applyTheme()
+    const syncAfterBoot = () => {
+      applyTheme()
+      // Main locks nativeTheme=dark during splash; restore user preference after handoff.
+      window.electronAPI?.setNativeThemeSource?.(themeMode).catch(() => {})
+    }
     window.addEventListener('metamates:boot-finished', syncAfterBoot)
     return () => window.removeEventListener('metamates:boot-finished', syncAfterBoot)
-  }, [applyTheme])
+  }, [applyTheme, themeMode])
 
   useEffect(() => {
     if (!initialized) return

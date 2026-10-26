@@ -649,6 +649,9 @@ export async function registerAcpIpcHandlers(): Promise<void> {
   }
 
   setCurrentWorkspacePath(currentWorkspacePath)
+  // Bind vault chat DB as soon as workspace is known — do not leave an early
+  // userData/conversations.sqlite handle open (history would read the wrong file).
+  sessionDb.ensureConversationDatabaseForWorkspace()
 
   const agentDetectionDelayMs = process.env.METAMATES_E2E === '1' ? 400 : 2_500
   agentDetectionPromise = new Promise<AgentConfig[]>((resolve) => {
@@ -713,7 +716,10 @@ export async function registerAcpIpcHandlers(): Promise<void> {
     const normalized = path.resolve(workspacePath)
     const current = getCurrentWorkspacePath() ? path.resolve(getCurrentWorkspacePath()) : ''
     if (current && normalized === current) {
-      console.log('[MAIN] set-workspace-path: unchanged, skipping reconnect')
+      // Path string unchanged, but chat DB may still be the wrong file if an early
+      // warmup opened userData/conversations.sqlite before the vault was bound.
+      sessionDb.ensureConversationDatabaseForWorkspace()
+      console.log('[MAIN] set-workspace-path: unchanged, ensured conversation DB bound')
       return { success: true, unchanged: true }
     }
 
@@ -914,9 +920,13 @@ export async function registerAcpIpcHandlers(): Promise<void> {
 
   ipcMain.handle('get-conversation-history', (_event, backendId?: string, options?: { limit?: number; before?: number }) => {
     const targetId = backendId || currentBackendId
-    if (!targetId) return { messages: [], total: 0, hasMore: false }
+    if (!targetId) return { messages: [], total: 0, hasMore: false, unbound: true }
 
+    sessionDb.ensureConversationDatabaseForWorkspace()
     const workspacePath = getCurrentWorkspacePath()
+    if (!workspacePath?.trim()) {
+      return { messages: [], total: 0, hasMore: false, unbound: true }
+    }
     const conversation = sessionDb.getConversationByBackend(targetId, workspacePath)
     if (!conversation) return { messages: [], total: 0, hasMore: false }
 

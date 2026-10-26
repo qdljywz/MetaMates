@@ -1,7 +1,8 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-boot="true" style="color-scheme: dark; background-color: #18181b">
   <head>
     <meta charset="UTF-8" />
+    <!-- color-scheme is set on <html> only for boot splash; applyTheme clears it after handoff. -->
     <script src="/theme-boot.js"></script>
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -17,23 +18,118 @@
         overflow: hidden;
         background-color: #18181b;
       }
-      html[data-theme='light'] body,
-      html[data-theme='light'] #root {
+      /* Light theme only after boot splash hands off to React. */
+      html:not([data-boot='true'])[data-theme='light'] body,
+      html:not([data-boot='true'])[data-theme='light'] #root {
         background-color: #f0eeea;
       }
-      html[data-theme='light'][data-light-palette='cold'] body,
-      html[data-theme='light'][data-light-palette='cold'] #root {
+      html:not([data-boot='true'])[data-theme='light'][data-light-palette='cold'] body,
+      html:not([data-boot='true'])[data-theme='light'][data-light-palette='cold'] #root {
         background-color: #fafaf9;
       }
       body {
         color: #fafafa;
       }
-      html[data-theme='light'] body {
+      html:not([data-boot='true'])[data-theme='light'] body {
         color: #18181b;
+      }
+      /* Instant paint before JS bundle — removes multi-second empty/white window. */
+      #boot-splash {
+        --startup-cycle: 5s;
+        position: fixed;
+        inset: 0;
+        z-index: 2147483646;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: radial-gradient(ellipse 80% 60% at 50% 45%, #1f1f24 0%, #18181b 55%, #0f0f12 100%);
+        color: #fafafa;
+        font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      }
+      #boot-splash .boot-frame {
+        position: absolute;
+        inset: 20px;
+        pointer-events: none;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        box-shadow: inset 0 0 40px rgba(255, 122, 0, 0.03);
+      }
+      #boot-splash .boot-frame-dot {
+        position: absolute;
+        width: 7px;
+        height: 7px;
+        margin: -3.5px 0 0 -3.5px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 0 8px 2px rgba(255, 140, 40, 0.95), 0 0 18px 6px rgba(0, 212, 196, 0.45);
+        animation: boot-border-walk var(--startup-cycle) linear infinite;
+      }
+      @keyframes boot-border-walk {
+        0% { top: 0; left: 0; }
+        25% { top: 0; left: 100%; }
+        50% { top: 100%; left: 100%; }
+        75% { top: 100%; left: 0; }
+        100% { top: 0; left: 0; }
+      }
+      #boot-splash .boot-logo-stage {
+        position: relative;
+        width: min(168px, 42vw);
+        height: min(168px, 42vw);
+      }
+      #boot-splash .boot-svg { width: 100%; height: 100%; overflow: visible; }
+      #boot-splash .boot-trace { fill: none; stroke-width: 2.2; filter: url(#boot-glow); }
+      #boot-splash .boot-brand {
+        margin: 28px 0 0;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: rgba(250, 250, 250, 0.88);
+        animation: boot-brand-pulse var(--startup-cycle) ease-out infinite;
+      }
+      #boot-splash .boot-slogan {
+        margin: 8px 0 0;
+        font-size: 12px;
+        color: rgba(212, 212, 216, 0.82);
+        letter-spacing: 0.04em;
+        animation: boot-brand-pulse var(--startup-cycle) ease-out infinite;
+      }
+      @keyframes boot-brand-pulse {
+        0%, 72% { opacity: 0.45; }
+        86%, 100% { opacity: 1; }
       }
     </style>
   </head>
-  <body>
+  <body style="background-color: #18181b; color: #fafafa; margin: 0">
+    <div id="boot-splash" role="status" aria-live="polite" aria-busy="true">
+      <div class="boot-frame" aria-hidden="true"><div class="boot-frame-dot"></div></div>
+      <div class="boot-logo-stage">
+        <svg class="boot-svg" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="boot-gradient-stroke" x1="0" y1="0" x2="128" y2="0" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#ff8c28"/>
+              <stop offset="50%" stop-color="#ff7a00"/>
+              <stop offset="100%" stop-color="#00d4c4"/>
+            </linearGradient>
+            <filter id="boot-glow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <path class="boot-trace" d="M 119 5.3 L 123 5.3 L 124 6.8 L 124 101.3 L 123 102.8 L 103.5 122.8 L 100.5 122.8 L 100.5 99.3 L 99.5 98.8 L 76 122.8 L 73.5 122.8 L 73.5 68.8 L 73 68.3 L 66 74.3 L 64.5 74.8 L 55.5 67.3 L 55 67.8 L 55 122.8 L 20 122.8 L 4 105.3 L 4 10.8 L 4.5 9.8 L 5.5 8.8 L 10 7.3 L 13 7.3 L 65.5 36.8 L 104.5 13.3 L 118.5 5.8" stroke="url(#boot-gradient-stroke)" stroke-dasharray="612" stroke-dashoffset="612">
+            <animate attributeName="stroke-dashoffset" values="612;0;0" keyTimes="0;0.82;1" dur="5s" repeatCount="indefinite" calcMode="linear"/>
+            <animate attributeName="opacity" values="0.4;1;1;0.35" keyTimes="0;0.82;0.92;1" dur="5s" repeatCount="indefinite" calcMode="linear"/>
+          </path>
+          <circle r="3.5" fill="#fff">
+            <animateMotion dur="5s" repeatCount="indefinite" path="M 119 5.3 L 123 5.3 L 124 6.8 L 124 101.3 L 123 102.8 L 103.5 122.8 L 100.5 122.8 L 100.5 99.3 L 99.5 98.8 L 76 122.8 L 73.5 122.8 L 73.5 68.8 L 73 68.3 L 66 74.3 L 64.5 74.8 L 55.5 67.3 L 55 67.8 L 55 122.8 L 20 122.8 L 4 105.3 L 4 10.8 L 4.5 9.8 L 5.5 8.8 L 10 7.3 L 13 7.3 L 65.5 36.8 L 104.5 13.3 L 118.5 5.8" keyPoints="0;1;1" keyTimes="0;0.82;1" calcMode="linear" rotate="auto"/>
+          </circle>
+        </svg>
+      </div>
+      <p class="boot-brand">MetaMates</p>
+      <p class="boot-slogan">灵感仓库 · 思考引擎</p>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
