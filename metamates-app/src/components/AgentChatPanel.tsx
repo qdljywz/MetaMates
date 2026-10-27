@@ -272,6 +272,9 @@ const AgentChatPanel: React.FC = () => {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptRef = useRef(0)
   const messagesRef = useRef<Map<string, Message[]>>(new Map())
+  /** Coalesce ACP stream IPC into one React update per animation frame (avoids main+UI freeze). */
+  const streamBatchRef = useRef<Array<{ backend: string; message: IResponseMessage }>>([])
+  const streamFlushRafRef = useRef<number | null>(null)
   const pendingSlashVerifyRef = useRef<{ cmdId: string; turnStartedAt: number } | null>(null)
   const turnHadAgentOutputRef = useRef(false)
   const runSlashWritebackVerifyRef = useRef<(backend?: string) => Promise<void>>(async () => {})
@@ -2047,50 +2050,66 @@ const AgentChatPanel: React.FC = () => {
   }, [])
 
   useEffect(() => {
+    const flushStreamBatch = () => {
+      streamFlushRafRef.current = null
+      const batch = streamBatchRef.current.splice(0)
+      if (batch.length === 0) return
+
+      let touchedTool: Message | null = null
+      const byBackend = new Map<string, typeof batch>()
+      for (const item of batch) {
+        const list = byBackend.get(item.backend) || []
+        list.push(item)
+        byBackend.set(item.backend, list)
+      }
+
+      const nextMap = new Map(messagesRef.current)
+      for (const [backend, items] of byBackend) {
+        let list = nextMap.get(backend) || []
+        for (const item of items) {
+          handleControlMessage(item.message, backend, currentBackendRef.current || '')
+          if (item.message.type === 'error') {
+            const errData = item.message.data as { message?: string }
+            finalizeStreamingTurn(backend)
+            if (backend === currentBackendRef.current) {
+              handlePromptFailure(backend, { error: errData?.message || 'unknown' })
+            }
+            continue
+          }
+          const { messages: nextList, sideEffects } = applyStreamMessage(list, item.message)
+          list = nextList as Message[]
+          if (sideEffects.availableCommands) {
+            setAcpDynamicCommands(sideEffects.availableCommands)
+          }
+          const last = list[list.length - 1]
+          if (last?.type === 'tool-call') touchedTool = last as Message
+        }
+        if (
+          list.some((m) => m.type === 'tool-call' || (m.type === 'agent' && String(m.content ?? '').trim()))
+        ) {
+          turnHadAgentOutputRef.current = true
+        }
+        nextMap.set(backend, list)
+      }
+      messagesRef.current = nextMap
+      setMessages(nextMap)
+      if (touchedTool) maybeAutoOpenToolFile(touchedTool)
+      scrollToBottom()
+    }
+
     const handleStreamMessage = (data: { backend: string; message: IResponseMessage; silent?: boolean }) => {
       const { backend, message, silent } = data
-
       if (silent) return
-
-      handleControlMessage(message, backend, currentBackendRef.current || '')
-
+      // Errors flush immediately so failure UX is not delayed a frame.
       if (message.type === 'error') {
-        const errData = message.data as { message?: string }
-        finalizeStreamingTurn(backend)
-        if (backend === currentBackendRef.current) {
-          handlePromptFailure(backend, { error: errData?.message || 'unknown' })
-        }
+        streamBatchRef.current.push({ backend, message })
+        flushStreamBatch()
         return
       }
-
-      const { messages: nextList, sideEffects } = applyStreamMessage(
-        messagesRef.current.get(backend) || [],
-        message,
-      )
-
-      if (
-        nextList.some((m) => m.type === 'tool-call' || (m.type === 'agent' && String(m.content ?? '').trim()))
-      ) {
-        turnHadAgentOutputRef.current = true
+      streamBatchRef.current.push({ backend, message })
+      if (streamFlushRafRef.current == null) {
+        streamFlushRafRef.current = requestAnimationFrame(flushStreamBatch)
       }
-
-      if (sideEffects.availableCommands) {
-        setAcpDynamicCommands(sideEffects.availableCommands)
-      }
-
-      setMessages(prev => {
-        const newMap = new Map(prev)
-        newMap.set(backend, nextList as Message[])
-        messagesRef.current = newMap
-        return newMap
-      })
-
-      const last = nextList[nextList.length - 1]
-      if (last?.type === 'tool-call') {
-        maybeAutoOpenToolFile(last as Message)
-      }
-
-      requestAnimationFrame(() => scrollToBottom())
     }
 
     const handleEndTurn = (data?: { backend?: string; silent?: boolean }) => {
@@ -2196,6 +2215,11 @@ const AgentChatPanel: React.FC = () => {
     window.electronAPI?.acp.onPermissionRequest(handlePermissionRequest)
     
     return () => {
+      if (streamFlushRafRef.current != null) {
+        cancelAnimationFrame(streamFlushRafRef.current)
+        streamFlushRafRef.current = null
+      }
+      streamBatchRef.current = []
       window.electronAPI?.acp.removeListeners()
     }
   }, [finalizeStreamingTurn, handleControlMessage, handlePromptFailure, log, dispatch, syncAcpConnection, selectedMode, maybeAutoOpenToolFile, scrollToBottom])

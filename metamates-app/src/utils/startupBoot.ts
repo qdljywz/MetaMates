@@ -1,6 +1,6 @@
 import { applyThemeBootstrapToDocument } from './themeBootstrap'
 
-/** Boot phase: force dark splash + disable theme transitions until shell is ready. */
+/** Boot phase: keep splash chrome stable (matches preset) until shell is ready. */
 export const STARTUP_BOOT_ATTR = 'data-boot'
 export const STARTUP_BOOT_FINISHED_EVENT = 'metamates:boot-finished'
 
@@ -25,6 +25,9 @@ export function handoffHtmlBootSplash(): void {
 /**
  * End boot phase: clear data-boot and apply the real theme to document chrome.
  * Call when leaving StartupSplash — not when handing off HTML → React splash.
+ *
+ * Prefer showing the shell under data-boot first (App sets loading=false before this),
+ * then call this so light theme applies onto an already-mounted shell — not an empty cream void.
  */
 export function finishStartupBootPhase(): void {
   requestAnimationFrame(() => {
@@ -32,7 +35,11 @@ export function finishStartupBootPhase(): void {
       document.documentElement.removeAttribute(STARTUP_BOOT_ATTR)
       document.getElementById('boot-splash')?.remove()
       applyThemeBootstrapToDocument()
-      window.dispatchEvent(new Event(STARTUP_BOOT_FINISHED_EVENT))
+      try {
+        window.dispatchEvent(new Event(STARTUP_BOOT_FINISHED_EVENT))
+      } catch {
+        // jsdom / non-DOM hosts may lack EventTarget.dispatchEvent
+      }
     })
   })
 }

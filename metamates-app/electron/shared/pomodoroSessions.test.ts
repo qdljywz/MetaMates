@@ -80,4 +80,47 @@ describe('pomodoroSessions store', () => {
     expect(stats.weekCompletedFocus).toBe(1)
     expect(stats.recent[0].id).toBe('b1')
   })
+
+  it('excludes yesterday sessions from today (Asia/Shanghai)', () => {
+    const ws = tempWorkspace()
+    // 2026-10-26 afternoon Shanghai = 2026-10-26T06:00:00.000Z
+    appendPomodoroSession(ws, {
+      id: 'y1',
+      kind: 'focus',
+      status: 'completed',
+      startedAt: '2026-10-26T05:53:00.000Z',
+      endedAt: '2026-10-26T06:18:00.000Z',
+      plannedSec: 1500,
+      actualSec: 1500,
+      note: '',
+    })
+    appendPomodoroSession(ws, {
+      id: 'y2',
+      kind: 'focus',
+      status: 'completed',
+      startedAt: '2026-10-26T07:00:00.000Z',
+      endedAt: '2026-10-26T07:25:00.000Z',
+      plannedSec: 1500,
+      actualSec: 1500,
+      note: '',
+    })
+    appendPomodoroSession(ws, {
+      id: 'y3',
+      kind: 'focus',
+      status: 'completed',
+      startedAt: '2026-10-26T08:00:00.000Z',
+      endedAt: '2026-10-26T08:25:00.000Z',
+      plannedSec: 1500,
+      actualSec: 1500,
+      note: '',
+    })
+
+    // Tuesday Oct 27 2026 09:00 Shanghai
+    const now = new Date('2026-10-27T01:00:00.000Z')
+    const stats = summarizePomodoroStats(ws, now, 20, 'Asia/Shanghai')
+    expect(stats.todayCompletedFocus).toBe(0)
+    expect(stats.todayFocusSec).toBe(0)
+    expect(stats.weekCompletedFocus).toBe(3)
+    expect(stats.weekFocusSec).toBe(4500)
+  })
 })

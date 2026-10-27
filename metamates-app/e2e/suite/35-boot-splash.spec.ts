@@ -1,6 +1,8 @@
 import { test, expect, type ElectronApplication, type Page } from '@playwright/test'
+import fs from 'fs'
 import {
   closeElectronApp,
+  createFreshE2EUserDataDir,
   launchMetaMatesApp,
 } from '../helpers/launchElectron'
 import { ensureE2ESandbox, getE2EWorkspace } from '../helpers/myM2Fixtures'
@@ -82,6 +84,113 @@ test.describe('@suite Boot splash', () => {
         .toBeGreaterThan(0)
     } finally {
       if (app) await closeElectronApp(app)
+    }
+  })
+
+  test('system+light-OS keeps cream splash — no forced-dark boot', async () => {
+    /**
+     * Real production path (user AppData): theme=system, Windows light.
+     * Old bug: main locked nativeTheme=dark → matchMedia dark → black splash → white shell.
+     */
+    test.setTimeout(180_000)
+    const workspace = getE2EWorkspace()
+    ensureE2ESandbox(workspace)
+    const userDataDir = createFreshE2EUserDataDir()
+    let app: ElectronApplication | undefined
+    try {
+      app = await launchMetaMatesApp(workspace, {
+        userDataDir,
+        keepUserData: true,
+        theme: 'system',
+        lightPalette: 'paper',
+      })
+      const seedPage: Page =
+        app.windows()[0] || (await app.waitForEvent('window', { timeout: 60_000 }))
+      await seedPage.waitForLoadState('domcontentloaded')
+      await seedPage.waitForTimeout(1_500)
+      await seedPage.evaluate(() => {
+        const key = 'metamates-storage'
+        const raw = localStorage.getItem(key)
+        const data = raw
+          ? (JSON.parse(raw) as { settings?: Record<string, unknown>; version?: string })
+          : { settings: {}, version: '1.0.0' }
+        data.settings = {
+          ...(data.settings || {}),
+          theme: 'system',
+          lightPalette: 'paper',
+          engineSetupStatus: 'ready',
+        }
+        localStorage.setItem(key, JSON.stringify(data))
+      })
+      await seedPage.waitForTimeout(800)
+      await closeElectronApp(app)
+      app = undefined
+      await new Promise((r) => setTimeout(r, 1_000))
+
+      app = await launchMetaMatesApp(workspace, {
+        userDataDir,
+        keepUserData: true,
+        theme: 'system',
+        lightPalette: 'paper',
+      })
+      const page: Page =
+        app.windows()[0] || (await app.waitForEvent('window', { timeout: 60_000 }))
+      await page.waitForLoadState('domcontentloaded')
+
+      const samples: Array<{
+        theme: string | null
+        bodyBg: string | null
+        prefersDark: boolean
+        htmlSplash: boolean
+        reactSplash: boolean
+      }> = []
+      const deadline = Date.now() + 8_000
+      while (Date.now() < deadline) {
+        const sample = await page.evaluate(() => ({
+          theme: document.documentElement.getAttribute('data-theme'),
+          bodyBg: getComputedStyle(document.body).backgroundColor,
+          prefersDark: window.matchMedia('(prefers-color-scheme: dark)').matches,
+          htmlSplash: !!document.getElementById('boot-splash'),
+          reactSplash: !!document.querySelector('[data-testid="startup-splash"]'),
+        }))
+        samples.push(sample)
+        if (sample.theme === 'light' && (sample.htmlSplash || sample.reactSplash)) break
+        await page.waitForTimeout(100)
+      }
+
+      const lightSplash = samples.find(
+        (s) => s.theme === 'light' && (s.htmlSplash || s.reactSplash),
+      )
+      expect(
+        lightSplash,
+        `system+light-OS must resolve light during splash; samples=${JSON.stringify(samples.slice(0, 8))}`,
+      ).toBeTruthy()
+      expect(
+        samples.some((s) => s.prefersDark && (s.htmlSplash || s.reactSplash)),
+        'nativeTheme must not force prefers-color-scheme:dark during cream boot',
+      ).toBe(false)
+
+      if (lightSplash?.bodyBg) {
+        const m = lightSplash.bodyBg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
+        expect(m).toBeTruthy()
+        const r = Number(m![1])
+        const g = Number(m![2])
+        const b = Number(m![3])
+        const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+        expect(lum, `body bg too dark during splash: ${lightSplash.bodyBg}`).toBeGreaterThan(0.7)
+      }
+
+      await expect(page.locator('.status-bar')).toBeVisible({ timeout: 45_000 })
+      await expect
+        .poll(async () => page.evaluate(() => document.documentElement.getAttribute('data-theme')))
+        .toBe('light')
+    } finally {
+      if (app) await closeElectronApp(app)
+      try {
+        fs.rmSync(userDataDir, { recursive: true, force: true })
+      } catch {
+        /* best-effort */
+      }
     }
   })
 })

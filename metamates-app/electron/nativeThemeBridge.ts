@@ -30,10 +30,17 @@ export function syncNativeThemeSource(themeMode: ThemeSourceMode): void {
   nativeTheme.themeSource = themeMode
 }
 
-export function registerNativeThemeBridge(): void {
+/**
+ * @param options.onUnlock - Called when renderer intentionally sets theme (after splash).
+ *   Lets main keep nativeTheme locked dark until boot finishes.
+ */
+export function registerNativeThemeBridge(options?: {
+  onUnlock?: () => void
+}): void {
   ipcMain.handle('get-native-color-scheme', () => readNativeColorScheme())
 
   ipcMain.handle('set-native-theme-source', (_event, themeMode: ThemeSourceMode) => {
+    options?.onUnlock?.()
     syncNativeThemeSource(themeMode)
     return { success: true }
   })

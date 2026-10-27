@@ -832,6 +832,27 @@ export function getAllConversationMessages(conversationId: string): Message[] {
   return getAllMessages(conversationId)
 }
 
+/**
+ * O(1) lookup for streaming tool_call updates — never scan the full conversation.
+ * Tool rows are inserted with msg_id = toolCallId.
+ */
+export function getToolCallMessageByMsgId(
+  conversationId: string,
+  toolCallId: string,
+): Message | null {
+  const db = tryGetSqlite()
+  if (!db || !toolCallId) return null
+  const row = db
+    .prepare(`
+      SELECT * FROM messages
+      WHERE conversation_id = ? AND msg_id = ? AND type = 'acp_tool_call'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `)
+    .get(conversationId, toolCallId) as Record<string, unknown> | undefined
+  return row ? rowToMessage(row) : null
+}
+
 export function deleteConversation(id: string): void {
   const db = tryGetSqlite()
   if (!db) return

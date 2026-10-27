@@ -132,6 +132,32 @@ export function usePomodoroController(options: {
     void refreshStats()
   }, [refreshStats])
 
+  // Overnight / long-lived sessions: recompute "today" when day rolls or window regains focus.
+  useEffect(() => {
+    if (!options.workspacePath) return
+    let cancelled = false
+    let inFlight = false
+    const safeRefresh = () => {
+      if (cancelled || inFlight) return
+      inFlight = true
+      void refreshStats().finally(() => {
+        inFlight = false
+      })
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') safeRefresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', safeRefresh)
+    const id = window.setInterval(safeRefresh, 60_000)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', safeRefresh)
+      window.clearInterval(id)
+    }
+  }, [options.workspacePath, refreshStats])
+
   const handleCompleted = useCallback(
     (snap: PomodoroSnapshot, nowMs: number) => {
       if (completingRef.current) return

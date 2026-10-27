@@ -1033,7 +1033,30 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
   }, [loadBacklinksAndTags])
 
   useEffect(() => {
-    return workspaceIndexService.onVaultChanged(() => {
+    let reloadRetryTimer: ReturnType<typeof setTimeout> | null = null
+
+    const tryReloadFromDisk = (openPath: string, attempt = 0) => {
+      if (!window.electronAPI || !viewRef.current) return
+      if (hasUnsavedChangesRef.current) return
+      if (isLoadingFile.current || isSaving) {
+        // Autosave/load in flight — retry so agent/external writes are not dropped.
+        if (attempt >= 3) return
+        if (reloadRetryTimer) clearTimeout(reloadRetryTimer)
+        reloadRetryTimer = setTimeout(() => tryReloadFromDisk(openPath, attempt + 1), 400)
+        return
+      }
+      void (async () => {
+        if (hasUnsavedChangesRef.current || isLoadingFile.current) return
+        const result = await window.electronAPI!.readFile(openPath)
+        if (!result.success || result.content === undefined) return
+        const view = viewRef.current
+        if (!view || hasUnsavedChangesRef.current) return
+        if (view.state.doc.toString() === result.content) return
+        await loadFile(openPath)
+      })()
+    }
+
+    const unsubscribe = workspaceIndexService.onVaultChanged((event) => {
       noteStemsRef.current = workspaceIndexService.getNoteStemsForAutocomplete()
       if (currentFileRef.current && viewRef.current) {
         const analysis = workspaceIndexService.analyzePotentialLinksForFile(
@@ -1044,8 +1067,28 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
         setLinkDebt(analysis.debt)
       }
       void loadBacklinksAndTags()
+
+      // Agent Write / external edits: reload open clean buffer when disk diverges.
+      const openPath = currentFileRef.current
+      if (!openPath || !viewRef.current || !window.electronAPI) return
+
+      let changedPath = ''
+      if (event?.createdPath) changedPath = event.createdPath
+      else if (event?.newPath) changedPath = event.newPath
+      else if (event?.dirPath && event.filename) {
+        const sep = event.dirPath.includes('\\') ? '\\' : '/'
+        changedPath = `${event.dirPath.replace(/[/\\]+$/, '')}${sep}${event.filename}`
+      }
+      if (!changedPath || !treePathsEqual(changedPath, openPath)) return
+
+      tryReloadFromDisk(openPath)
     })
-  }, [loadBacklinksAndTags])
+
+    return () => {
+      if (reloadRetryTimer) clearTimeout(reloadRetryTimer)
+      unsubscribe()
+    }
+  }, [loadBacklinksAndTags, loadFile, isSaving])
 
   useEffect(() => {
     const nav = state.editorNavigation

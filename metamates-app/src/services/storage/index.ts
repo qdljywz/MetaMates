@@ -94,6 +94,8 @@ class StorageService {
   private storageKey = 'metamates-storage'
 
   async getSettings(): Promise<AppSettings> {
+    const hadLocalBlob =
+      typeof window !== 'undefined' && !!window.localStorage?.getItem(this.storageKey)
     const data = await this.getData()
     let settings = data.settings
 
@@ -101,17 +103,25 @@ class StorageService {
       try {
         const electronSettings = (await window.electronAPI.getSettings()) as Partial<AppSettings> | null
         if (electronSettings) {
-          settings = {
-            ...electronSettings,
-            ...data.settings,
-            vaultApiEnabled: data.settings.vaultApiEnabled ?? electronSettings.vaultApiEnabled,
-            vaultApiPort: data.settings.vaultApiPort ?? electronSettings.vaultApiPort,
-            vaultApiLanAccess: data.settings.vaultApiLanAccess ?? electronSettings.vaultApiLanAccess,
-            mobileReaderEnabled: data.settings.mobileReaderEnabled ?? electronSettings.mobileReaderEnabled,
-          }
-          if (electronSettings.workspacePath && electronSettings.workspacePath !== data.settings.workspacePath) {
+          if (!hadLocalBlob) {
+            // First paint after fresh userData: settings.json is authoritative.
+            // Seed localStorage so theme-boot.js sees light/dark on the next cold start.
+            settings = { ...DEFAULT_SETTINGS, ...electronSettings }
             data.settings = settings
             await this.saveData(data)
+          } else {
+            settings = {
+              ...electronSettings,
+              ...data.settings,
+              vaultApiEnabled: data.settings.vaultApiEnabled ?? electronSettings.vaultApiEnabled,
+              vaultApiPort: data.settings.vaultApiPort ?? electronSettings.vaultApiPort,
+              vaultApiLanAccess: data.settings.vaultApiLanAccess ?? electronSettings.vaultApiLanAccess,
+              mobileReaderEnabled: data.settings.mobileReaderEnabled ?? electronSettings.mobileReaderEnabled,
+            }
+            if (electronSettings.workspacePath && electronSettings.workspacePath !== data.settings.workspacePath) {
+              data.settings = settings
+              await this.saveData(data)
+            }
           }
         }
       } catch {

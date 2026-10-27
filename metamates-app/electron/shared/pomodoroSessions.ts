@@ -87,28 +87,67 @@ export function appendPomodoroSession(
   return record
 }
 
-function startOfLocalDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
+const DEFAULT_POMODORO_TZ = 'Asia/Shanghai'
+
+/**
+ * Calendar YYYY-MM-DD in a specific IANA timezone (not machine local).
+ */
+export function calendarDateInTimeZone(ms: number, timeZone: string): string {
+  try {
+    return new Date(ms).toLocaleDateString('sv-SE', { timeZone })
+  } catch {
+    return new Date(ms).toLocaleDateString('sv-SE', { timeZone: DEFAULT_POMODORO_TZ })
+  }
 }
 
-function startOfWeekMonday(d: Date): Date {
-  const day = d.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() + diff, 0, 0, 0, 0)
-  return monday
+function weekdayInTimeZone(ms: number, timeZone: string): number {
+  const short = new Date(ms).toLocaleDateString('en-US', { timeZone, weekday: 'short' })
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  return map[short] ?? new Date(ms).getDay()
+}
+
+function addDaysToDateString(dateStr: string, deltaDays: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const utc = Date.UTC(y, (m || 1) - 1, (d || 1) + deltaDays)
+  return new Date(utc).toISOString().slice(0, 10)
+}
+
+/** Monday (YYYY-MM-DD) of the week containing `now` in `timeZone`. */
+export function mondayDateStringInTimeZone(nowMs: number, timeZone: string): string {
+  const todayStr = calendarDateInTimeZone(nowMs, timeZone)
+  const wd = weekdayInTimeZone(nowMs, timeZone)
+  const diff = wd === 0 ? -6 : 1 - wd
+  return addDaysToDateString(todayStr, diff)
+}
+
+function resolvePomodoroTimeZone(explicit?: string | null): string {
+  if (explicit?.trim()) {
+    try {
+      Intl.DateTimeFormat('en-US', { timeZone: explicit.trim() })
+      return explicit.trim()
+    } catch {
+      // fall through
+    }
+  }
+  return DEFAULT_POMODORO_TZ
 }
 
 /**
  * Aggregate today / this week focus stats + recent sessions.
+ * Day/week boundaries use `timeZone` (default Asia/Shanghai) so overnight
+ * machine-local drift and user timezone settings stay aligned with diary dates.
  */
 export function summarizePomodoroStats(
   workspacePath: string,
   now = new Date(),
   recentLimit = 20,
+  timeZone?: string | null,
 ): PomodoroStatsSummary {
   const { sessions } = readPomodoroStore(workspacePath)
-  const dayStart = startOfLocalDay(now).getTime()
-  const weekStart = startOfWeekMonday(now).getTime()
+  const tz = resolvePomodoroTimeZone(timeZone)
+  const nowMs = now.getTime()
+  const todayStr = calendarDateInTimeZone(nowMs, tz)
+  const weekMondayStr = mondayDateStringInTimeZone(nowMs, tz)
 
   let todayCompletedFocus = 0
   let todayFocusSec = 0
@@ -120,11 +159,12 @@ export function summarizePomodoroStats(
     const ended = Date.parse(s.endedAt)
     if (!Number.isFinite(ended)) continue
     const sec = Math.max(0, s.actualSec || 0)
-    if (ended >= weekStart) {
+    const endedDate = calendarDateInTimeZone(ended, tz)
+    if (endedDate >= weekMondayStr) {
       weekFocusSec += sec
       if (s.status === 'completed') weekCompletedFocus += 1
     }
-    if (ended >= dayStart) {
+    if (endedDate === todayStr) {
       todayFocusSec += sec
       if (s.status === 'completed') todayCompletedFocus += 1
     }

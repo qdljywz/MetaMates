@@ -213,18 +213,22 @@
   filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.12));
 }
 
-/* Boot phase: always dark splash — prevents black/white flicker while settings hydrate. */
-html[data-boot='true'] .startup-splash,
-html[data-boot='true'] #boot-splash {
+/*
+ * Boot splash follows data-theme from theme-boot.js / bootstrap.
+ * Only force dark when theme is not light (unknown / dark preset).
+ * Light preset uses the [data-theme='light'] rules above — no black splash.
+ */
+html[data-boot='true']:not([data-theme='light']) .startup-splash,
+html[data-boot='true']:not([data-theme='light']) #boot-splash {
   background: radial-gradient(ellipse 80% 60% at 50% 45%, #1f1f24 0%, #18181b 55%, #0f0f12 100%) !important;
 }
 
-html[data-boot='true'] .startup-splash__brand,
-html[data-boot='true'] #boot-splash .boot-brand {
+html[data-boot='true']:not([data-theme='light']) .startup-splash__brand,
+html[data-boot='true']:not([data-theme='light']) #boot-splash .boot-brand {
   color: rgba(250, 250, 250, 0.88) !important;
 }
 
-html[data-boot='true'] .startup-splash__slogan,
-html[data-boot='true'] #boot-splash .boot-slogan {
+html[data-boot='true']:not([data-theme='light']) .startup-splash__slogan,
+html[data-boot='true']:not([data-theme='light']) #boot-splash .boot-slogan {
   color: rgba(212, 212, 216, 0.82) !important;
 }

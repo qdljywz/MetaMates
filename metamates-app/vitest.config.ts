@@ -11,6 +11,7 @@ export default defineConfig({
       'electron/shared/pomodoroSessions.test.ts',
       'electron/calendar/planTimeBlocks.test.ts',
       'electron/calendar/calendarSummary.test.ts',
+      'electron/acp/streamHang.bench.test.ts',
     ],
     exclude: ['**/node_modules/**', '**/dist/**'],
     environmentMatchGlobs: [

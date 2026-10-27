@@ -178,12 +178,24 @@ html.startup-phase #root {
   transition: none !important;
 }
 
-html[data-boot='true'] body,
-html[data-boot='true'] #root {
+/* Boot chrome matches preset — light users must not see a forced black intermediate. */
+html[data-boot='true']:not([data-theme='light']) body,
+html[data-boot='true']:not([data-theme='light']) #root {
   transition: none !important;
-  /* Must beat [data-theme=light] --canvas-base cream, or first paint is 白屏. */
   background: #18181b !important;
   color: #fafafa !important;
+}
+
+html[data-boot='true'][data-theme='light'] body,
+html[data-boot='true'][data-theme='light'] #root {
+  transition: none !important;
+  background: #f0eeea !important;
+  color: #18181b !important;
+}
+
+html[data-boot='true'][data-theme='light'][data-light-palette='cold'] body,
+html[data-boot='true'][data-theme='light'][data-light-palette='cold'] #root {
+  background: #fafaf9 !important;
 }
 
 #root {

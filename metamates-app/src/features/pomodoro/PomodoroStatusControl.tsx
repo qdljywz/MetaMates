@@ -94,8 +94,11 @@ const PomodoroStatusControl: React.FC<PomodoroStatusControlProps> = ({
           >
             🍅 {pomo.label}
             {pomo.stats.todayCompletedFocus > 0 && (
-              <span style={{ marginLeft: 6, opacity: 0.75 }}>
-                · {pomo.stats.todayCompletedFocus}× {formatFocusMinutes(pomo.stats.todayFocusSec)}
+              <span
+                style={{ marginLeft: 6, opacity: 0.75 }}
+                data-testid="pomodoro-today-count"
+              >
+                · {pomo.stats.todayCompletedFocus} · {formatFocusMinutes(pomo.stats.todayFocusSec)}
               </span>
             )}
           </button>

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, nativeImage, session, nativeTheme } from 'electron'
 import * as path from 'path'
 import * as fs from 'fs'
+import * as fsp from 'fs/promises'
 import type { FSWatcher } from 'fs'
 import type { NativeImage } from 'electron'
 import { registerAcpIpcHandlers, setAcpMainWindow, startAcpStartupWarmup, syncCliAgentEnabledPreferences } from './acp/ipcHandlers'
@@ -48,6 +49,14 @@ import {
 let mainWindow: BrowserWindow | null = null
 /** When instant boot splash first painted (packaged cold start). */
 let bootSplashAnchorMs: number | null = null
+/**
+ * Lock nativeTheme to the *resolved* boot appearance (light|dark) until React finishes splash.
+ * Never force-dark here: theme=system + light OS must keep cream splash / matchMedia light,
+ * otherwise theme-boot.js paints black then flashes white after unlock (user report).
+ */
+let nativeThemeSyncAllowed = false
+/** Cached before any themeSource lock — used for window bg + boot lock. */
+let bootAppearance: 'light' | 'dark' = 'dark'
 
 function markBootSplashAnchor(): void {
   if (bootSplashAnchorMs == null) bootSplashAnchorMs = Date.now()
@@ -55,6 +64,39 @@ function markBootSplashAnchor(): void {
 
 function getBootElapsedMs(): number {
   return bootSplashAnchorMs == null ? 0 : Date.now() - bootSplashAnchorMs
+}
+
+function applyNativeThemeWhenAllowed(themeMode: 'light' | 'dark' | 'system'): void {
+  if (!nativeThemeSyncAllowed) return
+  syncNativeThemeSource(themeMode)
+}
+
+/**
+ * Resolve light|dark for first paint. Call while nativeTheme.themeSource is still
+ * default ('system') so shouldUseDarkColors reflects the real OS preference.
+ */
+function resolveBootAppearance(): 'light' | 'dark' {
+  try {
+    const settings = readAppSettings()
+    const theme = typeof settings.theme === 'string' ? settings.theme : 'dark'
+    if (theme === 'light') return 'light'
+    if (theme === 'dark') return 'dark'
+    if (theme === 'system') {
+      return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
+    }
+  } catch {
+    /* fall through */
+  }
+  return 'dark'
+}
+
+function lightBackgroundForSettings(): string {
+  try {
+    const settings = readAppSettings()
+    return settings.lightPalette === 'cold' ? '#fafaf9' : '#f0eeea'
+  } catch {
+    return '#f0eeea'
+  }
 }
 
 let resolveDesktopReady: (() => void) | null = null
@@ -195,9 +237,10 @@ function focusMainWindow(): void {
 }
 
 function resolveWindowBackgroundColor(): string {
-  // Match #boot-splash first paint — themed light bg caused a multi-second cream/white flash
-  // before React hydrated. Theme applies after finishStartupBootPhase().
-  return '#18181b'
+  // Use bootAppearance (resolved before themeSource lock) — not live shouldUseDarkColors
+  // after a forced lock, which used to paint black for system+light-OS users.
+  const appearance = bootAppearance || resolveBootAppearance()
+  return appearance === 'light' ? lightBackgroundForSettings() : '#18181b'
 }
 
 const DEV_RENDERER_URL = 'http://127.0.0.1:3000/'
@@ -425,36 +468,53 @@ function createWindow() {
   })
 
   /**
-   * After Alt-Tab / restore, Chromium may keep a stale compositor buffer (black surface)
-   * especially with frameless windows. Force a repaint when the window is shown again.
+   * After Alt-Tab / restore, Chromium may keep a stale compositor buffer.
    *
-   * Do NOT invalidate synchronously on every focus — quick Alt-Tab + click then feels
-   * "假死" while the GPU/compositor rebuilds. Debounce + only after a real blur.
+   * Do NOT call webContents.invalidate() here: it clears the surface to
+   * BrowserWindow.backgroundColor. For light/system+light-OS that color is
+   * cream (#F0EEEA) — users report that as 白屏 when switching back to the app.
+   * (capturePage never sees that intermediate clear; the eye does.)
+   *
+   * Soft layer kick + already-on backgroundThrottling:false /
+   * disable-backgrounding-occluded-windows keep the tree without wiping.
    */
   let lastBlurAtMs = 0
   let repaintTimer: ReturnType<typeof setTimeout> | null = null
+  const softRepaintAfterFocus = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    void mainWindow.webContents
+      .executeJavaScript(
+        `(function(){var r=document.documentElement;if(!r)return;r.style.transform='translateZ(0)';requestAnimationFrame(function(){r.style.transform='';});})();`,
+        true,
+      )
+      .catch(() => {})
+  }
   mainWindow.on('blur', () => {
     lastBlurAtMs = Date.now()
   })
-  const repaintOnForeground = () => {
+  const repaintOnFocus = () => {
     if (!mainWindow || mainWindow.isDestroyed()) return
     const awayMs = lastBlurAtMs > 0 ? Date.now() - lastBlurAtMs : 0
-    // Ignore focus noise under ~400ms (rapid task-switch) — avoids click freeze.
     if (awayMs > 0 && awayMs < 400) return
     if (repaintTimer) clearTimeout(repaintTimer)
     repaintTimer = setTimeout(() => {
       repaintTimer = null
-      if (!mainWindow || mainWindow.isDestroyed()) return
-      try {
-        mainWindow.webContents.invalidate()
-      } catch {
-        // best-effort
-      }
+      softRepaintAfterFocus()
     }, 48)
   }
-  mainWindow.on('focus', repaintOnForeground)
-  mainWindow.on('restore', repaintOnForeground)
-  mainWindow.on('show', repaintOnForeground)
+  const repaintOnRestoreOrShow = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    const awayMs = lastBlurAtMs > 0 ? Date.now() - lastBlurAtMs : 0
+    if (awayMs > 0 && awayMs < 400) return
+    if (repaintTimer) {
+      clearTimeout(repaintTimer)
+      repaintTimer = null
+    }
+    softRepaintAfterFocus()
+  }
+  mainWindow.on('focus', repaintOnFocus)
+  mainWindow.on('restore', repaintOnRestoreOrShow)
+  mainWindow.on('show', repaintOnRestoreOrShow)
 
   mainWindow.on('closed', () => {
     appendSessionLifecycleEvent('main_window_closed')
@@ -516,8 +576,10 @@ function schedulePackagedDeferredWork(): void {
 }
 
 app.whenReady().then(async () => {
-  // Lock OS chrome dark until React finishes boot — light nativeTheme paints white frameless flash.
-  nativeTheme.themeSource = 'dark'
+  // Resolve from settings + real OS *before* locking. Lock to that appearance so
+  // prefers-color-scheme / theme-boot.js / frameless chrome all match the splash.
+  bootAppearance = resolveBootAppearance()
+  nativeTheme.themeSource = bootAppearance
   createWindow()
   scheduleWindowWatchdog()
 
@@ -532,7 +594,11 @@ app.whenReady().then(async () => {
 
   setTimeout(() => {
     registerSpeechHandlers(() => mainWindow)
-    registerNativeThemeBridge()
+    registerNativeThemeBridge({
+      onUnlock: () => {
+        nativeThemeSyncAllowed = true
+      },
+    })
     registerDocumentExtractHandlers()
     registerPluginHandlers()
   }, 0)
@@ -628,10 +694,12 @@ ipcMain.handle('read-file', async (event, filePath: string) => {
     const pathError = pathAssertError(guard)
     if (pathError) return { success: false, error: pathError }
     const resolved = pathAssertResolved(guard)!
-    if (fs.statSync(resolved).isDirectory()) {
+    const st = await fsp.stat(resolved)
+    if (st.isDirectory()) {
       return { success: false, error: 'EISDIR: illegal operation on a directory, read' }
     }
-    const content = fs.readFileSync(resolved, 'utf-8')
+    // Async FS — sync readFile during CLI stream blocked main → Windows "无响应".
+    const content = await fsp.readFile(resolved, 'utf-8')
     return { success: true, content }
   } catch (error: any) {
     return { success: false, error: error.message }
@@ -677,8 +745,8 @@ ipcMain.handle('list-files', async (event, dirPath: string, recursive: boolean =
 
     const files: any[] = []
     
-    const scanDir = (dir: string) => {
-      const items = fs.readdirSync(dir, { withFileTypes: true })
+    const scanDir = async (dir: string) => {
+      const items = await fsp.readdir(dir, { withFileTypes: true })
       for (const item of items) {
         const fullPath = path.join(dir, item.name)
         if (item.isDirectory()) {
@@ -688,13 +756,13 @@ ipcMain.handle('list-files', async (event, dirPath: string, recursive: boolean =
             path: fullPath,
           })
           if (recursive) {
-            scanDir(fullPath)
+            await scanDir(fullPath)
           }
           continue
         }
         let modified: number | undefined
         try {
-          modified = fs.statSync(fullPath).mtime.getTime()
+          modified = (await fsp.stat(fullPath)).mtime.getTime()
         } catch {
           /* ignore stat errors */
         }
@@ -707,7 +775,7 @@ ipcMain.handle('list-files', async (event, dirPath: string, recursive: boolean =
       }
     }
     
-    scanDir(dirPath)
+    await scanDir(dirPath)
     return { success: true, files }
   } catch (error: any) {
     return { success: false, error: error.message }
@@ -771,7 +839,7 @@ ipcMain.handle('save-settings', async (_event, settings: any) => {
     console.log('[MAIN] Settings saved:', settings)
 
     if (settings?.theme === 'light' || settings?.theme === 'dark' || settings?.theme === 'system') {
-      syncNativeThemeSource(settings.theme)
+      applyNativeThemeWhenAllowed(settings.theme)
     }
 
     if (settings?.cliAgentEnabled && typeof settings.cliAgentEnabled === 'object') {
@@ -1262,7 +1330,12 @@ ipcMain.handle('pomodoro-list-sessions', async (_event, workspacePath: string) =
 
 ipcMain.handle('pomodoro-get-stats', async (_event, workspacePath: string) => {
   try {
-    return { success: true, stats: summarizePomodoroStats(workspacePath) }
+    const settings = readAppSettings()
+    const tz =
+      typeof settings.userTimezone === 'string' && settings.userTimezone.trim()
+        ? settings.userTimezone.trim()
+        : 'Asia/Shanghai'
+    return { success: true, stats: summarizePomodoroStats(workspacePath, new Date(), 20, tz) }
   } catch (error: any) {
     return {
       success: false,

@@ -140,6 +140,8 @@ const AppContent: React.FC = () => {
       })
     })
     const forceEnterTimer = window.setTimeout(() => {
+      // data-boot chrome already matches preset (theme-boot.js). Unlock + show shell together
+      // so light users never get a black intermediate flash after a cream splash.
       finishStartupBootPhase()
       setLoading((prev) => {
         if (prev) {

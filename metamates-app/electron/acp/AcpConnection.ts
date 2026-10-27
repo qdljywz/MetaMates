@@ -513,6 +513,7 @@ export class BackendConnection {
           content?: unknown
           toolFilePath?: string
         }
+        // immediate=false: skip wal_checkpoint on the streaming hot path (was freezing main).
         sessionDb.insertMessage({
           conversation_id: conversationId,
           type: 'acp_tool_call',
@@ -531,7 +532,7 @@ export class BackendConnection {
           },
           position: 'left',
           status: 'streaming',
-        }, true)
+        }, false)
         break
       }
       case 'update_tool': {
@@ -545,24 +546,22 @@ export class BackendConnection {
           locations?: unknown
           toolFilePath?: string
         }
-        const messages = sessionDb.getAllConversationMessages(conversationId)
-        for (const m of messages) {
-          if (m.type === 'acp_tool_call' && m.content?.update?.toolCallId === payload.toolCallId) {
-            const prev = m.content.update as Record<string, unknown>
-            sessionDb.updateMessage(m.id, {
-              update: {
-                ...prev,
-                status: payload.status ?? prev.status,
-                title: payload.title || prev.title,
-                kind: payload.kind || prev.kind,
-                content: payload.content ?? prev.content,
-                rawInput: payload.rawInput ?? prev.rawInput,
-                locations: payload.locations ?? prev.locations,
-                toolFilePath: payload.toolFilePath ?? prev.toolFilePath,
-              },
-            })
-            break
-          }
+        // Indexed by msg_id (= toolCallId) — never SELECT * the whole conversation mid-stream.
+        const existing = sessionDb.getToolCallMessageByMsgId(conversationId, payload.toolCallId)
+        if (existing) {
+          const prev = (existing.content?.update || {}) as Record<string, unknown>
+          sessionDb.updateMessage(existing.id, {
+            update: {
+              ...prev,
+              status: payload.status ?? prev.status,
+              title: payload.title || prev.title,
+              kind: payload.kind || prev.kind,
+              content: payload.content ?? prev.content,
+              rawInput: payload.rawInput ?? prev.rawInput,
+              locations: payload.locations ?? prev.locations,
+              toolFilePath: payload.toolFilePath ?? prev.toolFilePath,
+            },
+          })
         }
         break
       }
@@ -574,10 +573,31 @@ export class BackendConnection {
           content: { sessionId, entries },
           position: 'left',
           status: 'streaming',
-        }, true)
+        }, false)
         break
       }
     }
+  }
+
+  private pendingDbWrites: Array<{ conversationId: string; op: DbWriteOp }> = []
+  private dbFlushScheduled = false
+
+  /** Queue SQLite writes off the stdout tick so the Windows message pump stays alive. */
+  private enqueueDbWrite(conversationId: string, op: DbWriteOp): void {
+    this.pendingDbWrites.push({ conversationId, op })
+    if (this.dbFlushScheduled) return
+    this.dbFlushScheduled = true
+    setImmediate(() => {
+      this.dbFlushScheduled = false
+      const batch = this.pendingDbWrites.splice(0)
+      for (const item of batch) {
+        try {
+          this.applyDbWrite(item.conversationId, item.op)
+        } catch (err) {
+          console.error(`[${this.config.backend}] deferred db write failed:`, err)
+        }
+      }
+    })
   }
 
   private handleSessionUpdateViaPipeline(update: Record<string, unknown>): void {
@@ -586,7 +606,7 @@ export class BackendConnection {
     const ctx = this.buildPipelineContext()
     const { stream, db } = processSessionUpdate(enriched, ctx)
     for (const op of db) {
-      this.applyDbWrite(conversation.id, op)
+      this.enqueueDbWrite(conversation.id, op)
     }
     for (const message of stream) {
       this.emitStreamMessage(message)
@@ -769,15 +789,14 @@ export class BackendConnection {
         }
       } else if (msg.method === 'session/update') {
         this.resetPromptTimeout()
-        const updateContent = JSON.stringify(msg.params?.update || {})
-        console.log(`[${this.config.backend}] session/update length:`, updateContent.length)
-        console.log(`[${this.config.backend}] session/update preview:`, updateContent.substring(0, 200))
-        if (updateContent.length > 10000) {
-          console.log(`[${this.config.backend}] WARNING: Large update (${updateContent.length} chars)`)
-        }
-        
+        // Never JSON.stringify the full update on the hot path — large tool payloads
+        // blocked the main process and Windows showed "Not Responding" during CLI stream.
         const update = msg.params?.update
         if (update && typeof update === 'object') {
+          const kind = String((update as { sessionUpdate?: string }).sessionUpdate || 'unknown')
+          if (kind === 'tool_call' || kind === 'tool_call_update') {
+            console.log(`[${this.config.backend}] session/update ${kind}`)
+          }
           this.handleSessionUpdateViaPipeline(update as Record<string, unknown>)
         }
       } else if (msg.method === 'fs/read_text_file') {

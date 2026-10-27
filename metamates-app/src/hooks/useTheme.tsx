@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
 import { storageService } from '../services/storage'
 import { readThemeBootstrapSync, applyThemeBootstrapToDocument } from '../utils/themeBootstrap'
 
@@ -133,7 +133,6 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.ReactElem
   const [lightPalette, setLightPalette] = useState<LightPalette>(readInitialLightPalette)
   const [osPrefersDark, setOsPrefersDark] = useState(readCssPrefersDark)
   const [initialized, setInitialized] = useState(false)
-  const skipHydrationSaveRef = useRef(true)
 
   const [theme, setTheme] = useState<Theme>(() => ({
     mode: boot.mode,
@@ -238,11 +237,9 @@ export function ThemeProvider({ children }: ThemeProviderProps): React.ReactElem
   }, [applyTheme, themeMode])
 
   useEffect(() => {
+    // Persist after hydrate so theme-boot.js / next cold start see light preset in
+    // localStorage (settings.json alone is not enough for the HTML splash paint).
     if (!initialized) return
-    if (skipHydrationSaveRef.current) {
-      skipHydrationSaveRef.current = false
-      return
-    }
     try {
       storageService.saveSettings({
         theme: themeMode,

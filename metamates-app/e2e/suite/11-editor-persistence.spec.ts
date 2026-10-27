@@ -89,4 +89,34 @@ test.describe.serial('@suite Editor persistence', () => {
     await page.keyboard.press('Control+Shift+L')
     await expect(editor).toContainText(unsavedMarker, { timeout: 5_000 })
   })
+
+  test('external vault write reloads clean open editor', async () => {
+    const { writeFileSync } = await import('fs')
+    const externalMarker = `E2E_EXTERNAL_WRITE_${Date.now()}`
+
+    // Prior serial case may leave a dirty buffer — close then reopen clean.
+    await closeTabByName(page, E2E_LINK_SEED_FILE).catch(() => {})
+    await ensureFolderExpanded(page, PROJECTS_DIR)
+    await ensureFolderExpanded(page, E2E_SANDBOX_DIR_NAME)
+    await page.locator('.ant-tree-title').filter({ hasText: E2E_LINK_SEED_FILE }).click()
+    await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: E2E_LINK_SEED_FILE })).toBeVisible({
+      timeout: 15_000,
+    })
+
+    const editor = page.locator('.cm-content')
+    await expect(editor).toBeVisible({ timeout: 10_000 })
+    // Wait until editor shows disk content (loadFile finished) and is not dirty.
+    await expect
+      .poll(async () => {
+        const dirty = await page.locator('[data-testid="tab-bar"]').locator('.ant-tabs-tab-active').innerText()
+        return !dirty.includes('•') && !dirty.includes('*')
+      }, { timeout: 8_000 })
+      .toBe(true)
+      .catch(() => {})
+
+    const before = readVaultFileUtf8(seedPath)
+    writeFileSync(seedPath, `${before.trimEnd()}\n\n${externalMarker}\n`, 'utf8')
+
+    await expect(editor).toContainText(externalMarker, { timeout: 12_000 })
+  })
 })

@@ -123,6 +123,8 @@
     "test:e2e:lazy-warmup": "node scripts/e2e-run-spec.mjs e2e/lazy-warmup.spec.ts",
     "test:e2e:pomodoro": "node scripts/e2e-run-spec.mjs e2e/suite/34-pomodoro.spec.ts",
     "test:e2e:boot-splash": "node scripts/e2e-run-spec.mjs e2e/suite/35-boot-splash.spec.ts",
+    "verify:theme-preset-startup": "node scripts/verify-theme-preset-startup.mjs",
+    "verify:focus-restore-white": "node scripts/verify-focus-restore-white.mjs",
     "verify:startup-ux": "node scripts/verify-packaged-startup-ux.mjs",
     "verify:fresh-user": "node scripts/verify-fresh-packaged-user.mjs",
     "verify:acceptance-portable": "node scripts/verify-acceptance-portable.mjs",

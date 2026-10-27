@@ -268,18 +268,32 @@ export async function launchMetaMatesApp(
     engineDisplayName?: string
     /** UI / settings language for this launch (default zh via seed). */
     language?: 'zh' | 'en'
+    /** Seeded settings.theme (default dark). Use light to assert cream boot splash. */
+    theme?: 'light' | 'dark' | 'system'
+    lightPalette?: 'paper' | 'cold'
+    /**
+     * Reuse an existing userData dir (e.g. after seeding localStorage for theme-boot).
+     * Skips Local Storage wipe. Caller owns cleanup.
+     */
+    userDataDir?: string
+    /** When true with a caller-owned userDataDir, do not delete it on closeElectronApp. */
+    keepUserData?: boolean
   },
 ): Promise<ElectronApplication> {
   acquireSingleSessionLock()
 
-  const userDataDir = options?.freshUserData ? createFreshE2EUserDataDir() : createE2EUserDataDir()
-  if (!options?.freshUserData) {
+  const userDataDir =
+    options?.userDataDir ||
+    (options?.freshUserData ? createFreshE2EUserDataDir() : createE2EUserDataDir())
+  if (!options?.userDataDir && !options?.freshUserData) {
     resetE2ERendererStorage(userDataDir)
   }
   const profileExtra: Record<string, unknown> = {}
   if (options?.speechEngine) profileExtra.speechEngine = options.speechEngine
   if (options?.engineDisplayName) profileExtra.engineDisplayName = options.engineDisplayName
   if (options?.language) profileExtra.language = options.language
+  if (options?.theme) profileExtra.theme = options.theme
+  if (options?.lightPalette) profileExtra.lightPalette = options.lightPalette
   seedE2EUserProfile(userDataDir, workspace, profileExtra)
   if (options?.noDevPlugins) {
     removeE2EPluginInstall(userDataDir, 'offline-speech')
@@ -322,7 +336,9 @@ export async function launchMetaMatesApp(
       timeout: 120_000,
       env: launchEnv,
     })
-    if (options?.freshUserData) ephemeralUserDataByApp.set(launched, userDataDir)
+    if (options?.freshUserData && !options?.keepUserData && !options?.userDataDir) {
+      ephemeralUserDataByApp.set(launched, userDataDir)
+    }
     return launched
   }
 
@@ -333,7 +349,9 @@ export async function launchMetaMatesApp(
     timeout: 120_000,
     env: launchEnv,
   })
-  if (options?.freshUserData) ephemeralUserDataByApp.set(launched, userDataDir)
+  if (options?.freshUserData && !options?.keepUserData && !options?.userDataDir) {
+    ephemeralUserDataByApp.set(launched, userDataDir)
+  }
   return launched
 }
 
