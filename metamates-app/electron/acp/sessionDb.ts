@@ -100,6 +100,16 @@ function markSqliteUnavailable(err: unknown): void {
 export function isDatabaseAvailable(): boolean {
   if (sqlite) return true
   if (sqliteLoadError) return false
+  // Tests set SESSION_DB_SQLITE_PATH — open for real so ABI mismatch skips the suite
+  // instead of returning false-positive availability (createConversation then no-ops).
+  if (process.env.SESSION_DB_SQLITE_PATH?.trim()) {
+    try {
+      getSqlite()
+      return true
+    } catch {
+      return false
+    }
+  }
   // Do not open userData DB just to probe availability before a vault is bound.
   if (!normalizeWorkspacePath(getCurrentWorkspacePath())) {
     return true
