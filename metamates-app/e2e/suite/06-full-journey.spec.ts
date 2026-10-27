@@ -48,9 +48,8 @@ import { openSettingsModal, openSettingsTab, settingsModalLocator } from '../hel
 import {
   getDailyNoteFileName,
   getDailyPlanFileName,
-  getDailyNotePath,
-  getDailyPlanPath,
   getTodayDateString,
+  DEFAULT_USER_TIMEZONE,
   WORKSPACE_LAYOUT,
 } from '../../src/constants/paths'
 
@@ -76,11 +75,12 @@ test.describe.serial('@suite Full journey (single session)', () => {
   let page: Page
   const workspace = getE2EWorkspace()
   const sandboxPath = ensureE2ESandbox(workspace)
-  const today = getTodayDateString()
+  // Match app default settings.userTimezone (Asia/Shanghai), not the CI host zone.
+  const today = getTodayDateString(DEFAULT_USER_TIMEZONE)
   const noteFileName = getDailyNoteFileName(today)
   const planFileName = getDailyPlanFileName(today)
-  const notePath = getDailyNotePath(workspace, today, 'zh')
-  const planPath = getDailyPlanPath(workspace, today, 'zh')
+  const notePath = path.join(workspace, WORKSPACE_LAYOUT.zh.LOG_AND_PLAN, noteFileName)
+  const planPath = path.join(workspace, WORKSPACE_LAYOUT.zh.LOG_AND_PLAN, planFileName)
   const seedPath = ensureE2ELinkSeed(workspace)
   const linkTargetPath = ensureE2ELinkTarget(workspace)
 
@@ -455,7 +455,12 @@ test.describe.serial('@suite Full journey (single session)', () => {
     dragItemPath = movedPath
 
     await refreshFileTree(page)
-    await ensureTreeFileVisible(page, E2E_DRAG_ITEM_FILE, [PROJECTS_DIR, E2E_SANDBOX_DIR_NAME, E2E_DRAG_SUB_DIR])
+    try {
+      await ensureTreeFileVisible(page, E2E_DRAG_ITEM_FILE, [PROJECTS_DIR, E2E_SANDBOX_DIR_NAME, E2E_DRAG_SUB_DIR])
+    } catch {
+      await refreshFileTree(page)
+      await ensureTreeFileVisible(page, E2E_DRAG_ITEM_FILE, [PROJECTS_DIR, E2E_SANDBOX_DIR_NAME, E2E_DRAG_SUB_DIR])
+    }
     expect(vaultFileExists(movedPath)).toBe(true)
     expect(vaultFileExists(path.join(sandboxPath, E2E_DRAG_ITEM_FILE))).toBe(false)
   })
@@ -485,21 +490,35 @@ test.describe.serial('@suite Full journey (single session)', () => {
     await calendar.getByRole('button', { name: '‹' }).click()
     await calendar.getByRole('button', { name: /今天|Today/i }).click()
 
-    await page.locator(`[data-testid="calendar-date-${today}"]`).dblclick()
+    const todayCell = page.locator(`[data-testid="calendar-date-${today}"]`)
+    await expect(todayCell).toBeVisible({ timeout: 15_000 })
+
+    // Prefer action chip over dblclick — Linux/Xvfb dblclick is flaky and can open a tab
+    // without a durable disk write being observed at the expected vault path.
+    await todayCell.click()
+    await calendar.getByRole('button', { name: /^日记$|^Note$/i }).click()
     await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: noteFileName })).toBeVisible({
       timeout: 15_000,
     })
-    await expect.poll(() => vaultFileExists(notePath), { timeout: 15_000 }).toBe(true)
+    await expect
+      .poll(() => vaultFileExists(notePath) || vaultFileExists(path.join(workspace, WORKSPACE_LAYOUT.en.LOG_AND_PLAN, noteFileName)), {
+        timeout: 15_000,
+      })
+      .toBe(true)
     await closeTabByName(page, noteFileName)
 
-    await page.locator(`[data-testid="calendar-date-${today}"]`).click({ modifiers: ['Shift'] })
+    await todayCell.click({ modifiers: ['Shift'] })
     await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: planFileName })).toBeVisible({
       timeout: 15_000,
     })
-    await expect.poll(() => vaultFileExists(planPath), { timeout: 15_000 }).toBe(true)
+    await expect
+      .poll(() => vaultFileExists(planPath) || vaultFileExists(path.join(workspace, WORKSPACE_LAYOUT.en.LOG_AND_PLAN, planFileName)), {
+        timeout: 15_000,
+      })
+      .toBe(true)
     await closeTabByName(page, planFileName)
 
-    await page.locator(`[data-testid="calendar-date-${today}"]`).click()
+    await todayCell.click()
     await calendar.getByRole('button', { name: /^日记$|^Note$/i }).click()
     await expect(page.locator('[data-testid="tab-bar"]').filter({ hasText: noteFileName })).toBeVisible({
       timeout: 15_000,

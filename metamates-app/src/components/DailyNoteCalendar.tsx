@@ -52,8 +52,9 @@ function buildMonthGrid(year: number, month: number): (Date | null)[][] {
   return weeks
 }
 
-function dateToStr(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+/** Format a calendar-grid Date as YYYY-MM-DD in the user's timezone (not host local). */
+function dateToStr(date: Date, timeZone: string): string {
+  return date.toLocaleDateString('sv-SE', { timeZone })
 }
 
 const ACTIVITY_ALPHA = [0, 0.1, 0.16, 0.24, 0.34]
@@ -164,7 +165,7 @@ const DailyNoteCalendar = memo(({ onOpenNote, onEntryCreated, onOpenInGraph }: D
   }
 
   const handleDateClick = (date: Date, event: React.MouseEvent) => {
-    const dateStr = dateToStr(date)
+    const dateStr = dateToStr(date, timezone)
     if (event.shiftKey) {
       void openEntry(dateStr, 'plan')
       return
@@ -173,7 +174,7 @@ const DailyNoteCalendar = memo(({ onOpenNote, onEntryCreated, onOpenInGraph }: D
   }
 
   const handleDateDoubleClick = (date: Date) => {
-    void openEntry(dateToStr(date), 'note')
+    void openEntry(dateToStr(date, timezone), 'note')
   }
 
   if (!state.workspacePath) return null
@@ -220,7 +221,7 @@ const DailyNoteCalendar = memo(({ onOpenNote, onEntryCreated, onOpenInGraph }: D
             if (!date) {
               return <div key={dayIndex} />
             }
-            const dateStr = dateToStr(date)
+            const dateStr = dateToStr(date, timezone)
             const dayActivity = activity.byDate.get(dateStr) ?? []
             const level = activityLevel(dayActivity.length)
             const hasNote = activity.noteDates.has(dateStr)

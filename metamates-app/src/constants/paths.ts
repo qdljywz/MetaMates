@@ -400,17 +400,16 @@ export async function openOrCreateDailyEntry(
 ): Promise<DailyEntryResult | null> {
   if (!window.electronAPI) return null
 
-  const filePath = kind === 'plan'
-    ? await resolveDailyPlanPath(workspacePath, dateStr, language)
-    : await resolveDailyNotePath(workspacePath, dateStr, language)
+  const planDir = await resolveDailyPlanDir(workspacePath, language)
   const fileName = kind === 'plan' ? getDailyPlanFileName(dateStr) : getDailyNoteFileName(dateStr)
+  // Join via Electron so the written path matches createDirectory / fileExists resolution.
+  const filePath = await window.electronAPI.path.join(workspacePath, planDir, fileName)
 
   const existsResult = await window.electronAPI.fileExists(filePath)
   if (existsResult.exists) {
     return { path: filePath, name: fileName, created: false }
   }
 
-  const planDir = await resolveDailyPlanDir(workspacePath, language)
   const planDirPath = await window.electronAPI.path.join(workspacePath, planDir)
   await window.electronAPI.createDirectory(planDirPath)
 

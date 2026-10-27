@@ -206,6 +206,7 @@ export function seedE2EUserProfile(
     fontSize: 14,
     autoSave: true,
     language: 'zh',
+    userTimezone: 'Asia/Shanghai',
     workspacePath: workspace,
     recentFiles: [],
     engineDisplayName: 'E2E副脑',
