@@ -122,11 +122,14 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
     props.isLeaf ? <FileOutlined /> : <FolderOutlined />
   ), [])
 
-  const attachChildrenToTree = useCallback((nodePath: string, children: TreeDataNode[]) => {
+  const attachChildrenToTree = useCallback((nodePath: string, children: TreeDataNode[]): boolean => {
+    let patched = false
     setTreeData((prevData) => {
-      const { tree, patched } = patchTreeNodeChildren(prevData, nodePath, children)
-      return patched ? tree : prevData
+      const next = patchTreeNodeChildren(prevData, nodePath, children)
+      patched = next.patched
+      return next.patched ? next.tree : prevData
     })
+    return patched
   }, [])
 
   const bumpLoadGeneration = useCallback((nodePath: string) => {
@@ -160,8 +163,9 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
     // Parent re-list replaces nested nodes without their children; clear stale "loaded"
     // flags so expanded descendants are fetched again (otherwise empty expanded folders).
     invalidateLoadedKeysUnder(loadedKeysRef.current, dirPath)
-    loadedKeysRef.current.add(dirPath)
-    attachChildrenToTree(dirPath, children)
+    if (attachChildrenToTree(dirPath, children)) {
+      loadedKeysRef.current.add(dirPath)
+    }
   }, [attachChildrenToTree, bumpLoadGeneration, mapFilesToTreeNodes, state.workspacePath])
 
   const refreshTreeFromVaultChange = useCallback(async (event?: FileChangeEvent) => {
@@ -212,8 +216,9 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
       if (loadGenerationRef.current.get(nodePath) !== generation) return
       if (!result?.success || !result.files) return
       const children = mapFilesToTreeNodes(result.files, state.workspacePath)
-      loadedKeysRef.current.add(nodePath)
-      attachChildrenToTree(nodePath, children)
+      if (attachChildrenToTree(nodePath, children)) {
+        loadedKeysRef.current.add(nodePath)
+      }
     } finally {
       inFlightLoadsRef.current.delete(nodePath)
     }
@@ -225,9 +230,14 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
       .map(String)
       .filter((key) => !treePathsEqual(key, state.workspacePath))
       .filter((key) => ![...loadedKeysRef.current].some((k) => treePathsEqual(k, key)))
-    if (toLoad.length > 0) {
-      void Promise.all(toLoad.map((dir) => loadNodeChildren(dir)))
-    }
+      .sort((a, b) => a.length - b.length)
+    if (toLoad.length === 0) return
+    // Parent→child order; avoid parallel attach racing nested folders.
+    void (async () => {
+      for (const dir of toLoad) {
+        await loadNodeChildren(dir)
+      }
+    })()
     // treeData: parent re-list can invalidate loadedKeys; re-check expanded folders.
   }, [expandedKeys, loadNodeChildren, state.workspacePath, treeData])
 
@@ -247,10 +257,12 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
     const dirsToReload = getExpandedDirsToRehydrate(state.workspacePath, expandedKeys.map(String))
     if (dirsToReload.length === 0) return
 
+    // Sequential parent→child: parallel reloads race (child attach can run before parent
+    // node exists, then parent replace wipes the nested children).
     for (const dir of dirsToReload) {
       loadedKeysRef.current.delete(dir)
+      await reloadDirectoryInTree(dir)
     }
-    await Promise.all(dirsToReload.map((dir) => reloadDirectoryInTree(dir)))
   }, [expandedKeys, reloadDirectoryInTree, state.workspacePath])
 
   /** After create in a folder: patch treeData so new items appear under `.ant-tree-title`. */
