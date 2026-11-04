@@ -17,8 +17,7 @@ defaults:
 
 jobs:
   verify:
-    # Pin 24.04: ubuntu-latest rolled to 26.04; Playwright <1.61 cannot install Chromium there.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -47,8 +46,8 @@ jobs:
         run: npm run test:ux-guardrails
 
   e2e-smoke:
-    # Same pin as verify — e2e installs Playwright Chromium (unsupported on ubuntu26.04-x64 until PW≥1.61).
-    runs-on: ubuntu-24.04
+    # Requires @playwright/test ≥1.61 (Ubuntu 26.04 / ubuntu-latest Chromium support).
+    runs-on: ubuntu-latest
     needs: verify
     steps:
       - uses: actions/checkout@v4
