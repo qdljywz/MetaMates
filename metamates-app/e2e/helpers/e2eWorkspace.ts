@@ -1,13 +1,11 @@
-import { createRequire } from 'node:module'
-import { fileURLToPath } from 'node:url'
-
-const require = createRequire(fileURLToPath(import.meta.url))
-const { resolveDefaultWorkspace, E2E_WORKSPACE_REL } = require(
-  '../../scripts/lib/default-workspace.mjs',
-) as {
-  resolveDefaultWorkspace: (envVar?: string) => string
-  E2E_WORKSPACE_REL: string
-}
+/**
+ * Isolated E2E vault helpers.
+ * Playwright ≥1.61 loads these as ESM — do not createRequire() .mjs files (SyntaxError).
+ */
+import {
+  resolveDefaultWorkspace,
+  E2E_WORKSPACE_REL,
+} from '../../scripts/lib/default-workspace.mjs'
 
 /** Relative path from metamates-app root (gitignored at runtime). */
 export { E2E_WORKSPACE_REL }
