@@ -1,7 +1,6 @@
 import React, { useMemo, useCallback } from 'react'
 import { Typography, Tag, Divider, Checkbox, Table } from 'antd'
 import NoteEmbedBlock from './NoteEmbedBlock'
-import { stripFrontmatter } from '../services/embedResolver'
 
 const { Title, Paragraph } = Typography
 
@@ -9,6 +8,8 @@ interface MarkdownPreviewProps {
   content: string
   onLinkClick?: (target: string) => void
   onTagClick?: (tag: string) => void
+  /** Toggle task checkbox at 0-based source line in full markdown (incl. frontmatter). */
+  onToggleCheckbox?: (sourceLine: number) => void
   resolveNoteEmbed?: (note: string, options?: { heading?: string; blockId?: string }) => Promise<string | null>
 }
 
@@ -18,6 +19,8 @@ interface ParsedNode {
   content?: React.ReactNode
   items?: ParsedNode[]
   checked?: boolean
+  /** 0-based line index in the original `content` string (split on \\n). */
+  sourceLine?: number
   language?: string
   target?: string
   text?: string
@@ -29,11 +32,26 @@ interface ParsedNode {
   alias?: string
 }
 
-const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick, onTagClick, resolveNoteEmbed }) => {
+/** Skip YAML frontmatter so preview body matches stripFrontmatter, while keeping absolute line indices. */
+function bodyStartLineIndex(lines: string[]): number {
+  if ((lines[0] ?? '').trim() !== '---') return 0
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === '---') return i + 1
+  }
+  return 0
+}
+
+const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
+  content,
+  onLinkClick,
+  onTagClick,
+  onToggleCheckbox,
+  resolveNoteEmbed,
+}) => {
   const parseContent = useCallback((text: string): ParsedNode[] => {
-    const lines = stripFrontmatter(text).split('\n')
+    const lines = text.split('\n')
     const nodes: ParsedNode[] = []
-    let i = 0
+    let i = bodyStartLineIndex(lines)
 
     while (i < lines.length) {
       const line = lines[i]
@@ -96,6 +114,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
           nodes.push({
             type: 'checkbox',
             checked: match[1].toLowerCase() === 'x',
+            sourceLine: i,
             content: parseInline(match[2], onLinkClick, onTagClick),
           })
         }
@@ -383,15 +402,20 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, onLinkClick,
 
       case 'checkbox':
         return (
-          <div key={index} style={{ marginBottom: 6, marginLeft: 20 }}>
-            <Checkbox 
-              checked={node.checked} 
-              style={{ 
+          <div key={index} style={{ marginBottom: 6, marginLeft: 20 }} data-testid="md-preview-checkbox">
+            <Checkbox
+              checked={node.checked}
+              disabled={node.sourceLine == null || !onToggleCheckbox}
+              onChange={() => {
+                if (node.sourceLine == null || !onToggleCheckbox) return
+                onToggleCheckbox(node.sourceLine)
+              }}
+              style={{
                 color: node.checked ? 'var(--success)' : undefined,
               }}
             >
-              <span style={{ 
-                textDecoration: node.checked ? 'line-through' : 'none', 
+              <span style={{
+                textDecoration: node.checked ? 'line-through' : 'none',
                 opacity: node.checked ? 0.6 : 1,
                 color: node.checked ? 'var(--text-dim)' : 'var(--text-primary)',
               }}>

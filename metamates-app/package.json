@@ -90,6 +90,7 @@
     "test:e2e:ux-guardrails": "node scripts/playwright-e2e.mjs guardrails",
     "test:ux-guardrails": "vitest run src/test/startupUx.test.ts src/test/processTreeKill.test.ts src/test/fileTreeUx.test.ts src/test/editorEmptyState.test.ts src/test/emptyStatePlanner.test.ts src/utils/emptyStatePlanner.refresh.test.ts src/utils/emptyStateContextSignals.test.ts src/services/emptyStateBackgroundRethink.test.ts src/services/graduateInboxArchive.test.ts src/utils/openSlashWriteback.test.ts src/utils/tabClose.test.ts src/constants/paths.timezone.test.ts src/commands/slashWritePolicy.test.ts src/store/appStore.test.ts src/services/vaultPaths.test.ts src/utils/fileTreeExpand.test.ts",
     "test:e2e:editor": "node scripts/e2e-run-spec.mjs e2e/suite/03-editor.spec.ts",
+    "test:e2e:preview-checkbox": "node scripts/e2e-run-spec.mjs e2e/suite/33-preview-checkbox.spec.ts",
     "test:e2e:editor-trust": "node scripts/e2e-run-spec.mjs e2e/suite/14-editor-trust.spec.ts",
     "test:e2e:timezone": "node scripts/e2e-run-spec.mjs e2e/suite/15-timezone-calendar.spec.ts",
     "test:e2e:vault-capture": "node scripts/e2e-run-spec.mjs e2e/suite/16-vault-capture.spec.ts",

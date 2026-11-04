@@ -24,8 +24,8 @@ Please perform the following tasks:
 - [Goal 2]
 
 ⏰ Schedule
-- 09:00–12:00 — Task description
-- 14:00 — Hard-stop task
+- [ ] 09:00–12:00 — Task description
+- [ ] 14:00–15:00 — Hard-stop task
 
 📋 To-Do List
 - [ ] Task 1
@@ -41,8 +41,9 @@ Please perform the following tasks:
 
 - **Must** Write to `01_Log_and_Plan/YYYY-MM-DD PLAN.md` (space + `PLAN.md`, not underscore)
 - Time lines **must** use a parseable format (status bar "N items today" only recognizes these):
-  - `- 09:00–12:00 — Title` / `- 14:00 — Title` (preferred)
-  - or `- [ ] **09:00 - 11:00**: Title` (template checkbox style)
+  - **Preferred (completable)**: `- [ ] 09:00–12:00 — Title`; mark done as `- [x] ...` (x/X both count) so the item drops from "N items today"
+  - Also: `- [ ] **09:00 - 11:00**: Title`
+  - Legacy MyM2: `- 09:00–12:00 — Title` / `- 14:00 — Title` (counts in schedule, but no checkbox means you cannot mark [x] done)
 - **Do not** leave `- [Time] - [Task]` placeholders; do not chat-only without disk writeback
 - After write: **Read to verify** (Act & Verify)
 

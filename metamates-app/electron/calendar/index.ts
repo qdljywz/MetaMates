@@ -120,13 +120,16 @@ export function loadPlanTimeBlockEvents(
     return { events: [], planPath }
   }
   const blocks = parsePlanTimeBlocks(content)
+  // Status bar 「今日 N 项日程」= remaining open blocks; checked `[x]` drop out of the count.
   return {
     planPath,
-    events: blocks.map((b) => ({
-      summary: b.summary,
-      time: b.time,
-      origin: 'plan' as const,
-    })),
+    events: blocks
+      .filter((b) => !b.done)
+      .map((b) => ({
+        summary: b.summary,
+        time: b.time,
+        origin: 'plan' as const,
+      })),
   }
 }
 

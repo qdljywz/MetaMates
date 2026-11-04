@@ -55,4 +55,17 @@ describe('getCalendarSummary PLAN fallback', () => {
     expect(summary.events).toHaveLength(0)
     expect(summary.planSource).toBeTruthy()
   })
+
+  it('excludes checked-off PLAN blocks from today count', () => {
+    const root = makeVault(`# plan
+## 🕒 时间块划分
+- [x] **09:00 - 10:00**：已完成
+- [ ] **10:00 - 11:00**：待办
+- [ ] 11:00–12:00 — 另一项
+`)
+    const summary = getCalendarSummary(root, undefined, new Date(2026, 9, 26))
+    expect(summary.events).toHaveLength(2)
+    expect(summary.events.map((e) => e.summary)).toEqual(['待办', '另一项'])
+  })
 })
+

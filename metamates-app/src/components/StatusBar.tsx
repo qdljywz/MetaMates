@@ -53,10 +53,18 @@ const StatusBar: React.FC<StatusBarProps> = ({
     }
 
     void loadCalendar()
-    const timer = setInterval(loadCalendar, 5 * 60 * 1000)
+    // After checking PLAN boxes, refresh soon: focus/visibility + save-driven currentFile churn.
+    const onFocusOrVisible = () => {
+      if (document.visibilityState === 'visible') void loadCalendar()
+    }
+    window.addEventListener('focus', onFocusOrVisible)
+    document.addEventListener('visibilitychange', onFocusOrVisible)
+    const timer = setInterval(loadCalendar, 60_000)
     return () => {
       cancelled = true
       clearInterval(timer)
+      window.removeEventListener('focus', onFocusOrVisible)
+      document.removeEventListener('visibilitychange', onFocusOrVisible)
     }
     // Re-read when today's PLAN may have been edited / focused.
   }, [workspacePath, currentFile, t])

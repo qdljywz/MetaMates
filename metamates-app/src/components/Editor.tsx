@@ -40,6 +40,7 @@ import { filterMarkdownFilesForFileTree } from '../services/vaultPaths'
 import EditorEmptyState from './EditorEmptyState'
 import { storageService } from '../services/storage'
 import { treePathsEqual } from '../utils/fileTreeExpand'
+import { toggleMarkdownCheckboxAtLine } from '../utils/toggleMarkdownCheckbox'
 
 interface EditorProps {
   filePath?: string
@@ -678,13 +679,26 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
   }, [state.workspacePath, i18n.language, dispatch, t, tCommon])
 
   const applyEditorContent = useCallback((nextContent: string) => {
-    if (!viewRef.current) return
-    viewRef.current.dispatch({
-      changes: { from: 0, to: viewRef.current.state.doc.length, insert: nextContent },
-    })
+    if (viewRef.current) {
+      viewRef.current.dispatch({
+        changes: { from: 0, to: viewRef.current.state.doc.length, insert: nextContent },
+      })
+      // updateListener marks dirty + autosave when the view exists
+      return
+    }
     setPreviewContent(nextContent)
     setHasUnsavedChanges(true)
-  }, [])
+    triggerAutoSave()
+  }, [triggerAutoSave])
+
+  const handlePreviewCheckboxToggle = useCallback(
+    (sourceLine: number) => {
+      const next = toggleMarkdownCheckboxAtLine(previewContent, sourceLine)
+      if (next == null || next === previewContent) return
+      applyEditorContent(next)
+    },
+    [previewContent, applyEditorContent],
+  )
 
   const resolveNoteEmbed = useCallback(async (
     note: string,
@@ -1307,6 +1321,7 @@ const Editor: React.FC<EditorProps> = ({ filePath }) => {
               content={previewContent}
               onLinkClick={handleLinkClick}
               onTagClick={handleTagClick}
+              onToggleCheckbox={handlePreviewCheckboxToggle}
               resolveNoteEmbed={resolveNoteEmbed}
             />
           </div>
