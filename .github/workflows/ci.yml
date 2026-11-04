@@ -46,8 +46,9 @@ jobs:
         run: npm run test:ux-guardrails
 
   e2e-smoke:
-    # Requires @playwright/test ≥1.61 (Ubuntu 26.04 / ubuntu-latest Chromium support).
-    runs-on: ubuntu-latest
+    # PW ≥1.61 installs Chromium on 26.04, but Electron+xvfb smoke is still flaky there
+    # (2s exit after upgrade). Keep e2e on 24.04 until Electron runtime is validated on 26.04.
+    runs-on: ubuntu-24.04
     needs: verify
     steps:
       - uses: actions/checkout@v4
