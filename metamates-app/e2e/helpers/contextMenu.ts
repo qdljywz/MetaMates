@@ -1,7 +1,7 @@
 import { type Page } from '@playwright/test'
 
 async function syncTree(page: Page): Promise<void> {
-  await page.locator('[data-testid="file-tree"]').getByRole('button', { name: /sync/i }).click().catch(() => {})
+  await page.locator('[data-testid="file-tree-refresh"]').click().catch(() => {})
   await page.waitForTimeout(600)
 }
 

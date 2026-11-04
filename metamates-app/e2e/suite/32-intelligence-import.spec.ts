@@ -71,7 +71,7 @@ test.describe.serial('@suite Intelligence import', () => {
     const inboxAbs = await seedInboxNote(page, workspace, inboxName, body)
     expect(inboxAbs.length).toBeGreaterThan(0)
 
-    await page.locator('[data-testid="file-tree"]').getByRole('button', { name: /sync/i }).click().catch(() => {})
+    await page.locator('[data-testid="file-tree-refresh"]').click().catch(() => {})
     await page.waitForTimeout(800)
     await ensureFolderExpanded(page, LOG_DIR)
     await ensureFolderExpanded(page, 'Inbox')

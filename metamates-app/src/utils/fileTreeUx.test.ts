@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { removeTreeNodeByPath, patchTreeNodeChildren } from './fileTreeUx'
+import {
+  removeTreeNodeByPath,
+  patchTreeNodeChildren,
+  invalidateLoadedKeysUnder,
+  isStrictTreePathDescendant,
+} from './fileTreeUx'
 
 const WS = 'E:\\Vault'
 
@@ -50,5 +55,17 @@ describe('fileTreeUx', () => {
     expect(patched).toBe(true)
     expect(next[0].children).toHaveLength(1)
     expect(next[0].children![0].key).toBe(`${folderKey}\\new.md`)
+  })
+
+  it('invalidateLoadedKeysUnder clears parent and nested folders', () => {
+    const sandbox = `${WS}\\02\\_MetaMates_E2E`
+    const sub = `${sandbox}\\e2e-drag-sub`
+    const loaded = new Set([sandbox, sub, `${WS}\\other`])
+    invalidateLoadedKeysUnder(loaded, sandbox)
+    expect(loaded.has(sandbox)).toBe(false)
+    expect(loaded.has(sub)).toBe(false)
+    expect(loaded.has(`${WS}\\other`)).toBe(true)
+    expect(isStrictTreePathDescendant(sub, sandbox)).toBe(true)
+    expect(isStrictTreePathDescendant(sandbox, sandbox)).toBe(false)
   })
 })

@@ -451,6 +451,12 @@ test.describe.serial('@suite Full journey (single session)', () => {
       await toggleFileTreeShortcut(page)
     }
 
+    // Expand ancestors first so soft-refresh rehydrates the nested folder after the move.
+    await ensureFolderExpanded(page, PROJECTS_DIR)
+    await ensureFolderExpanded(page, E2E_SANDBOX_DIR_NAME)
+    await refreshFileTree(page)
+    await ensureFolderExpanded(page, E2E_DRAG_SUB_DIR)
+
     fs.renameSync(dragItemPath, movedPath)
     dragItemPath = movedPath
 

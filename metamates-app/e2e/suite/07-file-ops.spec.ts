@@ -23,7 +23,7 @@ import { WORKSPACE_LAYOUT } from '../../src/constants/paths'
 const PROJECTS_DIR = WORKSPACE_LAYOUT.zh.PROJECTS
 
 async function refreshFileTree(page: Page): Promise<void> {
-  await page.locator('[data-testid="file-tree"]').getByRole('button', { name: /sync/i }).click()
+  await page.locator('[data-testid="file-tree-refresh"]').click()
   await page.waitForTimeout(800)
 }
 

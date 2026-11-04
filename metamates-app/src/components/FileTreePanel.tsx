@@ -33,6 +33,7 @@ import ContextMenu from './ContextMenu'
 import DailyNoteCalendar from './DailyNoteCalendar'
 import './FileTreePanel.css'
 import { collectRequiredExpandKeys, getTreeRefreshParentDir, treePathsEqual } from '../utils/fileTreeExpand'
+import { invalidateLoadedKeysUnder } from '../utils/fileTreeUx'
 import { getRenameTabPayload, getTabPathsToCloseForDeletedFile } from '../utils/tabFileSync'
 import {
   getExpandedDirsToRehydrate,
@@ -156,6 +157,9 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
       return
     }
 
+    // Parent re-list replaces nested nodes without their children; clear stale "loaded"
+    // flags so expanded descendants are fetched again (otherwise empty expanded folders).
+    invalidateLoadedKeysUnder(loadedKeysRef.current, dirPath)
     loadedKeysRef.current.add(dirPath)
     attachChildrenToTree(dirPath, children)
   }, [attachChildrenToTree, bumpLoadGeneration, mapFilesToTreeNodes, state.workspacePath])
@@ -224,7 +228,8 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
     if (toLoad.length > 0) {
       void Promise.all(toLoad.map((dir) => loadNodeChildren(dir)))
     }
-  }, [expandedKeys, loadNodeChildren, state.workspacePath])
+    // treeData: parent re-list can invalidate loadedKeys; re-check expanded folders.
+  }, [expandedKeys, loadNodeChildren, state.workspacePath, treeData])
 
   useEffect(() => {
     if (!state.workspacePath) return
@@ -967,11 +972,23 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ collapsed, refreshKey, on
         <div className="file-tree-panel-header">
           <Button
             type="text"
-            icon={<SyncOutlined spin={reinitLoading} />}
+            icon={<SyncOutlined />}
+            data-testid="file-tree-refresh"
+            onClick={() => {
+              if (state.workspacePath) void refreshExpandedTree()
+            }}
+            size="small"
+            title={t('refresh')}
+            aria-label={t('refresh')}
+          />
+          <Button
+            type="text"
+            icon={<FolderAddOutlined />}
             onClick={handleReinitWorkspace}
             loading={reinitLoading}
             size="small"
             title={t('reinitWorkspace')}
+            aria-label={t('reinitWorkspace')}
           />
           {legacyPaths.length > 0 && (
             <Button

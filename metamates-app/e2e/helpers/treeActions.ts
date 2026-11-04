@@ -5,8 +5,15 @@ function asRegex(name: string): RegExp {
 }
 
 export async function refreshFileTree(page: Page): Promise<void> {
-  await page.locator('[data-testid="file-tree"]').getByRole('button', { name: /sync/i }).click()
-  await page.waitForTimeout(1200)
+  const tree = page.locator('[data-testid="file-tree"]')
+  const softRefresh = tree.locator('[data-testid="file-tree-refresh"]')
+  if (await softRefresh.isVisible().catch(() => false)) {
+    await softRefresh.click()
+  } else {
+    // Legacy header used Sync icon for workspace reinit; prefer soft refresh when present.
+    await tree.getByRole('button', { name: /refresh|刷新|sync/i }).first().click()
+  }
+  await page.waitForTimeout(800)
 }
 
 export async function ensureFolderExpanded(page: Page, folderName: string): Promise<void> {
@@ -41,20 +48,27 @@ export async function ensureTreeFileVisible(
     for (const folder of parentFolders) {
       await ensureFolderExpanded(page, folder)
     }
-    if (await fileTitle.first().isVisible().catch(() => false)) return
+    // Expand only waits for aria-expanded; children load async — poll briefly.
+    try {
+      await expect(fileTitle.first()).toBeVisible({ timeout: 3_000 })
+      return
+    } catch {
+      /* retry collapse/expand */
+    }
 
     const innerFolder = parentFolders[parentFolders.length - 1]
     if (!innerFolder) continue
 
     const row = page.getByRole('treeitem', { name: asRegex(innerFolder) }).first()
+    if (!(await row.isVisible().catch(() => false))) continue
     const switcher = row.locator('.ant-tree-switcher').first()
     const expanded = await row.getAttribute('aria-expanded')
     if (expanded === 'true') {
       await switcher.click({ force: true })
-      await expect(row).toHaveAttribute('aria-expanded', 'false')
+      await page.waitForTimeout(250)
     }
     await switcher.click({ force: true })
-    await expect(row).toHaveAttribute('aria-expanded', 'true')
+    await expect(row).toHaveAttribute('aria-expanded', 'true', { timeout: 10_000 })
   }
 
   await expect(fileTitle.first()).toBeVisible({ timeout: 20_000 })

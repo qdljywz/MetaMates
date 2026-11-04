@@ -68,7 +68,7 @@ test.describe.serial('@suite Document import extension', () => {
     page = await resolveMainWindow(app)
     await waitForAppShell(page)
 
-    await page.locator('[data-testid="file-tree"]').getByRole('button', { name: /sync/i }).click().catch(() => {})
+    await page.locator('[data-testid="file-tree-refresh"]').click().catch(() => {})
     await page.waitForTimeout(800)
 
     await rightClickTreeTitle(page, PDF_NAME)

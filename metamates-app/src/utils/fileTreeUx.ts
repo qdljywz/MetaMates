@@ -3,7 +3,7 @@
  */
 
 import type { Key } from 'react'
-import { collectRequiredExpandKeys, treePathsEqual } from './fileTreeExpand'
+import { collectRequiredExpandKeys, normalizeTreePath, treePathsEqual } from './fileTreeExpand'
 
 /** Treat only explicit file leaves as openable; folders may omit isLeaf while lazy-loading. */
 export function isTreeFolderNode(node: { isLeaf?: boolean }): boolean {
@@ -34,6 +34,26 @@ export function getExpandedDirsToRehydrate(
   return [...expandedDirs]
     .filter((dir) => !treePathsEqual(dir, workspacePath))
     .sort((a, b) => a.length - b.length)
+}
+
+/** True when `childPath` is strictly inside `parentPath` (not equal). */
+export function isStrictTreePathDescendant(childPath: string, parentPath: string): boolean {
+  const child = normalizeTreePath(childPath).toLowerCase()
+  const parent = normalizeTreePath(parentPath).toLowerCase()
+  if (!child || !parent || child === parent) return false
+  return child.startsWith(`${parent}\\`) || child.startsWith(`${parent}/`)
+}
+
+/**
+ * After a directory is re-listed, nested folder nodes are replaced without children.
+ * Drop loaded flags for the dir and its descendants so expanded nested folders reload.
+ */
+export function invalidateLoadedKeysUnder(loadedKeys: Set<string>, parentDir: string): void {
+  for (const key of [...loadedKeys]) {
+    if (treePathsEqual(key, parentDir) || isStrictTreePathDescendant(key, parentDir)) {
+      loadedKeys.delete(key)
+    }
+  }
 }
 
 /**
