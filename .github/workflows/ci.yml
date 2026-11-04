@@ -46,8 +46,8 @@ jobs:
         run: npm run test:ux-guardrails
 
   e2e-smoke:
-    # @playwright/test ≥1.61 supports ubuntu26.04 Chromium; keep helpers on ESM imports (no createRequire .mjs).
-    runs-on: ubuntu-latest
+    # PW≥1.61 + ESM helpers install on 26.04; Electron smoke still more stable on 24.04 for now.
+    runs-on: ubuntu-24.04
     needs: verify
     steps:
       - uses: actions/checkout@v4
