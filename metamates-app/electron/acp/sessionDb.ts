@@ -575,8 +575,6 @@ export function getConversationByBackend(backend: string, workspacePath = ''): C
     .get(backend, normalizedWorkspace) as Record<string, unknown> | undefined
   if (exact) return rowToConversation(exact)
 
-  if (!normalizedWorkspace) return null
-
   const rows = db
     .prepare(`
       SELECT * FROM conversations
@@ -584,8 +582,18 @@ export function getConversationByBackend(backend: string, workspacePath = ''): C
       ORDER BY updated_at DESC
     `)
     .all(backend) as Array<Record<string, unknown>>
-  const matched = rows.find((row) => workspacePathsEqual(String(row.workspace_path || ''), normalizedWorkspace))
-  return matched ? rowToConversation(matched) : null
+
+  if (normalizedWorkspace) {
+    const matched = rows.find((row) =>
+      workspacePathsEqual(String(row.workspace_path || ''), normalizedWorkspace),
+    )
+    if (matched) return rowToConversation(matched)
+  }
+
+  // Vault-local DB is already per-workspace. Legacy/empty workspace_path rows or
+  // path-format drift (E:\MyM2 vs E:/MyM2) must not hide chat history.
+  const fallback = rows[0]
+  return fallback ? rowToConversation(fallback) : null
 }
 
 export function getLatestConversationByBackend(backend: string, workspacePath = ''): Conversation | null {

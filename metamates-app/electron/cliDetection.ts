@@ -3,7 +3,7 @@
  */
 
 import { acpDetector, type DetectedCliAgent } from './acp/AcpDetector'
-import { getEnhancedEnv, invalidateEnhancedEnvCache } from './shellEnv'
+import { getEnhancedEnv, invalidateEnhancedEnvCache, refreshEnhancedEnvFromShell } from './shellEnv'
 import { POTENTIAL_ACP_CLIS } from './shared/acpRegistry'
 import { resolveBundledScript } from './shared/appPaths'
 import { execSync } from 'child_process'
@@ -12,7 +12,15 @@ export type { DetectedCliAgent }
 
 export function refreshPathEnv(): NodeJS.ProcessEnv {
   invalidateEnhancedEnvCache()
+  // Kick async shell PATH enrichment; sync callers get a fast PATH immediately.
+  void refreshEnhancedEnvFromShell()
   return getEnhancedEnv()
+}
+
+/** Awaitable PATH refresh before install / forced re-detect. */
+export async function refreshPathEnvAsync(): Promise<NodeJS.ProcessEnv> {
+  invalidateEnhancedEnvCache()
+  return refreshEnhancedEnvFromShell()
 }
 
 export function invalidateDetectionEnvCache(): void {

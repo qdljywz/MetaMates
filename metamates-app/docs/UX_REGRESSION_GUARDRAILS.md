@@ -2,7 +2,7 @@
 
 用户不应成为专职测试。凡修复过的启动/工作区/进程类 UX 问题，必须满足本页规则，**禁止在无测试、无说明的情况下改回旧行为**。
 
-**本页是唯一编号清单（UX-01～UX-38）。** 打包专区 UX-31～38 是近期补充，**不替代** UX-01～30（含启动动画 **5s 一圈 / 5.5s 进主界面**、工作区、文件树等）。
+**本页是唯一编号清单（UX-01～UX-41）。** 打包专区 UX-31～38 是近期补充，**不替代** UX-01～30（含启动动画 **5s 一圈 / 5.5s 进主界面**、工作区、文件树等）。UX-39～41 钉死状态栏日程 / 聊天历史 / 切回前台假死。
 
 ## 总览（按领域）
 
@@ -10,11 +10,11 @@
 |------|-----|--------|
 | **启动 / 首屏** | UX-01～03, UX-07 | Logo **5s** 描边动画 → **5.5s** 固定进主界面（`STARTUP_FORCE_ENTER_MS`）；**不等** Agent；`initApp` 不因 i18n 重跑 |
 | **工作区 / 向导** | UX-04～05, UX-12, UX-23, UX-29 | 有库不弹选择器；欢迎向导不骚扰老用户；切库脏检查 |
-| **进程 / 窗口** | UX-06, UX-07, UX-31 | Dev 不误杀 Vite；窗口先于 ACP；**打包**不误杀 renderer（灰屏） |
+| **进程 / 窗口** | UX-06, UX-07, UX-31, UX-41 | Dev 不误杀 Vite；窗口先于 ACP；**打包**不误杀 renderer（灰屏）；**长后台切回不假死** |
 | **文件树 / 标签 / 编辑器** | UX-08～11, UX-14, UX-16 | 新建即见、展开保留、打开必有标签、关标签确认、幽灵标签清理 |
 | **思考引擎 / 空态** | UX-13, UX-21, UX-24, UX-27, UX-33～34 | 引擎优先空态；无 Agent 引导；**不反复转圈**；后台 rethink 不弹 emptyTurn |
-| **Agent / slash 写回** | UX-15, UX-17, UX-20～22, UX-25 | /today、/graduate 写盘、开标签、Inbox 归档 |
-| **日历 / 时区 / 捕获** | UX-18～19 | IANA 时区与 PLAN；Vault API capture |
+| **Agent / slash 写回** | UX-15, UX-17, UX-20～22, UX-25, UX-40 | /today、/graduate 写盘、开标签、Inbox 归档；**vault 历史可 hydrate** |
+| **日历 / 时区 / 捕获** | UX-18～19, UX-39 | IANA 时区与 PLAN；Vault API capture；**状态栏日程解析 checkbox+破折号** |
 | **图谱 / 命令面板** | UX-26, UX-29 | 3D 图谱；命令面板切工作区 |
 | **打包 / 插件** | UX-28, UX-31～38 | 空 userData 建库；portable-green；bundled 插件；PDF/Whisper |
 | **技能 / 内置数据** | UX-30 | slash 技能与 `inits/zh` 同步 |
@@ -39,6 +39,9 @@
 | 子文件夹新建笔记 | `e2e/suite/02-file-tree.spec.ts` 或 `06-full-journey.spec.ts` |
 | 打包空态转圈 | `e2e/suite/30-packaged-empty-state-no-spinner.spec.ts` |
 | 打包插件/PDF/语音 | `e2e/suite/31-packaged-plugins-functional.spec.ts` |
+| 状态栏「今日 N 项日程」为 0 | `electron/calendar/planTimeBlocks.test.ts`（UX-39） |
+| CLI 聊天历史空白 | `e2e/suite/29-chat-history-hydrate.spec.ts`（UX-40） |
+| 长时间后台切回假死 | `e2e/suite/36-focus-thaw.spec.ts`（UX-41） |
 
 #### Agent 配额（默认测试不消耗 CLI）
 
@@ -139,6 +142,16 @@ CodeBuddy / Gemini / Claude 实连会话消耗用户配额，视为稀缺资源�
 | UX-37 | 打包 E2E 解析「今日」**禁止** renderer 动态 `import('/src/...')` | `e2e/helpers/agentLiveClaude.ts` `getEffectiveTodayFromApp` | `npm run test:e2e:packaged:agent-live`（opt-in，耗 CLI 配额） |
 | UX-38 | 绿色便携版 `resources/plugin-zips/` 须含 document-import + offline-speech 两个 zip | `electron-builder.yml` + `verify-portable-pack-prereqs.mjs` | `npm run electron:build:win:portable` 前置校验 |
 
+### 日程 / 历史 / 切回前台（UX-39～41）
+
+| ID | 行为 | 原因（禁止回退） | 实现锚点 | 测试 |
+|----|------|------------------|----------|------|
+| UX-39 | 状态栏「今日 N 项日程」须解析 PLAN 中 `- [ ] 09:00–10:00 — 标题`（en-dash 时段 + em-dash 标题，可含 checkbox） | 旧正则过严，MyM2 真实 PLAN 行匹配失败 → 永远显示 0 | `electron/calendar/planTimeBlocks.ts` `TIME_BLOCK_CHECKBOX_LOOSE` | `electron/calendar/planTimeBlocks.test.ts`（含 MyM2 checkbox+dash case） |
+| UX-40 | 打开 vault 后 CLI 聊天区须 hydrate `{vault}/.metamates/conversations.sqlite`；`workspace_path` 为空/路径格式漂移时仍回退到该 backend 最新会话；**仅当真正拉到消息**才标记 `historyHydrated`（错误气泡不得锁死空历史） | 精确 `workspace_path` 匹配失败返回 null；错误/超时气泡被当成已缓存 → 历史永久空白 | `sessionDb.getConversationByBackend` fallback；`AgentChatPanel.loadAgentHistory` + `historyHydration.ts` | `npm run test:e2e:chat-history`；`src/utils/historyHydration.test.ts`；`electron/acp/sessionDb.historyFallback.test.ts` |
+| UX-41 | 长时间后台再 Alt-Tab / 还原后，**首击数秒内可响应**；焦点回调 **禁止** 强制 `acp.refreshAgents`（force CLI 重扫）；`getEnhancedEnv` **禁止** 在主进程同步 `execFileSync` PowerShell/login-shell | 焦点后 force 检测 → 主进程同步 PowerShell PATH（可达数秒）→ 整窗假死；长离开时 `executeJavaScript` softRepaint 加重唤醒排队 | `AgentChatPanel` focus 仅延迟轻量 `syncAllAgentStatuses`；`shellEnv.ts` 快路径 + `refreshEnhancedEnvFromShell` 异步；`main.ts` 长离开跳过 softRepaint + `disable-background-timer-throttling` | `npm run test:e2e:focus-thaw`；`electron/shellEnv.test.ts` |
+
+**UX-41 修改前自检：** 不要在 `window`/`BrowserWindow` `focus`/`visibilitychange` 上同步跑 `refreshAgents`、force `detectInstalledCliAgents`、或任何 `execFileSync` shell PATH 探测。PATH 重扫只属于设置 / CLI 安装成功后的显式刷新。
+
 改打包/空态/插件相关文件前，先读本页 **UX-31～38** 与上文「打包修改自检」。
 
 ## 修改前自检（Agent / 开发者）
@@ -146,9 +159,11 @@ CodeBuddy / Gemini / Claude 实连会话消耗用户配额，视为稀缺资源�
 - [ ] 是否动到 `App.tsx` 启动、`startupGate.ts`、`processTreeKill.ts`、`main.ts` 窗口时机？
 - [ ] 是否动到 `FileTreePanel.tsx`、`appStore.ts`（标签/当前文件）、`Editor.tsx`（链接选择器）、`vaultPaths.ts`？
 - [ ] 是否动到 `useEmptyStatePlanner.ts`、`ensureBundledPlugins.ts`、`AcpConnection.ts`（打包/空态/插件）？
+- [ ] 是否动到 `planTimeBlocks.ts`（日程）、`sessionDb.ts` / `loadAgentHistory`（历史）、`shellEnv.ts` / 焦点回调（假死）？→ 见 UX-39～41
 - [ ] 若动到，是否更新/通过 `test:ux-guardrails` 中对应单测？
 - [ ] 文件树/标签/链接 UX 改动是否跑 `e2e/file-tree-ux-guardrails.spec.ts` 与 `e2e/editor-link-ux-guardrails.spec.ts`？
 - [ ] 打包/进程/空态/插件改动是否跑对应 **packaged spec**（见上表 UX-31～38）？
+- [ ] 日程/历史/假死改动是否跑 `planTimeBlocks.test.ts` / `test:e2e:chat-history` / `test:e2e:focus-thaw`？
 - [ ] 是否说明「为何不会重现用户报告的卡死/重复弹窗/灰屏」？
 
 ## 命令
@@ -173,6 +188,9 @@ npm run verify:acceptance-portable       # UX-31、UX-35
 npm run test:e2e:packaged:empty-state    # UX-33、UX-34
 npm run test:e2e:packaged:plugins        # UX-35、UX-36
 npm run verify:document-import-real      # PDF/DOCX 导入管线
+npx vitest run electron/calendar/planTimeBlocks.test.ts   # UX-39 日程
+npm run test:e2e:chat-history            # UX-40 聊天历史
+npm run test:e2e:focus-thaw              # UX-41 切回前台假死
 ```
 
 `test:ux-guardrails` 覆盖启动、进程、文件树、标签、链接选择器的 **单测**。  
@@ -185,5 +203,5 @@ E2E 默认工作区为 **`e2e/.workspace/vault`**（首次从 `inits/zh` 复制�
 1. 把策略收到 `src/utils/*.ts` 或 `electron/**/*.ts`（可单测的纯函数）。
 2. 写 `src/test/*.test.ts` 或 `e2e/suite/*.spec.ts`（打包行为优先 packaged config）。
 3. 关键路径补 `e2e/*-guardrails.spec.ts` 或 `e2e/suite/3x-packaged-*.spec.ts`。
-4. 在本表增加一行 ID（UX-31 起为打包专区），并在 PR 描述中引用。
-5. 若涉及 `main.ts` / 插件 / 空态，同步更新本页 UX 表与「打包修改自检」小节。
+4. 在本表增加一行 ID（UX-31 起为打包专区；UX-39～41 为日程/历史/假死），并在 PR 描述中引用。
+5. 若涉及 `main.ts` / 插件 / 空态 / 焦点路径 / PLAN 解析 / sessionDb，同步更新本页 UX 表与「打包修改自检」小节。

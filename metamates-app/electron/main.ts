@@ -141,6 +141,7 @@ if (process.platform === 'win32' && process.env.METAMATES_DISABLE_GPU === '1') {
 if (process.platform === 'win32') {
   app.commandLine.appendSwitch('disable-renderer-backgrounding')
   app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+  app.commandLine.appendSwitch('disable-background-timer-throttling')
 }
 
 const gotSingleInstanceLock = skipSingleInstanceLock || app.requestSingleInstanceLock()
@@ -489,13 +490,20 @@ function createWindow() {
       )
       .catch(() => {})
   }
+  /** Short Alt-Tab: compositor may be stale. Long away: skip JS kick — it queues behind OS thaw and makes 假死 worse. */
+  const SHORT_OCCLUSION_MS = 60_000
   mainWindow.on('blur', () => {
     lastBlurAtMs = Date.now()
   })
+  const shouldSoftRepaint = (awayMs: number) => {
+    if (awayMs > 0 && awayMs < 400) return false
+    if (awayMs >= SHORT_OCCLUSION_MS) return false
+    return true
+  }
   const repaintOnFocus = () => {
     if (!mainWindow || mainWindow.isDestroyed()) return
     const awayMs = lastBlurAtMs > 0 ? Date.now() - lastBlurAtMs : 0
-    if (awayMs > 0 && awayMs < 400) return
+    if (!shouldSoftRepaint(awayMs)) return
     if (repaintTimer) clearTimeout(repaintTimer)
     repaintTimer = setTimeout(() => {
       repaintTimer = null
@@ -505,7 +513,7 @@ function createWindow() {
   const repaintOnRestoreOrShow = () => {
     if (!mainWindow || mainWindow.isDestroyed()) return
     const awayMs = lastBlurAtMs > 0 ? Date.now() - lastBlurAtMs : 0
-    if (awayMs > 0 && awayMs < 400) return
+    if (!shouldSoftRepaint(awayMs)) return
     if (repaintTimer) {
       clearTimeout(repaintTimer)
       repaintTimer = null

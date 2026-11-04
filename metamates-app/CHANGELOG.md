@@ -4,7 +4,13 @@
 
 ## [Unreleased]
 
-（尚未发布的改动写在这里。）
+### 修复
+
+- **UX-39** 状态栏日程：解析 PLAN 中 `- [ ] 09:00–10:00 — 标题`（checkbox + en/em dash），避免「今日 0 项日程」
+- **UX-40** CLI 聊天历史：vault SQLite `workspace_path` 空/漂移时回退最新会话；错误气泡不再锁死空历史
+- **UX-41** 长后台切回假死：焦点不再强制 CLI 重扫；主进程 PATH 探测改为异步；长离开跳过 softRepaint
+
+详见 `docs/UX_REGRESSION_GUARDRAILS.md` UX-39～41。
 
 ---
 
@@ -27,7 +33,7 @@
 - `inits/zh`、`inits/en` 工作区模版；`sync:inits-to-app` / `sync:inits-to-workspace`
 - 插件运行时（`electron/pluginRuntime/`）：设置页安装、GitHub Release zip、bundled 自动安装
 - E2E 套件（启动、文件树、编辑器信任、Agent 写回、图谱、无 CLI、**打包空态/插件**）
-- UX 回归护栏 **UX-01～UX-38**（`docs/UX_REGRESSION_GUARDRAILS.md`）
+- UX 回归护栏 **UX-01～UX-41**（`docs/UX_REGRESSION_GUARDRAILS.md`）
 - 启动动画合同：**5s 描边一圈 + 5.5s 固定进主界面**（`STARTUP_FORCE_ENTER_MS`）
 - 打包版：12s 不灰屏、空态不反复转圈、silent end-turn、portable-green bundled 插件
 - CI（`verify:round`、`test:ux-guardrails`、smoke E2E）、`release-pack` 发版工作流

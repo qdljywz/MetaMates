@@ -26,7 +26,7 @@ npm run electron:build:win:portable
 npm run build && npm run electron:compile && npm run patch:portable-dist
 ```
 
-钉死的打包行为见 **`docs/UX_REGRESSION_GUARDRAILS.md` UX-31～UX-38**（打包专区，含灰屏、空态、**按需插件安装**）。
+钉死的打包行为见 **`docs/UX_REGRESSION_GUARDRAILS.md` UX-31～UX-38**（打包专区，含灰屏、空态、**按需插件安装**）；日程/历史/假死见 **UX-39～41**。
 
 ## 发布前验收（必须事项）
 

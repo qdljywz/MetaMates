@@ -14,7 +14,7 @@ import {
   resolveSpawnConfig,
   type AcpCliDefinition,
 } from '../shared/acpRegistry'
-import { getEnhancedEnv, invalidateEnhancedEnvCache } from '../shellEnv'
+import { getEnhancedEnv, invalidateEnhancedEnvCache, refreshEnhancedEnvFromShell } from '../shellEnv'
 
 const execAsync = promisify(exec)
 const execFileAsync = promisify(execFile)
@@ -47,6 +47,8 @@ class AcpDetector {
       invalidateEnhancedEnvCache()
       this.isDetected = false
       this.npmInstalledCache.clear()
+      // Async shell PATH merge — never execFileSync PowerShell on main (UI 假死).
+      await refreshEnhancedEnvFromShell()
     }
 
     console.log('[ACP] Starting agent detection...')

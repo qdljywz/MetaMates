@@ -268,7 +268,6 @@ const AgentChatPanel: React.FC = () => {
   const connectInBackgroundRef = useRef<(backend: string, options?: { freshSession?: boolean }) => Promise<void>>(async () => {})
   const warmupPromiseRef = useRef<Map<string, Promise<void>>>(new Map())
   const warmupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastAgentRefreshRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptRef = useRef(0)
   const messagesRef = useRef<Map<string, Message[]>>(new Map())
@@ -1052,8 +1051,8 @@ const AgentChatPanel: React.FC = () => {
         }
         return
       }
-      historyHydratedRef.current.add(backend)
       if (!result?.messages?.length) {
+        // Empty is not authoritative (late DB bind / path drift) — keep retryable.
         applyHistoryMeta(backend, result?.total, result?.hasMore ?? false)
         applyHistoryBatch(backend, [], result?.hasMore ?? false)
         if (typeof window !== 'undefined') {
@@ -1070,6 +1069,7 @@ const AgentChatPanel: React.FC = () => {
         return
       }
 
+      historyHydratedRef.current.add(backend)
       applyHistoryMeta(backend, result.total, result.hasMore)
       applyHistoryBatch(backend, result.messages as Message[], result.hasMore)
       if (typeof window !== 'undefined') {
@@ -1916,45 +1916,40 @@ const AgentChatPanel: React.FC = () => {
     })()
   }, [currentBackend, agentStatus, warmupPhase, sessionId, finalizeBackendSession])
 
-  // Re-scan PATH when user returns (e.g. installed a CLI while app was open)
+  /**
+   * After long background, Windows/Chromium need a beat to paint + accept input.
+   * Do NOT call acp.refreshAgents (force CLI re-detect) on focus: that used to
+   * run sync PowerShell PATH probes on the main process and freeze the UI for
+   * several seconds (假死). PATH re-scan belongs in Settings / CLI install only.
+   */
   useEffect(() => {
-    const refreshAgentList = async () => {
-      const refresh = window.electronAPI?.acp?.refreshAgents
-      if (!refresh) return
-      try {
-        const agents = await refresh()
-        if (!agents || !Array.isArray(agents)) return
-        applyDetectedAgents(agents as AgentInfo[])
-      } catch {
-        // ignore focus refresh errors
-      }
-      void syncAllAgentStatuses()
-    }
+    let deferTimer: ReturnType<typeof setTimeout> | null = null
     const onFocus = () => {
-      const now = Date.now()
-      if (now - lastAgentRefreshRef.current < 30_000) {
+      if (deferTimer) clearTimeout(deferTimer)
+      deferTimer = setTimeout(() => {
+        deferTimer = null
         void syncAllAgentStatuses()
-      } else {
-        lastAgentRefreshRef.current = now
-        void refreshAgentList()
-      }
-      void (async () => {
-        const check = window.electronAPI?.acp?.checkGeminiAuth
-        if (!check) return
-        try {
-          const { authenticated } = await check()
-          if (!authenticated) return
-          if (agentStatusRef.current.get('gemini') !== 'auth_required') return
-          await connectInBackgroundRef.current?.('gemini', { freshSession: true })
-          void syncAllAgentStatuses()
-        } catch {
-          // ignore gemini auth refresh errors
-        }
-      })()
+        void (async () => {
+          const check = window.electronAPI?.acp?.checkGeminiAuth
+          if (!check) return
+          try {
+            const { authenticated } = await check()
+            if (!authenticated) return
+            if (agentStatusRef.current.get('gemini') !== 'auth_required') return
+            await connectInBackgroundRef.current?.('gemini', { freshSession: true })
+            void syncAllAgentStatuses()
+          } catch {
+            // ignore gemini auth refresh errors
+          }
+        })()
+      }, 800)
     }
     window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
-  }, [applyDetectedAgents, syncAllAgentStatuses])
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      if (deferTimer) clearTimeout(deferTimer)
+    }
+  }, [syncAllAgentStatuses])
 
   useEffect(() => {
     if (!state.workspacePath || state.workspacePath === workspacePathRef.current) {

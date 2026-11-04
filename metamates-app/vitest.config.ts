@@ -12,6 +12,8 @@ export default defineConfig({
       'electron/calendar/planTimeBlocks.test.ts',
       'electron/calendar/calendarSummary.test.ts',
       'electron/acp/streamHang.bench.test.ts',
+      'electron/acp/sessionDb.historyFallback.test.ts',
+      'electron/shellEnv.test.ts',
     ],
     exclude: ['**/node_modules/**', '**/dist/**'],
     environmentMatchGlobs: [

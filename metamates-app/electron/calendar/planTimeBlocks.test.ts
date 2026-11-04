@@ -99,6 +99,29 @@ describe('parsePlanTimeBlocks', () => {
     expect(blocks[0].summary).toContain('nanoGPT')
     expect(blocks[1].summary).toContain('代理商培训')
   })
+
+  it('parses MyM2 checkbox rows with en-dash range and em-dash title', () => {
+    const md = `# 2026-11-04 周三 PLAN
+
+⏰ 时间安排（1番茄钟=25分钟）
+
+**上午**
+- [ ] 09:00–10:00 — 🟡 **MiniMind过一遍**（约2个番茄钟）
+- [ ] 10:00–11:00 — 🟡 **nanoGPT收尾 / HTML教学内容完善**（约2个番茄钟）
+- [ ] 12:00–13:00 — 午饭
+
+📋 待办事项
+- [ ] 🟡 MiniMind过一遍（不应计入日程）
+`
+    const blocks = parsePlanTimeBlocks(md)
+    expect(blocks).toHaveLength(3)
+    expect(blocks[0]).toMatchObject({
+      time: '09:00–10:00',
+      summary: expect.stringContaining('MiniMind'),
+      done: false,
+    })
+    expect(blocks[2].summary).toBe('午饭')
+  })
 })
 
 describe('stripPlanBlockSummary', () => {

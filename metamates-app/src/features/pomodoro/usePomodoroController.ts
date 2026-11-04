@@ -133,10 +133,12 @@ export function usePomodoroController(options: {
   }, [refreshStats])
 
   // Overnight / long-lived sessions: recompute "today" when day rolls or window regains focus.
+  // Defer focus/visibility refresh so it does not compete with first paint after long background.
   useEffect(() => {
     if (!options.workspacePath) return
     let cancelled = false
     let inFlight = false
+    let deferTimer: ReturnType<typeof setTimeout> | null = null
     const safeRefresh = () => {
       if (cancelled || inFlight) return
       inFlight = true
@@ -144,17 +146,25 @@ export function usePomodoroController(options: {
         inFlight = false
       })
     }
+    const deferredRefresh = () => {
+      if (deferTimer) clearTimeout(deferTimer)
+      deferTimer = setTimeout(() => {
+        deferTimer = null
+        safeRefresh()
+      }, 900)
+    }
     const onVisible = () => {
-      if (document.visibilityState === 'visible') safeRefresh()
+      if (document.visibilityState === 'visible') deferredRefresh()
     }
     document.addEventListener('visibilitychange', onVisible)
-    window.addEventListener('focus', safeRefresh)
+    window.addEventListener('focus', deferredRefresh)
     const id = window.setInterval(safeRefresh, 60_000)
     return () => {
       cancelled = true
       document.removeEventListener('visibilitychange', onVisible)
-      window.removeEventListener('focus', safeRefresh)
+      window.removeEventListener('focus', deferredRefresh)
       window.clearInterval(id)
+      if (deferTimer) clearTimeout(deferTimer)
     }
   }, [options.workspacePath, refreshStats])
 

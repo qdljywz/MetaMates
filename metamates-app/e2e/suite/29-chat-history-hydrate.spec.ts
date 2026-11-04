@@ -56,6 +56,15 @@ for backend in backends:
     'INSERT INTO conversations (id, backend, name, extra, created_at, updated_at, workspace_path) VALUES (?,?,?,?,?,?,?)',
     (cid, backend, backend, '{}', now, now, ws),
   )
+  # Also seed a legacy empty-path row that must not win over the matching vault row,
+  # but proves the DB shape users hit before path fallback.
+  legacy = f'{backend}-e2e-legacy-empty-path'
+  c.execute('DELETE FROM messages WHERE conversation_id=?', (legacy,))
+  c.execute('DELETE FROM conversations WHERE id=?', (legacy,))
+  c.execute(
+    'INSERT INTO conversations (id, backend, name, extra, created_at, updated_at, workspace_path) VALUES (?,?,?,?,?,?,?)',
+    (legacy, backend, backend, '{}', now - 10_000, now - 10_000, ''),
+  )
   mid = f'e2e-hist-{backend}'
   c.execute(
     'INSERT INTO messages (id, conversation_id, type, content, position, status, msg_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)',

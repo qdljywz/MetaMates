@@ -31,9 +31,9 @@ function isTimeSectionHeading(trimmed: string): boolean {
 const TIME_BLOCK_CHECKBOX =
   /^[-*]\s+\[([ xX])\]\s+\*\*(\d{1,2}:\d{2})\s*[-–—~～]\s*(\d{1,2}:\d{2})\*\*\s*[:：]?\s*(.*)$/
 
-/** `- [ ] 09:00 - 11:00：标题` */
+/** `- [ ] 09:00 - 11:00：标题` or `- [ ] 09:00–10:00 — 标题` (MyM2 checkbox + dash) */
 const TIME_BLOCK_CHECKBOX_LOOSE =
-  /^[-*]\s+\[([ xX])\]\s+(\d{1,2}:\d{2})\s*[-–—~～]\s*(\d{1,2}:\d{2})\s*[:：]\s*(.+)$/
+  /^[-*]\s+\[([ xX])\]\s+(\d{1,2}:\d{2})\s*[-–—~～]\s*(\d{1,2}:\d{2})\s*[—–\-:：]\s*(.+)$/
 
 /** `- 09:00–12:00 — 标题` or `- 09:00-12:00: 标题` (MyM2) */
 const TIME_RANGE_PLAIN =

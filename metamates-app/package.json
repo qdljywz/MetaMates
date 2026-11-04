@@ -123,6 +123,7 @@
     "test:e2e:lazy-warmup": "node scripts/e2e-run-spec.mjs e2e/lazy-warmup.spec.ts",
     "test:e2e:pomodoro": "node scripts/e2e-run-spec.mjs e2e/suite/34-pomodoro.spec.ts",
     "test:e2e:boot-splash": "node scripts/e2e-run-spec.mjs e2e/suite/35-boot-splash.spec.ts",
+    "test:e2e:focus-thaw": "node scripts/e2e-run-spec.mjs e2e/suite/36-focus-thaw.spec.ts",
     "verify:theme-preset-startup": "node scripts/verify-theme-preset-startup.mjs",
     "verify:focus-restore-white": "node scripts/verify-focus-restore-white.mjs",
     "verify:startup-ux": "node scripts/verify-packaged-startup-ux.mjs",
